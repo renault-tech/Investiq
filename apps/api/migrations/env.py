@@ -8,6 +8,7 @@ from src.database import Base
 # Import all models so Base.metadata is populated
 # These imports will be added as models are created
 # import src.auth.models  # noqa
+import src.auth.models  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
