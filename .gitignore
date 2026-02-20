@@ -8,3 +8,12 @@ dist/
 .turbo/
 .venv/
 *.egg-info/
+
+.env.*
+*.pem
+*.key
+*.crt
+.pytest_cache/
+coverage/
+*.log
+.DS_Store
