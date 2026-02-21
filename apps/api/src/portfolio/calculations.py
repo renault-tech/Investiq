@@ -72,7 +72,7 @@ def calculate_position_pnl(
     if avg_cost == _ZERO:
         pnl_percent = _ZERO
     else:
-        pnl_percent = pct_change(avg_cost, current_price)
+        pnl_percent = pct_change(current_price, avg_cost)
 
     return round_financial(pnl_absolute), round_financial(pnl_percent)
 
@@ -146,7 +146,7 @@ def calculate_portfolio_summary(positions: list[dict]) -> dict:
     if total_invested == _ZERO:
         total_pnl_percent = _ZERO
     else:
-        total_pnl_percent = pct_change(total_invested, total_market_value)
+        total_pnl_percent = pct_change(total_market_value, total_invested)
 
     return {
         "total_invested_brl": round_financial(total_invested),
