@@ -135,6 +135,7 @@ def upgrade() -> None:
         sa.Column('rate', sa.Numeric(18, 8), nullable=False),
         sa.Column('date', sa.Date(), nullable=False),
         sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('NOW()'), nullable=False),
+        sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('NOW()'), nullable=False),
         sa.UniqueConstraint('from_currency', 'to_currency', 'date', name='uq_fx_rates_pair_date'),
     )
     op.create_index('ix_fx_rates_pair_date', 'fx_rates', ['from_currency', 'to_currency', 'date'])
