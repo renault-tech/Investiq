@@ -1,7 +1,7 @@
 """Portfolio SQLAlchemy models."""
 from decimal import Decimal
 
-from sqlalchemy import Column, String, Numeric, Boolean, Text, ForeignKey, Date, UniqueConstraint
+from sqlalchemy import Column, String, Numeric, Boolean, Text, ForeignKey, Date, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -19,7 +19,7 @@ class Asset(Base):
     asset_type = Column(String(30), nullable=False)
     country = Column(String(10), nullable=True)
     sector = Column(String(100), nullable=True)
-    currency = Column(String(10), nullable=False, default="BRL")
+    currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
     last_price = Column(Numeric(18, 8), nullable=True)
     last_price_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
@@ -36,8 +36,8 @@ class Portfolio(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text(), nullable=True)
-    currency = Column(String(10), nullable=False, default="BRL")
-    is_default = Column(Boolean(), nullable=False, default=False)
+    currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
+    is_default = Column(Boolean(), nullable=False, default=False, server_default=text("FALSE"))
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
@@ -51,10 +51,10 @@ class BankAccount(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     institution = Column(String(100), nullable=True)
-    account_type = Column(String(20), nullable=False, default="checking")
-    balance = Column(Numeric(18, 8), nullable=False, default=Decimal("0"))
-    currency = Column(String(10), nullable=False, default="BRL")
-    is_active = Column(Boolean(), nullable=False, default=True)
+    account_type = Column(String(20), nullable=False, default="checking", server_default="checking")
+    balance = Column(Numeric(18, 8), nullable=False, default=Decimal("0"), server_default=text("0"))
+    currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
+    is_active = Column(Boolean(), nullable=False, default=True, server_default=text("TRUE"))
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
@@ -92,11 +92,12 @@ class InvestmentTransaction(Base):
     transaction_type = Column(String(20), nullable=False)
     quantity = Column(Numeric(18, 8), nullable=False)
     unit_price = Column(Numeric(18, 8), nullable=False)
-    fees = Column(Numeric(18, 8), nullable=False, default=Decimal("0"))
-    fx_rate = Column(Numeric(18, 8), nullable=False, default=Decimal("1"))
+    fees = Column(Numeric(18, 8), nullable=False, default=Decimal("0"), server_default=text("0"))
+    fx_rate = Column(Numeric(18, 8), nullable=False, default=Decimal("1"), server_default=text("1"))
     total_amount = Column(Numeric(18, 8), nullable=False)
     transaction_date = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
     notes = Column(Text(), nullable=True)
+    # Links to financial_transactions.id (created in migration 0003 - Área 2 finance schema)
     finance_transaction_id = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
@@ -112,7 +113,7 @@ class PriceAlert(Base):
     asset_id = Column(UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     alert_type = Column(String(20), nullable=False)
     threshold = Column(Numeric(18, 8), nullable=False)
-    is_active = Column(Boolean(), nullable=False, default=True)
+    is_active = Column(Boolean(), nullable=False, default=True, server_default=text("TRUE"))
     triggered_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())

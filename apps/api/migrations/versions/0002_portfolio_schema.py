@@ -33,7 +33,12 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('NOW()'), nullable=False),
     )
     op.create_index('ix_assets_ticker', 'assets', ['ticker'])
-    op.create_index('ix_assets_ticker_exchange', 'assets', ['ticker', 'exchange'], unique=True)
+    # Unique index for assets with a known exchange (e.g. PETR4 on BVMF)
+    op.create_index('ix_assets_ticker_exchange', 'assets', ['ticker', 'exchange'], unique=True,
+                    postgresql_where=sa.text("exchange IS NOT NULL"))
+    # Separate partial index to ensure no duplicate tickers when exchange is unknown (e.g. crypto)
+    op.create_index('ix_assets_ticker_no_exchange', 'assets', ['ticker'], unique=True,
+                    postgresql_where=sa.text("exchange IS NULL"))
 
     # --- portfolios ---
     op.create_table(
@@ -101,6 +106,7 @@ def upgrade() -> None:
         sa.Column('total_amount', sa.Numeric(18, 8), nullable=False),
         sa.Column('transaction_date', sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column('notes', sa.Text(), nullable=True),
+        # FK to financial_transactions (created in migration 0003 - Área 2 finance schema)
         sa.Column('finance_transaction_id', UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('NOW()'), nullable=False),
         sa.Column('updated_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('NOW()'), nullable=False),
@@ -153,6 +159,7 @@ def downgrade() -> None:
     for table in ['portfolios', 'bank_accounts', 'portfolio_positions', 'investment_transactions', 'price_alerts']:
         op.execute(f'DROP POLICY IF EXISTS {table}_user_isolation ON {table}')
 
+    op.drop_index('ix_assets_ticker_no_exchange', 'assets')
     op.drop_table('fx_rates')
     op.drop_table('price_alerts')
     op.drop_table('investment_transactions')
