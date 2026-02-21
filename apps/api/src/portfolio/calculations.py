@@ -39,6 +39,8 @@ def calculate_weighted_average_cost(
     Formula: ((current_qty * current_avg_cost) + (new_qty * new_unit_price) + fees)
              / (current_qty + new_qty)
     """
+    if new_qty <= _ZERO:
+        raise ValueError(f"new_qty must be positive for a BUY; got {new_qty}")
     _fees = fees if fees is not None else _ZERO
     total_qty = add(current_qty, new_qty)
     if total_qty == _ZERO:
@@ -134,6 +136,8 @@ def calculate_portfolio_summary(positions: list[dict]) -> dict:
         avg_cost = d(pos["avg_cost"])
         current_price = d(pos["current_price"])
         fx_rate = d(pos.get("fx_rate_to_brl", _ONE))
+        if fx_rate == _ZERO:
+            raise ValueError(f"fx_rate_to_brl cannot be zero for position {pos.get('asset_id', '?')}")
 
         cost_brl = multiply(multiply(qty, avg_cost), fx_rate)
         mktval_brl = multiply(multiply(qty, current_price), fx_rate)
@@ -211,6 +215,8 @@ def calculate_rebalance_suggestion(
         current_value_brl = d(pos["market_value_brl"])
         current_price = d(pos["current_price"])
         fx_rate = d(pos.get("fx_rate_to_brl", _ONE))
+        if fx_rate == _ZERO:
+            raise ValueError(f"fx_rate_to_brl cannot be zero for position {pos.get('asset_id', '?')}")
 
         current_weight = divide(current_value_brl, total_portfolio_value_brl)
         target_value_brl = multiply(total_portfolio_value_brl, target_weight)
@@ -254,22 +260,24 @@ def calculate_rebalance_suggestion(
 def calculate_fixed_income_gross_return(
     principal: Decimal,
     annual_rate: Decimal,
-    days: int,
+    business_days: int,
 ) -> Decimal:
-    """Compound daily interest: principal * (1 + annual_rate/100) ^ (days/252) - principal.
+    """Compound daily interest: principal * (1 + annual_rate/100) ^ (business_days/252) - principal.
 
     Uses 252 business days (Brazilian market convention).
+    NOTE: accepts BUSINESS days, not calendar days.
+    Use `get_ir_rate` / `calculate_fixed_income_net_return` with CALENDAR days for tax.
 
     Args:
         principal: Initial investment amount.
         annual_rate: Annual rate in percent (e.g. 12.5 for 12.5% a.a.).
-        days: Number of business days.
+        business_days: Number of business days (252/year convention).
 
     Returns:
         Gross return (interest earned) as Decimal.
     """
     rate = divide(annual_rate, _HUNDRED)
-    exponent = Decimal(days) / Decimal(252)
+    exponent = Decimal(business_days) / Decimal(252)
     # pow() with fractional exponent: convert via float then back to Decimal
     factor = Decimal(str(float(_ONE + rate) ** float(exponent)))
     gross_amount = multiply(principal, factor)
@@ -294,9 +302,11 @@ def get_ir_rate(days: int) -> Decimal:
         IR rate as a percentage (e.g. Decimal("22.5") for 22.5%).
     """
     for threshold, rate in IR_BRACKETS:
+        # Last entry has threshold=None — acts as catch-all, always returns
         if threshold is None or days <= threshold:
             return rate
-    return Decimal("15.0")
+    # Unreachable: IR_BRACKETS ends with a catch-all (None threshold)
+    return Decimal("15.0")  # pragma: no cover
 
 
 def calculate_fixed_income_net_return(
