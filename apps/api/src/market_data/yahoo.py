@@ -35,7 +35,7 @@ class YahooFinanceProvider(MarketDataProvider):
         """Bulk fetch quotes from Yahoo Finance."""
         if not tickers:
             return {}
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._fetch_quotes_sync, tickers)
 
     def _fetch_quotes_sync(self, tickers: list[str]) -> dict[str, Quote]:
@@ -73,7 +73,7 @@ class YahooFinanceProvider(MarketDataProvider):
         interval: str = "1d",
     ) -> list[HistoricalBar]:
         """Fetch OHLCV history from Yahoo Finance."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, self._fetch_history_sync, ticker, period, interval
         )

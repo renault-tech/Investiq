@@ -15,7 +15,7 @@ class Quote:
     change_pct: Optional[Decimal] = None  # 24h % change
     volume: Optional[int] = None
     market_cap: Optional[Decimal] = None
-    fetched_at: datetime = None
+    fetched_at: Optional[datetime] = None
 
     def __post_init__(self):
         if self.fetched_at is None:
