@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Cookie
+from fastapi import APIRouter, Depends, Response, Cookie, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -13,6 +13,7 @@ from src.auth.schemas import (
 )
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
+from src.shared.limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,7 +35,9 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -79,7 +82,12 @@ async def logout(response: Response):
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
     await service.create_password_reset_token(body.email, db)
     return {"message": "If the email exists, a reset link has been sent"}
 

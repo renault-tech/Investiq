@@ -9,7 +9,6 @@ from src.ai.base import LLMProvider, LLMProviderError
 from src.ai.claude_provider import ClaudeProvider
 from src.ai.openai_provider import OpenAIProvider
 from src.ai.gemini_provider import GeminiProvider
-from src.shared.encryption import decrypt_value
 
 logger = logging.getLogger(__name__)
 
