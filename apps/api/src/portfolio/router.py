@@ -26,13 +26,18 @@ router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
 
 async def _get_redis():
-    """Dependency: returns Redis client. Returns None if unavailable."""
+    """Dependency: yields Redis client and closes it after request. Yields None if unavailable."""
     from src.config import settings
+    client = None
     try:
         client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-        return client
-    except Exception:
-        return None
+        yield client
+    except Exception as exc:
+        logger.warning("Redis unavailable, cache disabled: %s", exc)
+        yield None
+    finally:
+        if client:
+            await client.aclose()
 
 
 async def _get_user_provider_settings(

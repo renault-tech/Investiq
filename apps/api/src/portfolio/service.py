@@ -191,14 +191,16 @@ async def record_transaction(
     db: AsyncSession,
 ) -> InvestmentTransaction:
     """Record an investment transaction and update position avg cost/quantity."""
+    # Join through Portfolio to enforce ownership at the DB level
     result = await db.execute(
-        select(PortfolioPosition).where(PortfolioPosition.id == position_id)
+        select(PortfolioPosition)
+        .join(Portfolio, Portfolio.id == PortfolioPosition.portfolio_id)
+        .where(PortfolioPosition.id == position_id)
+        .where(Portfolio.user_id == user_id)
     )
     position = result.scalar_one_or_none()
     if position is None:
         raise NotFoundError(f"Position {position_id} not found")
-    if position.user_id != user_id:
-        raise ForbiddenError("Access denied")
 
     total_amount = calculate_transaction_total(quantity, unit_price, fees, fx_rate)
 
@@ -213,6 +215,10 @@ async def record_transaction(
         new_qty = position.quantity - quantity
         if new_qty < _ZERO:
             raise ValueError("Sell quantity exceeds current position")
+        # Reduce total_invested proportionally to the fraction sold
+        if position.quantity > _ZERO:
+            sold_fraction = quantity / position.quantity
+            position.total_invested = position.total_invested * (1 - sold_fraction)
         position.quantity = new_qty
         # avg_cost unchanged on sell
 
