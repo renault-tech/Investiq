@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -9,8 +11,18 @@ from src.auth.router import router as auth_router
 from src.portfolio.router import router as portfolio_router
 from src.settings.router import router as settings_router
 from src.ai.router import router as ai_router
+from src.workers.scheduler import start_scheduler, stop_scheduler
 
-app = FastAPI(title="InvestIQ API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start background workers on startup; stop on shutdown."""
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="InvestIQ API", version="0.1.0", lifespan=lifespan)
 
 # Rate limiting
 app.state.limiter = limiter
