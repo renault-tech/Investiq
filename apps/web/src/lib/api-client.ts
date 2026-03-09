@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 export const apiClient = axios.create({ baseURL: API_BASE, withCredentials: true });
 let accessToken = null;
@@ -13,7 +13,7 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && \!original._retry) {
+    if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
         const res = await axios.post(API_BASE + "/auth/refresh", {}, { withCredentials: true });
@@ -21,7 +21,7 @@ apiClient.interceptors.response.use(
         setAccessToken(newToken);
         original.headers.Authorization = "Bearer " + newToken;
         return apiClient(original);
-      } catch { clearAccessToken(); if (typeof window \!== "undefined") { window.location.href = "/login"; } }
+      } catch { clearAccessToken(); if (typeof window !== "undefined") { window.location.href = "/login"; } }
     }
     return Promise.reject(error);
   }

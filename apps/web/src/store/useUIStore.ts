@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 type Theme = "dark" | "light";
 
@@ -17,16 +17,16 @@ export const useUIStore = create<UIStore>((set) => ({
   sidebarCollapsed: false,
   setTheme: (theme) => {
     set({ theme });
-    if (typeof document \!== "undefined") {
+    if (typeof document !== "undefined") {
       document.documentElement.classList.toggle("dark", theme === "dark");
     }
   },
   setFontScale: (scale) => {
     const clamped = Math.min(1.5, Math.max(0.75, scale));
     set({ fontScale: clamped });
-    if (typeof document \!== "undefined") {
+    if (typeof document !== "undefined") {
       document.documentElement.style.setProperty("--font-scale", String(clamped));
     }
   },
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: \!s.sidebarCollapsed })),
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 }));

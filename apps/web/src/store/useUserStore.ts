@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 interface User {
   id: string;
@@ -20,5 +20,5 @@ export const useUserStore = create<UserStore>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
   isAdmin: () => get().user?.role === "admin",
-  isAuthenticated: () => get().user \!== null,
+  isAuthenticated: () => get().user !== null,
 }));
