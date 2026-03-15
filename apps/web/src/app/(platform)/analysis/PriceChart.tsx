@@ -60,7 +60,7 @@ export function PriceChart({ ticker }: Props) {
               domain={["auto","auto"]} tickFormatter={v => `${v.toFixed(0)}`} />
             <Tooltip
               contentStyle={{ background: "#171717", border: "1px solid #404040", borderRadius: "6px", fontSize: "11px" }}
-              formatter={(v: number) => [v.toFixed(2), "Fechamento"]}
+              formatter={(v) => [Number(v).toFixed(2), "Fechamento"]}
             />
             <Area type="monotone" dataKey="close" stroke={positive ? "#10b981" : "#ef4444"}
               strokeWidth={1.5} fill="url(#priceGrad)" dot={false} />

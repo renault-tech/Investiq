@@ -47,7 +47,7 @@ export function AllocationChart() {
               {chartData.map((e, i) => <Cell key={i} fill={e.fill} />)}
             </Pie>
             <Tooltip
-              formatter={(v: number) => [`${v}%`, ""]}
+              formatter={(v) => [`${v}%`, ""]}
               contentStyle={{ background: "#171717", border: "1px solid #404040", borderRadius: "6px", fontSize: "11px" }}
             />
             <Legend iconSize={8} wrapperStyle={{ fontSize: "10px" }} />

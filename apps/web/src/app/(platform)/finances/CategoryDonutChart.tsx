@@ -23,7 +23,7 @@ export function CategoryDonutChart() {
               {chartData.map((e, i) => <Cell key={i} fill={e.color} />)}
             </Pie>
             <Tooltip
-              formatter={(v: number) => [brl(v), ""]}
+              formatter={(v) => [brl(Number(v)), ""]}
               contentStyle={{ background: "#171717", border: "1px solid #404040", borderRadius: "6px", fontSize: "11px" }}
             />
             <Legend iconSize={8} wrapperStyle={{ fontSize: "10px" }} />

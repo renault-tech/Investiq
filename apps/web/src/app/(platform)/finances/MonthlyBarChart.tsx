@@ -20,7 +20,7 @@ export function MonthlyBarChart() {
               tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
             <Tooltip
               contentStyle={{ background: "#171717", border: "1px solid #404040", borderRadius: "6px", fontSize: "11px" }}
-              formatter={(v: number) => [new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v), ""]}
+              formatter={(v) => [new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(v)), ""]}
             />
             <Legend iconSize={8} wrapperStyle={{ fontSize: "10px" }} />
             <Bar dataKey="income"   name="Receita"  fill="#10b981" radius={[3,3,0,0]} />
