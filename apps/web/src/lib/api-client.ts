@@ -1,8 +1,8 @@
 import axios from "axios";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 export const apiClient = axios.create({ baseURL: API_BASE, withCredentials: true });
-let accessToken = null;
-export function setAccessToken(token) { accessToken = token; }
+let accessToken: string | null = null;
+export function setAccessToken(token: string) { accessToken = token; }
 export function clearAccessToken() { accessToken = null; }
 export function getAccessToken() { return accessToken; }
 apiClient.interceptors.request.use((config) => {
