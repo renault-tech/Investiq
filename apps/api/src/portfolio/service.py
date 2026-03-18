@@ -248,7 +248,7 @@ async def add_position(
     broker: Optional[str],
     target_weight: Optional[Decimal],
     db: AsyncSession,
-) -> PortfolioPosition:
+) -> dict:
     """Add a new asset position to a portfolio (quantity=0, avg_cost=0)."""
     # 1. Verify ownership
     result = await db.execute(
@@ -294,6 +294,15 @@ async def add_position(
     db.add(position)
     await db.commit()
     await db.refresh(position)
-    # Attach ticker for the response schema (not a DB column on PortfolioPosition)
-    position.ticker = ticker_upper
-    return position
+    # Return plain dict — avoids ORM expiry issues with the non-mapped ticker field
+    return {
+        "id": position.id,
+        "portfolio_id": position.portfolio_id,
+        "asset_id": position.asset_id,
+        "ticker": ticker_upper,
+        "broker": position.broker,
+        "quantity": position.quantity,
+        "avg_cost": position.avg_cost,
+        "target_weight": position.target_weight,
+        "created_at": position.created_at,
+    }

@@ -3,7 +3,7 @@ import uuid
 import logging
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -21,7 +21,6 @@ from src.portfolio.schemas import (
     AddPositionRequest,
     PositionResponse,
 )
-from src.shared.exceptions import ConflictError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -130,16 +129,11 @@ async def add_position_to_portfolio(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a new asset position to a portfolio."""
-    try:
-        return await service.add_position(
-            portfolio_id=portfolio_id,
-            user_id=current_user.id,
-            ticker=body.ticker,
-            broker=body.broker,
-            target_weight=body.target_weight,
-            db=db,
-        )
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ConflictError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    return await service.add_position(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        ticker=body.ticker,
+        broker=body.broker,
+        target_weight=body.target_weight,
+        db=db,
+    )
