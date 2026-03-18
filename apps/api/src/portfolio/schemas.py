@@ -116,6 +116,30 @@ class TransactionResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Add Position
+# ---------------------------------------------------------------------------
+
+class AddPositionRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=20)
+    broker: Optional[str] = Field(None, max_length=100)
+    target_weight: Optional[Decimal] = Field(None, ge=0, le=1)
+
+
+class PositionResponse(BaseModel):
+    id: uuid.UUID
+    portfolio_id: uuid.UUID
+    asset_id: uuid.UUID
+    ticker: str
+    broker: Optional[str]
+    quantity: Decimal
+    avg_cost: Decimal
+    target_weight: Optional[Decimal]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
 # Bank Account
 # ---------------------------------------------------------------------------
 

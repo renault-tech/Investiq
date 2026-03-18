@@ -21,7 +21,7 @@ from src.portfolio.calculations import (
     calculate_transaction_total,
 )
 from src.market_data.factory import get_provider, get_cache
-from src.shared.exceptions import NotFoundError, ForbiddenError
+from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError
 
 logger = logging.getLogger(__name__)
 
@@ -239,3 +239,61 @@ async def record_transaction(
     await db.commit()
     await db.refresh(txn)
     return txn
+
+
+async def add_position(
+    portfolio_id: uuid.UUID,
+    user_id: uuid.UUID,
+    ticker: str,
+    broker: Optional[str],
+    target_weight: Optional[Decimal],
+    db: AsyncSession,
+) -> PortfolioPosition:
+    """Add a new asset position to a portfolio (quantity=0, avg_cost=0)."""
+    # 1. Verify ownership
+    result = await db.execute(
+        select(Portfolio)
+        .where(Portfolio.id == portfolio_id)
+        .where(Portfolio.user_id == user_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if portfolio is None:
+        raise NotFoundError(f"Portfolio {portfolio_id}")
+
+    # 2. Fetch or create Asset
+    ticker_upper = ticker.upper().strip()
+    result = await db.execute(select(Asset).where(Asset.ticker == ticker_upper))
+    asset = result.scalar_one_or_none()
+    if asset is None:
+        # Create minimal asset record — prices will be fetched on next summary call
+        asset = Asset(ticker=ticker_upper, name=ticker_upper, asset_type="stock", currency="BRL")
+        db.add(asset)
+        await db.flush()
+
+    # 3. Check for duplicate
+    result = await db.execute(
+        select(PortfolioPosition)
+        .where(PortfolioPosition.portfolio_id == portfolio_id)
+        .where(PortfolioPosition.asset_id == asset.id)
+        .where(PortfolioPosition.broker == broker)
+    )
+    if result.scalar_one_or_none() is not None:
+        raise ConflictError(f"Position for {ticker_upper} already exists in this portfolio")
+
+    # 4. Create position
+    position = PortfolioPosition(
+        portfolio_id=portfolio_id,
+        user_id=user_id,
+        asset_id=asset.id,
+        broker=broker,
+        quantity=Decimal("0"),
+        avg_cost=Decimal("0"),
+        total_invested=Decimal("0"),
+        target_weight=target_weight,
+    )
+    db.add(position)
+    await db.commit()
+    await db.refresh(position)
+    # Attach ticker for the response schema (not a DB column on PortfolioPosition)
+    position.ticker = ticker_upper
+    return position
