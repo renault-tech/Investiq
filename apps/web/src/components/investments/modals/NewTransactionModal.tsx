@@ -10,7 +10,7 @@ import type { PositionSummary } from "@/lib/portfolio-api";
 interface NewTransactionModalProps {
   portfolioId: string;
   positions: PositionSummary[];
-  preselectedPositionId?: string;
+  defaultPositionId?: string;
   onClose: () => void;
 }
 
@@ -25,11 +25,11 @@ const TRANSACTION_TYPES = [
 export function NewTransactionModal({
   portfolioId,
   positions,
-  preselectedPositionId,
+  defaultPositionId,
   onClose,
 }: NewTransactionModalProps) {
   const queryClient = useQueryClient();
-  const [positionId, setPositionId] = useState(preselectedPositionId ?? "");
+  const [positionId, setPositionId] = useState(defaultPositionId ?? "");
   const [txType, setTxType] = useState<string>("buy");
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
