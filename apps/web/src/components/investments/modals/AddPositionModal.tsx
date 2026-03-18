@@ -35,9 +35,13 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
       toast.success(`Ativo ${ticker.toUpperCase()} adicionado!`);
       onClose();
     },
-    onError: (error: { response?: { data?: { detail?: string } } }) => {
-      const msg = error?.response?.data?.detail ?? "Erro ao adicionar ativo";
-      toast.error(msg);
+    onError: (err: unknown) => {
+      const detail =
+        err != null &&
+        typeof err === "object" &&
+        "response" in err &&
+        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast.error(detail || "Erro ao adicionar ativo. Tente novamente.");
     },
   });
 
@@ -56,8 +60,9 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
 
         <div className="space-y-3">
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Ticker *</label>
+            <label htmlFor="position-ticker" className="block text-[10px] text-neutral-400 mb-1">Ticker *</label>
             <input
+              id="position-ticker"
               type="text"
               value={ticker}
               onChange={(e) => setTicker(e.target.value.toUpperCase())}
@@ -67,8 +72,9 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
             />
           </div>
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Corretora</label>
+            <label htmlFor="position-broker" className="block text-[10px] text-neutral-400 mb-1">Corretora</label>
             <input
+              id="position-broker"
               type="text"
               value={broker}
               onChange={(e) => setBroker(e.target.value)}
@@ -77,8 +83,9 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
             />
           </div>
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Peso Alvo %</label>
+            <label htmlFor="position-target-weight" className="block text-[10px] text-neutral-400 mb-1">Peso Alvo %</label>
             <input
+              id="position-target-weight"
               type="number"
               value={targetPct}
               onChange={(e) => setTargetPct(e.target.value)}

@@ -52,7 +52,7 @@ export function NewTransactionModal({
         quantity: parseFloat(quantity),
         unit_price: parseFloat(unitPrice),
         fees: parseFloat(fees) || 0,
-        fx_rate: parseFloat(fxRate) || 1,
+        fx_rate: parseFloat(fxRate) > 0 ? parseFloat(fxRate) : 1,
         transaction_date: date, // YYYY-MM-DD direto do input; evita bug de UTC offset
         notes: notes.trim() || undefined,
       }),
@@ -61,9 +61,13 @@ export function NewTransactionModal({
       toast.success("Transação registrada!");
       onClose();
     },
-    onError: (error: { response?: { data?: { detail?: string } } }) => {
-      const msg = error?.response?.data?.detail ?? "Erro ao registrar transação";
-      toast.error(msg);
+    onError: (err: unknown) => {
+      const detail =
+        err != null &&
+        typeof err === "object" &&
+        "response" in err &&
+        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast.error(detail || "Erro ao registrar transação. Tente novamente.");
     },
   });
 
@@ -74,7 +78,7 @@ export function NewTransactionModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-[400px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-[400px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[13px] font-semibold text-white">Registrar Transação</h2>
           <button onClick={onClose} className="text-neutral-500 hover:text-neutral-200">
@@ -82,10 +86,11 @@ export function NewTransactionModal({
           </button>
         </div>
 
-        <div className="space-y-3">
+        <div className="overflow-y-auto flex-1 space-y-3 pr-1">
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Ativo *</label>
+            <label htmlFor="tx-position" className="block text-[10px] text-neutral-400 mb-1">Ativo *</label>
             <select
+              id="tx-position"
               value={positionId}
               onChange={(e) => setPositionId(e.target.value)}
               className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
@@ -100,8 +105,9 @@ export function NewTransactionModal({
           </div>
 
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Tipo *</label>
+            <label htmlFor="tx-type" className="block text-[10px] text-neutral-400 mb-1">Tipo *</label>
             <select
+              id="tx-type"
               value={txType}
               onChange={(e) => setTxType(e.target.value)}
               className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
@@ -114,8 +120,9 @@ export function NewTransactionModal({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[10px] text-neutral-400 mb-1">Quantidade *</label>
+              <label htmlFor="tx-quantity" className="block text-[10px] text-neutral-400 mb-1">Quantidade *</label>
               <input
+                id="tx-quantity"
                 type="number"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
@@ -126,8 +133,9 @@ export function NewTransactionModal({
               />
             </div>
             <div>
-              <label className="block text-[10px] text-neutral-400 mb-1">Preço Unit. *</label>
+              <label htmlFor="tx-price" className="block text-[10px] text-neutral-400 mb-1">Preço Unit. *</label>
               <input
+                id="tx-price"
                 type="number"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
@@ -141,8 +149,9 @@ export function NewTransactionModal({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[10px] text-neutral-400 mb-1">Taxas</label>
+              <label htmlFor="tx-fees" className="block text-[10px] text-neutral-400 mb-1">Taxas</label>
               <input
+                id="tx-fees"
                 type="number"
                 value={fees}
                 onChange={(e) => setFees(e.target.value)}
@@ -152,12 +161,13 @@ export function NewTransactionModal({
               />
             </div>
             <div>
-              <label className="block text-[10px] text-neutral-400 mb-1">Câmbio</label>
+              <label htmlFor="tx-fx-rate" className="block text-[10px] text-neutral-400 mb-1">Câmbio</label>
               <input
+                id="tx-fx-rate"
                 type="number"
                 value={fxRate}
                 onChange={(e) => setFxRate(e.target.value)}
-                min={0}
+                min={0.0001}
                 step="any"
                 className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
               />
@@ -165,8 +175,9 @@ export function NewTransactionModal({
           </div>
 
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Data *</label>
+            <label htmlFor="tx-date" className="block text-[10px] text-neutral-400 mb-1">Data *</label>
             <input
+              id="tx-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -175,8 +186,9 @@ export function NewTransactionModal({
           </div>
 
           <div>
-            <label className="block text-[10px] text-neutral-400 mb-1">Notas</label>
+            <label htmlFor="tx-notes" className="block text-[10px] text-neutral-400 mb-1">Notas</label>
             <textarea
+              id="tx-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
