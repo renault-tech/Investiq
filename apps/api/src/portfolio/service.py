@@ -130,6 +130,7 @@ async def get_portfolio_summary(
         pnl_abs, pnl_pct = calculate_position_pnl(pos.quantity, pos.avg_cost, current_price)
 
         position_data.append({
+            "position_id": pos.id,
             "asset_id": pos.asset_id,
             "ticker": ticker,
             "asset_name": asset.name,

@@ -50,6 +50,7 @@ class PortfolioResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class PositionSummary(BaseModel):
+    position_id: uuid.UUID
     asset_id: uuid.UUID
     ticker: str
     asset_name: str
