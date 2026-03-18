@@ -1,0 +1,112 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { X } from "lucide-react";
+import { addPosition } from "@/lib/portfolio-api";
+
+interface AddPositionModalProps {
+  portfolioId: string;
+  onClose: () => void;
+}
+
+export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps) {
+  const queryClient = useQueryClient();
+  const [ticker, setTicker] = useState("");
+  const [broker, setBroker] = useState("");
+  const [targetPct, setTargetPct] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      addPosition(portfolioId, {
+        ticker: ticker.toUpperCase().trim(),
+        broker: broker.trim() || undefined,
+        target_weight: targetPct ? parseFloat(targetPct) / 100 : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
+      toast.success(`Ativo ${ticker.toUpperCase()} adicionado!`);
+      onClose();
+    },
+    onError: (error: { response?: { data?: { detail?: string } } }) => {
+      const msg = error?.response?.data?.detail ?? "Erro ao adicionar ativo";
+      toast.error(msg);
+    },
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-[360px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[13px] font-semibold text-white">Adicionar Ativo</h2>
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-200">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] text-neutral-400 mb-1">Ticker *</label>
+            <input
+              type="text"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              maxLength={20}
+              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500 font-mono"
+              placeholder="Ex: PETR4"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] text-neutral-400 mb-1">Corretora</label>
+            <input
+              type="text"
+              value={broker}
+              onChange={(e) => setBroker(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+              placeholder="Ex: XP, Clear (opcional)"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] text-neutral-400 mb-1">Peso Alvo %</label>
+            <input
+              type="number"
+              value={targetPct}
+              onChange={(e) => setTargetPct(e.target.value)}
+              min={0}
+              max={100}
+              step={0.1}
+              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+              placeholder="Ex: 10 (opcional)"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-[11px] text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md hover:bg-neutral-700"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={!ticker.trim() || mutation.isPending}
+            className="px-3 py-1.5 text-[11px] text-white bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {mutation.isPending ? "Adicionando..." : "Adicionar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
