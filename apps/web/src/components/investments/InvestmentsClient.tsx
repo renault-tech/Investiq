@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { LayoutDashboard } from "lucide-react";
 import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { PortfolioTabs } from "./PortfolioTabs";
@@ -33,7 +34,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     staleTime: 30_000,
   });
 
-  const { data: summary, isLoading: isSummaryLoading } =
+  const { data: summary, isLoading: isSummaryLoading, dataUpdatedAt } =
     usePortfolioSummary(activePortfolioId);
 
   // Handle case when activePortfolioId is null but portfolios exist
@@ -86,6 +87,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       {/* Empty state */}
       {portfolios.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-neutral-400">
+          <LayoutDashboard className="w-12 h-12 text-neutral-600" />
           <p>Nenhum portfólio encontrado.</p>
           <button
             onClick={() => setShowNewPortfolio(true)}
@@ -103,6 +105,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             <LeftPanel summary={summary} isLoading={isSummaryLoading} />
           </div>
           <div className="flex-1 overflow-auto p-4">
+            {dataUpdatedAt > 0 && (
+              <p className="text-xs text-neutral-500 text-right mb-2">
+                Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </p>
+            )}
             <PositionsTable
               positions={summary?.positions ?? []}
               isLoading={isSummaryLoading}
