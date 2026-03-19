@@ -22,7 +22,7 @@ function fmtPct(value: number): string {
 export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
   if (isLoading) {
     return (
-      <div className="w-[210px] shrink-0 border-r border-neutral-800 p-3 flex flex-col gap-2">
+      <div className="p-3 flex flex-col gap-2">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="h-16 bg-neutral-800 rounded-lg animate-pulse" />
         ))}
@@ -36,7 +36,7 @@ export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
     .slice(0, 5);
 
   return (
-    <div className="w-[210px] shrink-0 border-r border-neutral-800 p-3 flex flex-col gap-2 overflow-y-auto">
+    <div className="p-3 flex flex-col gap-2">
       <KpiCard
         label="Valor de Mercado"
         value={fmt(summary?.total_market_value_brl ?? 0)}
