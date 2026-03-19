@@ -31,6 +31,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     queryKey: ["portfolios"],
     queryFn: listPortfolios,
     initialData: initialPortfolios,
+    initialDataUpdatedAt: Date.now(),
     staleTime: 30_000,
   });
 
@@ -64,7 +65,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             + Ativo
           </button>
           <button
-            onClick={() => setShowNewTransaction(true)}
+            onClick={() => { setDefaultTransactionPositionId(undefined); setShowNewTransaction(true); }}
             disabled={!activePortfolioId}
             className="px-3 py-1.5 text-sm bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >

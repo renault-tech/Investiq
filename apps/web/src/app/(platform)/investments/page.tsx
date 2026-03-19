@@ -7,7 +7,9 @@ export default async function InvestmentsPage() {
     process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
   const cookieStore = await cookies();
-  const cookieHeader = cookieStore.toString();
+  const cookieHeader = cookieStore.getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
 
   let initialPortfolios: Portfolio[] = [];
   try {
