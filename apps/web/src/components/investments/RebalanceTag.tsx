@@ -11,8 +11,8 @@ export function RebalanceTag({ action, deltaUnits }: RebalanceTagProps) {
     <span
       className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
         isBuy
-          ? "bg-blue-950 text-blue-400"
-          : "bg-red-950 text-red-400"
+          ? "bg-blue-950 text-[var(--accent)]"
+          : "bg-red-950 text-[var(--danger)]"
       }`}
     >
       {isBuy ? "COMPRAR" : "VENDER"}

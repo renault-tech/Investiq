@@ -24,7 +24,7 @@ export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
     return (
       <div className="p-3 flex flex-col gap-2">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-16 bg-neutral-800 rounded-lg animate-pulse" />
+          <div key={i} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
         ))}
       </div>
     );
@@ -57,7 +57,7 @@ export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
       />
 
       {top5.length > 0 && (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 mt-1">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 mt-1">
           <p className="text-[9px] uppercase tracking-widest text-neutral-600 mb-2">
             Top Posições
           </p>

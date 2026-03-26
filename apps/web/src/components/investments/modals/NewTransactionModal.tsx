@@ -78,22 +78,22 @@ export function NewTransactionModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-[400px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150 max-h-[90vh] flex flex-col">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-[400px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[13px] font-semibold text-white">Registrar Transação</h2>
-          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-200">
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-neutral-200">
             <X size={16} />
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 space-y-3 pr-1">
           <div>
-            <label htmlFor="tx-position" className="block text-[10px] text-neutral-400 mb-1">Ativo *</label>
+            <label htmlFor="tx-position" className="block text-[10px] text-[var(--text-muted)] mb-1">Ativo *</label>
             <select
               id="tx-position"
               value={positionId}
               onChange={(e) => setPositionId(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
             >
               <option value="">Selecione um ativo</option>
               {positions.map((p) => (
@@ -105,12 +105,12 @@ export function NewTransactionModal({
           </div>
 
           <div>
-            <label htmlFor="tx-type" className="block text-[10px] text-neutral-400 mb-1">Tipo *</label>
+            <label htmlFor="tx-type" className="block text-[10px] text-[var(--text-muted)] mb-1">Tipo *</label>
             <select
               id="tx-type"
               value={txType}
               onChange={(e) => setTxType(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
             >
               {TRANSACTION_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -120,7 +120,7 @@ export function NewTransactionModal({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label htmlFor="tx-quantity" className="block text-[10px] text-neutral-400 mb-1">Quantidade *</label>
+              <label htmlFor="tx-quantity" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade *</label>
               <input
                 id="tx-quantity"
                 type="number"
@@ -128,12 +128,12 @@ export function NewTransactionModal({
                 onChange={(e) => setQuantity(e.target.value)}
                 min={0}
                 step="any"
-                className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
                 placeholder="100"
               />
             </div>
             <div>
-              <label htmlFor="tx-price" className="block text-[10px] text-neutral-400 mb-1">Preço Unit. *</label>
+              <label htmlFor="tx-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Unit. *</label>
               <input
                 id="tx-price"
                 type="number"
@@ -141,7 +141,7 @@ export function NewTransactionModal({
                 onChange={(e) => setUnitPrice(e.target.value)}
                 min={0}
                 step="any"
-                className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
                 placeholder="32.50"
               />
             </div>
@@ -149,7 +149,7 @@ export function NewTransactionModal({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label htmlFor="tx-fees" className="block text-[10px] text-neutral-400 mb-1">Taxas</label>
+              <label htmlFor="tx-fees" className="block text-[10px] text-[var(--text-muted)] mb-1">Taxas</label>
               <input
                 id="tx-fees"
                 type="number"
@@ -157,11 +157,11 @@ export function NewTransactionModal({
                 onChange={(e) => setFees(e.target.value)}
                 min={0}
                 step="any"
-                className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
               />
             </div>
             <div>
-              <label htmlFor="tx-fx-rate" className="block text-[10px] text-neutral-400 mb-1">Câmbio</label>
+              <label htmlFor="tx-fx-rate" className="block text-[10px] text-[var(--text-muted)] mb-1">Câmbio</label>
               <input
                 id="tx-fx-rate"
                 type="number"
@@ -169,30 +169,30 @@ export function NewTransactionModal({
                 onChange={(e) => setFxRate(e.target.value)}
                 min={0.0001}
                 step="any"
-                className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="tx-date" className="block text-[10px] text-neutral-400 mb-1">Data *</label>
+            <label htmlFor="tx-date" className="block text-[10px] text-[var(--text-muted)] mb-1">Data *</label>
             <input
               id="tx-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label htmlFor="tx-notes" className="block text-[10px] text-neutral-400 mb-1">Notas</label>
+            <label htmlFor="tx-notes" className="block text-[10px] text-[var(--text-muted)] mb-1">Notas</label>
             <textarea
               id="tx-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-2.5 py-1.5 bg-neutral-800 border border-neutral-700 rounded-md text-[11px] text-neutral-100 outline-none focus:border-blue-500 resize-none"
+              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500 resize-none"
               placeholder="Opcional"
             />
           </div>
@@ -201,14 +201,14 @@ export function NewTransactionModal({
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-[11px] text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md hover:bg-neutral-700"
+            className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md hover:bg-neutral-700"
           >
             Cancelar
           </button>
           <button
             onClick={() => mutation.mutate()}
             disabled={!isValid || mutation.isPending}
-            className="px-3 py-1.5 text-[11px] text-white bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-[11px] text-white bg-[var(--navy)] rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {mutation.isPending ? "Registrando..." : "Registrar"}
           </button>

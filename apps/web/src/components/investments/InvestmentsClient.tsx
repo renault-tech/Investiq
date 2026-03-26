@@ -48,12 +48,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
         <h1 className="text-xl font-semibold text-white">Investimentos</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowNewPortfolio(true)}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-3 py-1.5 text-sm bg-[var(--navy)] text-white rounded-lg hover:bg-blue-700"
           >
             + Portfólio
           </button>
@@ -76,7 +76,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
       {/* Portfolio Tabs */}
       {portfolios.length > 0 && (
-        <div className="px-6 py-2 border-b border-neutral-800">
+        <div className="px-6 py-2 border-b border-[var(--border)]">
           <PortfolioTabs
             portfolios={portfolios}
             activeId={activePortfolioId}
@@ -87,12 +87,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
       {/* Empty state */}
       {portfolios.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-neutral-400">
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-[var(--text-muted)]">
           <LayoutDashboard className="w-12 h-12 text-neutral-600" />
           <p>Nenhum portfólio encontrado.</p>
           <button
             onClick={() => setShowNewPortfolio(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+            className="px-4 py-2 bg-[var(--navy)] text-white rounded-lg text-sm hover:bg-blue-700"
           >
             Criar Portfólio
           </button>
@@ -102,12 +102,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       {/* Main split layout */}
       {portfolios.length > 0 && (
         <div className="flex flex-1 min-h-0">
-          <div className="w-[210px] shrink-0 border-r border-neutral-800 overflow-y-auto p-4">
+          <div className="w-[210px] shrink-0 border-r border-[var(--border)] overflow-y-auto p-4">
             <LeftPanel summary={summary} isLoading={isSummaryLoading} />
           </div>
           <div className="flex-1 overflow-auto p-4">
             {dataUpdatedAt > 0 && (
-              <p className="text-xs text-neutral-500 text-right mb-2">
+              <p className="text-xs text-[var(--text-muted)] text-right mb-2">
                 Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </p>
             )}

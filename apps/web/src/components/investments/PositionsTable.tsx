@@ -30,7 +30,7 @@ export function PositionsTable({
     return (
       <div className="flex-1 p-4 space-y-2">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-8 bg-neutral-800 rounded animate-pulse" />
+          <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
         ))}
       </div>
     );
@@ -38,7 +38,7 @@ export function PositionsTable({
 
   if (positions.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-neutral-500">
+      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
         <div className="text-center">
           <p className="text-sm mb-1">Nenhuma posição neste portfólio</p>
           <p className="text-xs text-neutral-600">Use "+ Ativo" para adicionar</p>
@@ -51,7 +51,7 @@ export function PositionsTable({
     <div className="flex-1 overflow-auto">
       <table className="w-full text-[10px] border-collapse">
         <thead>
-          <tr className="border-b border-neutral-800">
+          <tr className="border-b border-[var(--border)]">
             {[
               "Ativo", "Qtd", "PM", "Atual", "Valor",
               "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações",
@@ -74,26 +74,26 @@ export function PositionsTable({
             return (
               <tr
                 key={pos.position_id}
-                className="border-b border-neutral-900 hover:bg-neutral-900/50 transition-colors"
+                className="border-b border-neutral-900 hover:bg-[var(--surface)]/50 transition-colors"
               >
                 <td className="px-2 py-1.5 text-left">
-                  <span className="block text-[11px] font-semibold text-neutral-100">
+                  <span className="block text-[11px] font-semibold text-[var(--text-primary)]">
                     {pos.ticker}
                   </span>
                   <span className="block text-[9px] text-neutral-600">
                     {pos.asset_type}
                   </span>
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-400">
+                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {pos.quantity.toFixed(4)}
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-400">
+                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {fmtBRL(pos.avg_cost)}
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-400">
+                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {fmtBRL(pos.current_price)}
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-300">
+                <td className="px-2 py-1.5 text-right text-[var(--text-secondary)]">
                   {fmtBRL(pos.market_value_brl)}
                 </td>
                 <td className={`px-2 py-1.5 text-right ${pnlColor}`}>
@@ -102,10 +102,10 @@ export function PositionsTable({
                 <td className={`px-2 py-1.5 text-right ${pnlColor}`}>
                   {fmtPct(pos.pnl_percent)}
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-400">
+                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {(pos.weight * 100).toFixed(1)}%
                 </td>
-                <td className="px-2 py-1.5 text-right text-neutral-500">
+                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {pos.target_weight !== null
                     ? `${(pos.target_weight * 100).toFixed(1)}%`
                     : "—"}
@@ -119,7 +119,7 @@ export function PositionsTable({
                 <td className="px-2 py-1.5 text-right">
                   <button
                     onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
-                    className="text-[9px] text-blue-400 border border-blue-900/30 bg-blue-950/20 px-2 py-0.5 rounded hover:bg-blue-950/50 transition-colors"
+                    className="text-[9px] text-[var(--accent)] border border-blue-900/30 bg-blue-950/20 px-2 py-0.5 rounded hover:bg-blue-950/50 transition-colors"
                   >
                     Transação
                   </button>

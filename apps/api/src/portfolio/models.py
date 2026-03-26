@@ -42,6 +42,7 @@ class Portfolio(Base):
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     positions = relationship("PortfolioPosition", back_populates="portfolio", cascade="all, delete-orphan")
+    analyses = relationship("PortfolioAnalysis", back_populates="portfolio", cascade="all, delete-orphan")
 
 
 class BankAccount(Base):

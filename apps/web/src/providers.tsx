@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { useRef } from "react";
+import { ThemeProvider } from "next-themes";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClientRef = useRef<QueryClient | null>(null);
@@ -18,9 +19,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <QueryClientProvider client={queryClientRef.current}>
-      {children}
-      <Toaster position="top-right" theme="dark" richColors />
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="light">
+      <QueryClientProvider client={queryClientRef.current}>
+        {children}
+        <Toaster position="top-right" theme="dark" richColors />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

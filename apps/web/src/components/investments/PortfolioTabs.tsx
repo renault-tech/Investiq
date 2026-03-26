@@ -17,8 +17,8 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
           onClick={() => onChange(portfolio.id)}
           className={
             portfolio.id === activeId
-              ? "px-3 py-1 text-sm rounded-full bg-blue-600 text-white shrink-0"
-              : "px-3 py-1 text-sm rounded-full bg-neutral-800 text-neutral-300 hover:bg-neutral-700 shrink-0"
+              ? "px-3 py-1 text-sm rounded-full bg-[var(--navy)] text-white shrink-0"
+              : "px-3 py-1 text-sm rounded-full bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] hover:bg-neutral-700 shrink-0"
           }
         >
           {portfolio.name}

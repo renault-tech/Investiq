@@ -22,12 +22,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
+import uuid
+
 class AnalyzeRequest(BaseModel):
     messages: list[dict]
     system: Optional[str] = None
     model: Optional[str] = None
     max_tokens: int = 4096
     temperature: float = 0.7
+    portfolio_id: Optional[uuid.UUID] = None
+    previous_analyses: Optional[list[str]] = None
 
 
 @router.post("/analyze")
@@ -61,10 +65,30 @@ async def analyze(
     except LLMProviderError as exc:
         raise ValidationError(str(exc)) from exc
 
+    system_prompt = body.system
+
+    if body.previous_analyses:
+        analyses_text = "\\n---\\n".join(body.previous_analyses)
+        system_prompt = f"""Você é um analista financeiro institucional. Ao gerar a análise, mantenha
+consistência com as análises anteriores do mesmo portfólio fornecidas abaixo.
+Estruture a resposta com os seguintes headers markdown exatos:
+## Contexto da Análise
+## Resumo Executivo
+## Composição
+## Riscos
+## Oportunidades
+## Recomendações
+
+Análises anteriores (do mais recente ao mais antigo):
+---
+{analyses_text}
+"""
+
+
     return make_sse_response(
         provider=provider,
         messages=body.messages,
-        system=body.system,
+        system=system_prompt,
         model=model_override,
         max_tokens=body.max_tokens,
         temperature=body.temperature,
