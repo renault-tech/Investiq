@@ -1,4 +1,4 @@
-"""Technical indicators service using pandas-ta.
+"""Technical indicators service using pandas.
 
 All output values are normalized to Python Decimal for precision.
 Input OHLCV data comes from market data provider historical bars.
@@ -26,7 +26,7 @@ def _to_decimal(value) -> Optional[Decimal]:
 
 
 def _bars_to_df(bars: list[HistoricalBar]):
-    """Convert HistoricalBar list to a pandas DataFrame suitable for pandas-ta."""
+    """Convert HistoricalBar list to a pandas DataFrame."""
     import pandas as pd
     if not bars:
         return pd.DataFrame()
@@ -53,21 +53,21 @@ def _bars_to_df(bars: list[HistoricalBar]):
 
 
 def calculate_rsi(bars: list[HistoricalBar], period: int = 14) -> list[dict]:
-    """Calculate RSI for a list of OHLCV bars.
-
-    Args:
-        bars: OHLCV data sorted chronologically.
-        period: RSI period (default 14).
-
-    Returns:
-        List of dicts: [{"date": datetime, "rsi": Decimal | None}, ...]
-    """
-    import pandas_ta as ta
+    """Calculate RSI for a list of OHLCV bars using pure pandas."""
     df = _bars_to_df(bars)
     if df.empty or len(df) < period + 1:
         return []
 
-    rsi_series = ta.rsi(df["close"], length=period)
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+
+    # Calculate RS
+    rs = gain / loss
+    
+    # Calculate RSI
+    rsi_series = 100 - (100 / (1 + rs))
+
     result = []
     for date, value in rsi_series.items():
         result.append({
@@ -88,31 +88,24 @@ def calculate_macd(
     slow: int = 26,
     signal: int = 9,
 ) -> list[dict]:
-    """Calculate MACD line, signal line, and histogram.
-
-    Returns:
-        List of dicts: [{"date", "macd", "signal", "histogram"}, ...]
-    """
-    import pandas_ta as ta
+    """Calculate MACD using pure pandas."""
     df = _bars_to_df(bars)
     if df.empty or len(df) < slow + signal:
         return []
 
-    macd_df = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)
-    if macd_df is None or macd_df.empty:
-        return []
-
-    macd_col = f"MACD_{fast}_{slow}_{signal}"
-    signal_col = f"MACDs_{fast}_{slow}_{signal}"
-    hist_col = f"MACDh_{fast}_{slow}_{signal}"
+    ema_fast = df['close'].ewm(span=fast, adjust=False).mean()
+    ema_slow = df['close'].ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
 
     result = []
-    for date, row in macd_df.iterrows():
+    for date in df.index:
         result.append({
             "date": date.to_pydatetime() if hasattr(date, "to_pydatetime") else date,
-            "macd": _to_decimal(row.get(macd_col)),
-            "signal": _to_decimal(row.get(signal_col)),
-            "histogram": _to_decimal(row.get(hist_col)),
+            "macd": _to_decimal(macd_line[date]),
+            "signal": _to_decimal(signal_line[date]),
+            "histogram": _to_decimal(histogram[date]),
         })
     return result
 
@@ -127,36 +120,31 @@ def calculate_bollinger_bands(
     period: int = 20,
     std_dev: float = 2.0,
 ) -> list[dict]:
-    """Calculate Bollinger Bands (upper, middle/SMA, lower).
-
-    Returns:
-        List of dicts: [{"date", "upper", "middle", "lower", "bandwidth", "pct_b"}, ...]
-    """
-    import pandas_ta as ta
+    """Calculate Bollinger Bands using pure pandas."""
     df = _bars_to_df(bars)
     if df.empty or len(df) < period:
         return []
 
-    bb_df = ta.bbands(df["close"], length=period, std=std_dev)
-    if bb_df is None or bb_df.empty:
-        return []
-
-    std_str = str(std_dev).replace(".", "")[:4]
-    lower_col = f"BBL_{period}_{std_dev}"
-    middle_col = f"BBM_{period}_{std_dev}"
-    upper_col = f"BBU_{period}_{std_dev}"
-    bw_col = f"BBB_{period}_{std_dev}"
-    pctb_col = f"BBP_{period}_{std_dev}"
+    middle = df['close'].rolling(window=period).mean()
+    std = df['close'].rolling(window=period).std()
+    upper = middle + (std * std_dev)
+    lower = middle - (std * std_dev)
+    
+    # Avoid division by zero
+    bandwidth = (upper - lower) / (middle.replace(0, 1)) * 100
+    
+    b_range = (upper - lower).replace(0, 1)
+    pct_b = (df['close'] - lower) / b_range
 
     result = []
-    for date, row in bb_df.iterrows():
+    for date in df.index:
         result.append({
             "date": date.to_pydatetime() if hasattr(date, "to_pydatetime") else date,
-            "upper": _to_decimal(row.get(upper_col)),
-            "middle": _to_decimal(row.get(middle_col)),
-            "lower": _to_decimal(row.get(lower_col)),
-            "bandwidth": _to_decimal(row.get(bw_col)),
-            "pct_b": _to_decimal(row.get(pctb_col)),
+            "upper": _to_decimal(upper[date]),
+            "middle": _to_decimal(middle[date]),
+            "lower": _to_decimal(lower[date]),
+            "bandwidth": _to_decimal(bandwidth[date]),
+            "pct_b": _to_decimal(pct_b[date]),
         })
     return result
 
@@ -167,12 +155,10 @@ def calculate_bollinger_bands(
 
 
 def calculate_sma(bars: list[HistoricalBar], period: int = 20) -> list[dict]:
-    """Simple Moving Average."""
-    import pandas_ta as ta
     df = _bars_to_df(bars)
     if df.empty or len(df) < period:
         return []
-    sma = ta.sma(df["close"], length=period)
+    sma = df['close'].rolling(window=period).mean()
     return [
         {
             "date": d.to_pydatetime() if hasattr(d, "to_pydatetime") else d,
@@ -183,12 +169,10 @@ def calculate_sma(bars: list[HistoricalBar], period: int = 20) -> list[dict]:
 
 
 def calculate_ema(bars: list[HistoricalBar], period: int = 20) -> list[dict]:
-    """Exponential Moving Average."""
-    import pandas_ta as ta
     df = _bars_to_df(bars)
     if df.empty or len(df) < period:
         return []
-    ema = ta.ema(df["close"], length=period)
+    ema = df['close'].ewm(span=period, adjust=False).mean()
     return [
         {
             "date": d.to_pydatetime() if hasattr(d, "to_pydatetime") else d,
@@ -215,11 +199,7 @@ def get_indicator_bundle(
     bb_period: int = 20,
     bb_std: float = 2.0,
 ) -> dict:
-    """Calculate multiple indicators in one call. Returns a dict of indicator series.
-
-    Only computes requested indicators. Catches individual failures to avoid
-    partial failures killing the whole response.
-    """
+    """Calculate multiple indicators in one call."""
     result = {}
 
     if include_rsi:

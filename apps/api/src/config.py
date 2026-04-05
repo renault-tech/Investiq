@@ -1,10 +1,10 @@
-﻿from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    DATABASE_URL: str = "postgresql+asyncpg://investiq:investiq@localhost:5432/investiq"
+    DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379"
     JWT_PRIVATE_KEY: str = ""
     JWT_PUBLIC_KEY: str = ""
@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ENVIRONMENT: str = "development"
+
+    def get_jwt_private(self) -> str:
+        return self.JWT_PRIVATE_KEY.strip('"').strip("'")
+        
+    def get_jwt_public(self) -> str:
+        return self.JWT_PUBLIC_KEY.strip('"').strip("'")
 
 
 settings = Settings()

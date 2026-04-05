@@ -20,11 +20,15 @@ def create_access_token(
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }
-    return jwt.encode(payload, settings.JWT_PRIVATE_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.get_jwt_private(), algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.JWT_PUBLIC_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, settings.get_jwt_public(), algorithms=[ALGORITHM])
     except JWTError as e:
+        print(f"JWTDecodeError: {e}")
+        raise ValueError(f"Invalid token: {e}")
+    except Exception as e:
+        print(f"Unknown JWT Error: {e}")
         raise ValueError(f"Invalid token: {e}")

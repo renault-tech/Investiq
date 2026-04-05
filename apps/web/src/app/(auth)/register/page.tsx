@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -36,9 +36,16 @@ export default function RegisterPage() {
       setUser(meRes.data);
       router.push("/investments");
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { detail?: { message?: string } } } })
-          ?.response?.data?.detail?.message ?? "Erro ao criar conta";
+      console.error(err);
+      let message = "Erro ao criar conta";
+      const data = (err as any)?.response?.data;
+      if (data?.detail) {
+        if (typeof data.detail === "string") message = data.detail;
+        else if (Array.isArray(data.detail)) message = data.detail[0]?.msg || JSON.stringify(data.detail);
+        else if (data.detail.message) message = data.detail.message;
+      } else if ((err as any)?.message) {
+        message = (err as any).message;
+      }
       setError(message);
     } finally {
       setLoading(false);

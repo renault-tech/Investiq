@@ -19,9 +19,9 @@ from src.workers.scheduler import start_scheduler, stop_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background workers on startup; stop on shutdown."""
-    start_scheduler()
+    # start_scheduler()
     yield
-    stop_scheduler()
+    # stop_scheduler()
 
 
 app = FastAPI(title="InvestIQ API", version="0.1.0", lifespan=lifespan)

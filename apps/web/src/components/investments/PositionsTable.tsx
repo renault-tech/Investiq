@@ -7,18 +7,20 @@ interface PositionsTableProps {
   onAddTransaction: (positionId: string, ticker: string) => void;
 }
 
-function fmtBRL(v: number | null): string {
-  if (v === null) return "—";
+function fmtBRL(v: number | string | null): string {
+  if (v == null) return "—";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
-  }).format(v);
+  }).format(Number(v));
 }
 
-function fmtPct(v: number): string {
-  const sign = v >= 0 ? "+" : "";
-  return `${sign}${v.toFixed(2)}%`;
+function fmtPct(v: number | string | null): string {
+  if (v == null) return "0.00%";
+  const num = Number(v);
+  const sign = num >= 0 ? "+" : "";
+  return `${sign}${num.toFixed(2)}%`;
 }
 
 export function PositionsTable({
@@ -41,7 +43,7 @@ export function PositionsTable({
       <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
         <div className="text-center">
           <p className="text-sm mb-1">Nenhuma posição neste portfólio</p>
-          <p className="text-xs text-neutral-600">Use "+ Ativo" para adicionar</p>
+          <p className="text-xs text-[var(--text-muted)]">Use "+ Ativo" para adicionar</p>
         </div>
       </div>
     );
@@ -58,7 +60,7 @@ export function PositionsTable({
             ].map((h) => (
               <th
                 key={h}
-                className={`px-2 py-2 text-[9px] font-medium text-neutral-600 uppercase tracking-wider whitespace-nowrap ${
+                className={`px-2 py-2 text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap ${
                   h === "Ativo" ? "text-left" : "text-right"
                 }`}
               >
@@ -74,18 +76,27 @@ export function PositionsTable({
             return (
               <tr
                 key={pos.position_id}
-                className="border-b border-neutral-900 hover:bg-[var(--surface)]/50 transition-colors"
+                className={`border-b border-neutral-900 transition-colors ${
+                  pos.quantity === 0 ? "opacity-60 bg-black/10 dark:bg-white/5 hover:opacity-100" : "hover:bg-[var(--surface)]/50"
+                }`}
               >
-                <td className="px-2 py-1.5 text-left">
-                  <span className="block text-[11px] font-semibold text-[var(--text-primary)]">
-                    {pos.ticker}
-                  </span>
-                  <span className="block text-[9px] text-neutral-600">
-                    {pos.asset_type}
-                  </span>
+                <td className="px-2 py-1.5 text-left flex items-center gap-2">
+                  <div>
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-primary)]">
+                      {pos.ticker}
+                      {pos.quantity === 0 && (
+                        <span className="px-1 py-0.5 rounded text-[8px] bg-blue-500/20 text-blue-400 font-normal tracking-wide">
+                          MONITORANDO
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-[9px] text-[var(--text-muted)]">
+                      {pos.asset_type}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {pos.quantity.toFixed(4)}
+                  {Number(pos.quantity).toFixed(4)}
                 </td>
                 <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
                   {fmtBRL(pos.avg_cost)}
@@ -103,11 +114,11 @@ export function PositionsTable({
                   {fmtPct(pos.pnl_percent)}
                 </td>
                 <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {(pos.weight * 100).toFixed(1)}%
+                  {(Number(pos.weight) * 100).toFixed(1)}%
                 </td>
                 <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {pos.target_weight !== null
-                    ? `${(pos.target_weight * 100).toFixed(1)}%`
+                  {pos.target_weight != null
+                    ? `${(Number(pos.target_weight) * 100).toFixed(1)}%`
                     : "—"}
                 </td>
                 <td className="px-2 py-1.5 text-right">

@@ -60,6 +60,42 @@ async def create_portfolio(
     return portfolio
 
 
+async def update_portfolio(
+    portfolio_id: uuid.UUID,
+    user_id: uuid.UUID,
+    name: str,
+    db: AsyncSession,
+) -> Portfolio:
+    result = await db.execute(
+        select(Portfolio)
+        .where(Portfolio.id == portfolio_id)
+        .where(Portfolio.user_id == user_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if not portfolio:
+        raise NotFoundError("Portfolio not found")
+    portfolio.name = name
+    await db.commit()
+    return portfolio
+
+
+async def delete_portfolio(
+    portfolio_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+):
+    result = await db.execute(
+        select(Portfolio)
+        .where(Portfolio.id == portfolio_id)
+        .where(Portfolio.user_id == user_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if not portfolio:
+        raise NotFoundError("Portfolio not found")
+    await db.delete(portfolio)
+    await db.commit()
+
+
 async def get_portfolio_summary(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,

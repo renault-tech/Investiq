@@ -79,6 +79,27 @@ async def create_portfolio(
     )
 
 
+@router.put("/{portfolio_id}", response_model=PortfolioResponse)
+async def update_portfolio(
+    portfolio_id: uuid.UUID,
+    body: PortfolioCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a portfolio name."""
+    return await service.update_portfolio(portfolio_id, current_user.id, body.name, db)
+
+
+@router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a portfolio completely."""
+    await service.delete_portfolio(portfolio_id, current_user.id, db)
+
+
 @router.get("/{portfolio_id}/summary", response_model=PortfolioSummaryResponse)
 async def get_portfolio_summary(
     portfolio_id: uuid.UUID,

@@ -31,7 +31,7 @@ export const viewport: Viewport = {
   themeColor: "#0A192F",
   width: "device-width",
   initialScale: 1,
-  minimumScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon.svg" />
       </head>

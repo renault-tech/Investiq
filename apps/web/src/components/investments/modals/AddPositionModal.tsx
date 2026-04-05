@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { X } from "lucide-react";
-import { addPosition } from "@/lib/portfolio-api";
+import { addPosition, createTransaction } from "@/lib/portfolio-api";
 
 interface AddPositionModalProps {
   portfolioId: string;
@@ -17,6 +17,9 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
   const [broker, setBroker] = useState("");
   const [targetPct, setTargetPct] = useState("");
 
+  const [quantity, setQuantity] = useState("");
+  const [price, setPrice] = useState("");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -24,24 +27,46 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
   }, [onClose]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      addPosition(portfolioId, {
+    mutationFn: async () => {
+      // 1. Cria a posição
+      const position = await addPosition(portfolioId, {
         ticker: ticker.toUpperCase().trim(),
         broker: broker.trim() || undefined,
         target_weight: targetPct ? parseFloat(targetPct) / 100 : undefined,
-      }),
-    onSuccess: () => {
+      }) as { id: string };
+
+      // 2. Registra transação inicial se qty+preço informados
+      const numQty = parseFloat(quantity);
+      const numPrice = parseFloat(price);
+      if (!isNaN(numQty) && !isNaN(numPrice) && numQty > 0) {
+        await createTransaction({
+          position_id: position.id,
+          transaction_type: "buy",
+          quantity: numQty,
+          unit_price: numPrice,
+          fees: 0,
+          fx_rate: 1,
+          transaction_date: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      return ticker.toUpperCase().trim();
+    },
+    onSuccess: (tickerName) => {
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
-      toast.success(`Ativo ${ticker.toUpperCase()} adicionado!`);
+      toast.success(`${tickerName} adicionado ao portfólio!`);
       onClose();
     },
     onError: (err: unknown) => {
+      // Sempre invalida — a posição pode ter sido criada antes da transação falhar
+      queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
       const detail =
         err != null &&
         typeof err === "object" &&
-        "response" in err &&
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-      toast.error(detail || "Erro ao adicionar ativo. Tente novamente.");
+        "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(detail || "Erro ao adicionar ativo. Verifique se o ticker é válido.");
     },
   });
 
@@ -59,42 +84,75 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
         </div>
 
         <div className="space-y-3">
+          {/* Main Ticker Field */}
           <div>
-            <label htmlFor="position-ticker" className="block text-[10px] text-[var(--text-muted)] mb-1">Ticker *</label>
+            <label htmlFor="position-ticker" className="block text-[10px] text-[var(--text-muted)] mb-1">Ticker <span className="text-red-400">*</span></label>
             <input
               id="position-ticker"
               type="text"
               value={ticker}
               onChange={(e) => setTicker(e.target.value.toUpperCase())}
               maxLength={20}
-              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500 font-mono"
+              className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500 font-mono"
               placeholder="Ex: PETR4"
             />
           </div>
-          <div>
-            <label htmlFor="position-broker" className="block text-[10px] text-[var(--text-muted)] mb-1">Corretora</label>
-            <input
-              id="position-broker"
-              type="text"
-              value={broker}
-              onChange={(e) => setBroker(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
-              placeholder="Ex: XP, Clear (opcional)"
-            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="pos-qty" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade</label>
+              <input
+                id="pos-qty"
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                min={0}
+                step={1}
+                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
+                placeholder="Opcional"
+              />
+            </div>
+            <div>
+              <label htmlFor="pos-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Atual</label>
+              <input
+                id="pos-price"
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                min={0}
+                step={0.01}
+                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
+                placeholder="R$ Opcional"
+              />
+            </div>
           </div>
-          <div>
-            <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Peso Alvo %</label>
-            <input
-              id="position-target-weight"
-              type="number"
-              value={targetPct}
-              onChange={(e) => setTargetPct(e.target.value)}
-              min={0}
-              max={100}
-              step={0.1}
-              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-blue-500"
-              placeholder="Ex: 10 (opcional)"
-            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo do Portfólio %</label>
+              <input
+                id="position-target-weight"
+                type="number"
+                value={targetPct}
+                onChange={(e) => setTargetPct(e.target.value)}
+                min={0}
+                max={100}
+                step={0.1}
+                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
+                placeholder="Ex: 5%"
+              />
+            </div>
+            <div>
+              <label htmlFor="position-broker" className="block text-[10px] text-[var(--text-muted)] mb-1">Corretora</label>
+              <input
+                id="position-broker"
+                type="text"
+                value={broker}
+                onChange={(e) => setBroker(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
+                placeholder="Ex: NuInvest"
+              />
+            </div>
           </div>
         </div>
 

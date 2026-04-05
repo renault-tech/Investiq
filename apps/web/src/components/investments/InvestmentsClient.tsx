@@ -30,8 +30,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const { data: portfolios = initialPortfolios } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
     queryFn: listPortfolios,
-    initialData: initialPortfolios,
-    initialDataUpdatedAt: Date.now(),
+    initialData: initialPortfolios.length > 0 ? initialPortfolios : undefined,
+    initialDataUpdatedAt: 0,
     staleTime: 30_000,
   });
 
@@ -49,7 +49,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-        <h1 className="text-xl font-semibold text-white">Investimentos</h1>
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Investimentos</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowNewPortfolio(true)}

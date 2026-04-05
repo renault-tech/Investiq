@@ -42,25 +42,38 @@ class YahooFinanceProvider(MarketDataProvider):
         """Synchronous yfinance call — runs in thread executor."""
         try:
             import yfinance as yf
-            data = yf.Tickers(" ".join(tickers))
+            
+            yf_to_raw = {}
+            query_tickers = []
+            for t in tickers:
+                # Add .SA for Brazilian tickers if no suffix exists
+                if t.endswith(("3", "4", "5", "6", "11", "34", "39")) and "." not in t:
+                    yf_t = f"{t}.SA"
+                else:
+                    yf_t = t
+                query_tickers.append(yf_t)
+                yf_to_raw[yf_t] = t
+
+            data = yf.Tickers(" ".join(query_tickers))
             result = {}
-            for ticker in tickers:
+            for yf_t in query_tickers:
+                raw_t = yf_to_raw[yf_t]
                 try:
-                    info = data.tickers[ticker].fast_info
+                    info = data.tickers[yf_t].fast_info
                     price = _to_decimal(getattr(info, "last_price", None))
                     if price is None:
                         continue
                     currency = getattr(info, "currency", "USD") or "USD"
-                    result[ticker] = Quote(
-                        ticker=ticker,
+                    result[raw_t] = Quote(
+                        ticker=raw_t,
                         price=price,
                         currency=currency,
-                        change_pct=None,  # fast_info doesn't include change%
+                        change_pct=None,
                         volume=getattr(info, "three_month_average_volume", None),
                         market_cap=_to_decimal(getattr(info, "market_cap", None)),
                     )
                 except Exception as exc:
-                    logger.warning("Yahoo quote failed for %s: %s", ticker, exc)
+                    logger.warning("Yahoo quote failed for %s: %s", raw_t, exc)
             return result
         except Exception as exc:
             logger.error("Yahoo Finance bulk fetch failed: %s", exc)
@@ -82,7 +95,8 @@ class YahooFinanceProvider(MarketDataProvider):
         try:
             import yfinance as yf
             import pandas as pd
-            df = yf.download(ticker, period=period, interval=interval, progress=False, auto_adjust=True)
+            yf_t = f"{ticker}.SA" if ticker.endswith(("3", "4", "5", "6", "11", "34", "39")) and "." not in ticker else ticker
+            df = yf.download(yf_t, period=period, interval=interval, progress=False, auto_adjust=True)
             if df.empty:
                 return []
             bars = []

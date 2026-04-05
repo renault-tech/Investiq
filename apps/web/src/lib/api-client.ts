@@ -1,5 +1,5 @@
 import axios from "axios";
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
 export const apiClient = axios.create({ baseURL: API_BASE, withCredentials: true });
 let accessToken: string | null = null;
 export function setAccessToken(token: string) { accessToken = token; }
@@ -13,7 +13,12 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+    if (
+      error.response?.status === 401 &&
+      !original._retry &&
+      !original.url?.includes("/auth/login") &&
+      !original.url?.includes("/auth/register")
+    ) {
       original._retry = true;
       try {
         const res = await axios.post(API_BASE + "/auth/refresh", {}, { withCredentials: true });

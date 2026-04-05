@@ -9,8 +9,6 @@ import { AnalysisReport } from "./AnalysisReport";
 import { AnalysisChat } from "./AnalysisChat";
 import { AnalysisEmptyState } from "./AnalysisEmptyState";
 import { AnalysisStreamingSkeleton } from "./AnalysisStreamingSkeleton";
-import { useAnalysis, useAnalyses } from "@/hooks/useAnalyses";
-// useAnalysis hook is actually exported from hooks/useAnalysis.ts, wait let's import properly
 import { useAnalysis as useAnalysisHook } from "@/hooks/useAnalysis";
 import { getRecentContext, saveAnalysis } from "@/lib/analysis-api";
 import { getPortfolioSummary } from "@/lib/portfolio-api";

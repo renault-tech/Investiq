@@ -96,3 +96,11 @@ export async function createTransaction(
   const res = await apiClient.post("/portfolios/transactions", input);
   return res.data;
 }
+
+export async function deletePortfolio(portfolioId: string): Promise<void> {
+  await apiClient.delete(`/portfolios/${portfolioId}`);
+}
+
+export async function updatePortfolio(portfolioId: string, name: string): Promise<void> {
+  await apiClient.put(`/portfolios/${portfolioId}`, { name });
+}

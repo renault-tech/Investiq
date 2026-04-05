@@ -3,7 +3,7 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from passlib.context import CryptContext
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,15 +12,18 @@ from src.auth.jwt import create_access_token
 from src.config import settings
 from src.shared.exceptions import ValidationError, UnauthorizedError
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+import bcrypt
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 
 def hash_token(token: str) -> str:
@@ -60,9 +63,16 @@ async def login_user(
     """Returns (access_token, raw_refresh_token)."""
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.hashed_password):
-        raise UnauthorizedError("Invalid credentials")
+    if not user:
+        print(f"User not found for email: {email}")
+        raise UnauthorizedError(f"User not found: {email}")
+        
+    if not verify_password(password, user.hashed_password):
+        print(f"Password mismatch for email: {email}")
+        raise UnauthorizedError("Password mismatch")
+        
     if not user.is_active:
+        print(f"User disabled: {email}")
         raise UnauthorizedError("Account disabled")
 
     access_token = create_access_token(str(user.id), user.email, user.role)

@@ -6,17 +6,20 @@ interface LeftPanelProps {
   isLoading: boolean;
 }
 
-function fmt(value: number): string {
+function fmt(value: number | string | null): string {
+  if (value == null) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 2,
-  }).format(value);
+  }).format(Number(value));
 }
 
-function fmtPct(value: number): string {
-  const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+function fmtPct(value: number | string | null): string {
+  if (value == null) return "0.00%";
+  const num = Number(value);
+  const sign = num >= 0 ? "+" : "";
+  return `${sign}${num.toFixed(2)}%`;
 }
 
 export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
@@ -58,12 +61,12 @@ export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
 
       {top5.length > 0 && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3 mt-1">
-          <p className="text-[9px] uppercase tracking-widest text-neutral-600 mb-2">
+          <p className="text-[9px] uppercase tracking-widest text-[var(--text-muted)] mb-2">
             Top Posições
           </p>
           {top5.map((pos) => (
             <div key={pos.asset_id} className="flex justify-between items-center py-1">
-              <span className="text-[11px] font-semibold text-neutral-200">{pos.ticker}</span>
+              <span className="text-[11px] font-semibold text-[var(--text-primary)]">{pos.ticker}</span>
               <span
                 className={`text-[10px] ${
                   pos.pnl_percent >= 0 ? "text-green-500" : "text-red-500"

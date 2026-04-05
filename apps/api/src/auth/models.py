@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text, Boolean, TIMESTAMP, ForeignKey, func
+from sqlalchemy import Column, Text, Boolean, TIMESTAMP, ForeignKey, func, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from src.database import Base
 
@@ -48,7 +48,7 @@ class UserSettings(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     theme = Column(Text, nullable=False, default="dark")
     accent_color = Column(Text, nullable=False, default="#3B82F6")
-    font_size_scale = Column(Text, nullable=False, default="1.0")
+    font_size_scale = Column(Numeric(4, 2), nullable=False, default=1.0)
     base_currency = Column(Text, nullable=False, default="BRL")
     preferred_provider = Column(Text, nullable=False, default="yahoo")
     preferred_llm = Column(Text, nullable=False, default="claude")
