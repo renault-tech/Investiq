@@ -13,6 +13,7 @@ from src.settings.router import router as settings_router
 from src.ai.router import router as ai_router
 from src.analysis.router import router as analysis_portfolios_router
 from src.analysis.router import analysis_router as analysis_endpoints_router
+from src.finance.router import router as finance_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
 
 
@@ -45,6 +46,7 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(ai_router, prefix="/api/v1")
 app.include_router(analysis_portfolios_router, prefix="/api/v1")
 app.include_router(analysis_endpoints_router, prefix="/api/v1")
+app.include_router(finance_router, prefix="/api/v1")
 
 
 @app.get("/health")

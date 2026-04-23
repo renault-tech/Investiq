@@ -1,10 +1,14 @@
-﻿export default function SettingsPage() {
+﻿import { Metadata } from "next";
+import { SettingsClient } from "@/components/settings/SettingsClient";
+
+export const metadata: Metadata = {
+  title: "Configurações | InvestIQ",
+};
+
+export default function SettingsPage() {
   return (
-    <div className="h-full flex items-center justify-center text-neutral-500">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold text-neutral-200 mb-2">Configuracoes</h1>
-        <p className="text-sm">Painel de configuracoes em construcao</p>
-      </div>
+    <div className="h-full overflow-y-auto bg-[var(--background)]">
+      <SettingsClient />
     </div>
   );
 }
