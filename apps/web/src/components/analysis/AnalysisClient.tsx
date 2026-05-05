@@ -10,9 +10,16 @@ import { AnalysisChat } from "./AnalysisChat";
 import { AnalysisEmptyState } from "./AnalysisEmptyState";
 import { AnalysisStreamingSkeleton } from "./AnalysisStreamingSkeleton";
 import { useAnalysis as useAnalysisHook } from "@/hooks/useAnalysis";
+import { useSettings } from "@/hooks/useSettings";
 import { getRecentContext, saveAnalysis } from "@/lib/analysis-api";
 import { getPortfolioSummary } from "@/lib/portfolio-api";
 import { getAccessToken } from "@/lib/api-client";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  claude: "Claude (Anthropic)",
+  openai: "OpenAI",
+  gemini: "Gemini (Google)",
+};
 
 const SECTION_HEADERS: Record<string, string> = {
   "## Contexto da Análise": "context",
@@ -54,13 +61,29 @@ export function AnalysisClient() {
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamedSections, setStreamedSections] = useState<Record<string, string>>({});
-  
+  const [missingKey, setMissingKey] = useState<string | null>(null);
+
   const queryClient = useQueryClient();
   const { data: analysisDetail, isLoading: isLoadingAnalysis } = useAnalysisHook(activeAnalysisId);
+  const { data: settings } = useSettings();
+
+  // Derive which key is needed for the configured provider
+  const provider = settings?.preferred_llm ?? "claude";
+  const hasRequiredKey =
+    provider === "openai" ? settings?.has_openai_api_key :
+    provider === "gemini" ? settings?.has_gemini_api_key :
+    settings?.has_claude_api_key;
 
   const handleAnalyze = async () => {
     if (!activePortfolioId) return;
-    
+
+    // Preventive check before hitting the API
+    if (settings && !hasRequiredKey) {
+      setMissingKey(PROVIDER_LABELS[provider] ?? provider);
+      return;
+    }
+
+    setMissingKey(null);
     setStreaming(true);
     setStreamedSections({});
     setActiveAnalysisId(null);
@@ -71,9 +94,9 @@ export function AnalysisClient() {
       const portfolioSum = await getPortfolioSummary(activePortfolioId).catch(() => null);
 
       if (!portfolioSum || portfolioSum.positions.length === 0) {
-         toast.error("O portfólio não possui posições para análise.");
-         setStreaming(false);
-         return;
+        toast.error("O portfólio não possui posições para análise.");
+        setStreaming(false);
+        return;
       }
 
       const payload = {
@@ -95,9 +118,21 @@ export function AnalysisClient() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok || !res.body) {
+      if (!res.ok) {
+        // 422 = no API key configured on backend
+        if (res.status === 422) {
+          const body = await res.json().catch(() => ({}));
+          const msg: string = body?.detail?.message ?? "";
+          const matched = Object.entries(PROVIDER_LABELS).find(([, label]) =>
+            msg.toLowerCase().includes(label.toLowerCase().split(" ")[0])
+          );
+          setMissingKey(matched ? matched[1] : PROVIDER_LABELS[provider] ?? provider);
+          return;
+        }
         throw new Error("Failed to start analysis stream");
       }
+
+      if (!res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -105,10 +140,10 @@ export function AnalysisClient() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        
+
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\\n');
-        
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6);
@@ -116,25 +151,24 @@ export function AnalysisClient() {
             try {
               rawText += data;
               setStreamedSections(parseSections(rawText));
-            } catch (e) {}
+            } catch { /* partial JSON — ignore */ }
           }
         }
       }
 
-      // Finalizado o stream
       const finalSections = parseSections(rawText);
       const saved = await saveAnalysis({
         portfolio_id: activePortfolioId,
         raw_text: rawText,
         sections: finalSections,
-        provider: "unknown",
-        model: "unknown"
+        provider: provider,
+        model: settings?.llm_model ?? "unknown"
       });
 
       queryClient.invalidateQueries({ queryKey: ["analyses", activePortfolioId] });
       setActiveAnalysisId(saved.id);
 
-    } catch (err) {
+    } catch {
       toast.error("Falha ao gerar análise. Tente novamente.");
     } finally {
       setStreaming(false);
@@ -178,6 +212,8 @@ export function AnalysisClient() {
           {/* Content Area */}
           {!activePortfolioId ? (
             <AnalysisEmptyState disabled={true} />
+          ) : missingKey ? (
+            <AnalysisEmptyState noApiKey missingProvider={missingKey} />
           ) : streaming ? (
             <div className="space-y-6">
               <AnalysisStreamingSkeleton />
