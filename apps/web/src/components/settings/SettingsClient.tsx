@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff, Check, Loader2 } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useUIStore } from "@/store/useUIStore";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
 import type { SettingsPatch, ApiKeysPatch } from "@/lib/settings-api";
 
@@ -176,8 +178,12 @@ export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
   const patch = usePatchSettings();
   const updateKeys = useUpdateApiKeys();
+  const { setTheme } = useTheme();
+  const setFontScale = useUIStore((s) => s.setFontScale);
 
   const save = (data: SettingsPatch) => {
+    if (data.theme) setTheme(data.theme);
+    if (data.font_size_scale) setFontScale(Number(data.font_size_scale), false);
     patch.mutate(data, {
       onError: () => toast.error("Erro ao salvar configurações."),
       onSuccess: () => toast.success("Configurações salvas."),
