@@ -237,6 +237,35 @@ export function SettingsClient() {
             />
           </div>
         </div>
+
+        {/* Font scale */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <Label>Tamanho da interface</Label>
+            <span className="text-[11px] font-mono text-[var(--text-muted)]">
+              {Math.round(Number(settings.font_size_scale) * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.75}
+            max={1.5}
+            step={0.05}
+            value={settings.font_size_scale}
+            onChange={(e) => {
+              const v = e.target.value;
+              setFontScale(Number(v), false);
+            }}
+            onMouseUp={(e) => save({ font_size_scale: (e.target as HTMLInputElement).value })}
+            onTouchEnd={(e) => save({ font_size_scale: (e.target as HTMLInputElement).value })}
+            className="w-full accent-[var(--navy)] cursor-pointer"
+          />
+          <div className="flex justify-between text-[10px] text-[var(--text-muted)] mt-0.5">
+            <span>75%</span>
+            <span>100%</span>
+            <span>150%</span>
+          </div>
+        </div>
       </Section>
 
       {/* Provedor de IA */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun, ZoomIn, ZoomOut, Search, Bell, ChevronDown, Settings, LogOut, User } from "lucide-react";
+import { Moon, Sun, ZoomIn, ZoomOut, Bell, ChevronDown, Settings, LogOut } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 import { useTheme } from "next-themes";
@@ -59,19 +59,7 @@ export function TopBar() {
         </span>
       </div>
 
-      {/* Global Search */}
-      <div className="flex-1 flex justify-center max-w-md w-full">
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={16} className="text-[var(--text-muted)]" />
-          </div>
-          <input
-            type="text"
-            placeholder="Buscar ativos, portfólios..."
-            className="block w-full pl-10 pr-3 py-1.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
-          />
-        </div>
-      </div>
+      <div className="flex-1" />
 
       <div className="flex items-center gap-4">
         {/* Zoom controls */}
@@ -107,9 +95,8 @@ export function TopBar() {
         )}
 
         {/* Notifications */}
-        <button className="relative p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        <button className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Notificações (em breve)">
           <Bell size={16} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--danger)] rounded-full border border-[var(--surface)]" />
         </button>
 
         {/* Avatar dropdown */}
