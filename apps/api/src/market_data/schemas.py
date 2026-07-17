@@ -60,6 +60,39 @@ class IndicatorsResponse(BaseModel):
     ema: list[MaSeries]
 
 
+class FixedIncomeInstrumentInput(BaseModel):
+    name: str
+    instrument_type: str = "cdb"
+    annual_rate: Decimal = Decimal("0")
+    rate_type: str = "prefixado"  # prefixado | cdi_pct | ipca_plus | selic_plus
+    cdi_pct: Optional[Decimal] = None
+    ipca_spread: Optional[Decimal] = None
+    is_ir_exempt: bool = False
+
+
+class FixedIncomeCompareRequest(BaseModel):
+    instruments: list[FixedIncomeInstrumentInput]
+    principal: Decimal
+    business_days: int
+    calendar_days: int
+    cdi_rate: Optional[Decimal] = None
+    ipca_rate: Optional[Decimal] = None
+
+
+class FixedIncomeComparisonResult(BaseModel):
+    name: str
+    instrument_type: str
+    annual_rate: Decimal
+    rate_type: str
+    is_ir_exempt: bool
+    gross_return: Decimal
+    ir_amount: Decimal
+    net_return: Decimal
+    net_amount: Decimal
+    effective_annual_rate: Decimal
+    ranking: int
+
+
 class FundamentalsResponse(BaseModel):
     ticker: str
     name: Optional[str]

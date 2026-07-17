@@ -13,6 +13,8 @@ from src.market_data.schemas import (
     IndicatorsResponse,
     MaSeries,
     FundamentalsResponse,
+    FixedIncomeCompareRequest,
+    FixedIncomeComparisonResult,
 )
 from src.analysis.indicators import (
     get_indicator_bundle,
@@ -189,3 +191,44 @@ async def get_asset_fundamentals(
         await cache.set_fundamentals(fundamentals)
 
     return FundamentalsResponse(**fundamentals.__dict__)
+
+
+@router.post("/fixed-income/compare", response_model=list[FixedIncomeComparisonResult])
+async def compare_fixed_income(
+    body: FixedIncomeCompareRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Compare fixed-income instruments net of regressive IR (252-business-day convention).
+
+    CDI/IPCA rates are supplied by the caller (free BCB SGS lookup lands with the
+    Profit/BCB integration); LCI/LCA are IR-exempt automatically by type.
+    """
+    from src.analysis.fixed_income import FixedIncomeInstrument, compare_instruments
+
+    if not body.instruments:
+        raise HTTPException(status_code=422, detail="Informe ao menos um instrumento")
+    if body.business_days <= 0 or body.calendar_days <= 0:
+        raise HTTPException(status_code=422, detail="Prazos devem ser positivos")
+
+    instruments = [
+        FixedIncomeInstrument(
+            name=inst.name,
+            instrument_type=inst.instrument_type,
+            annual_rate=inst.annual_rate,
+            rate_type=inst.rate_type,
+            cdi_pct=inst.cdi_pct,
+            ipca_spread=inst.ipca_spread,
+            is_ir_exempt=inst.is_ir_exempt or inst.instrument_type in ("lci", "lca", "cri", "cra"),
+        )
+        for inst in body.instruments
+    ]
+
+    results = compare_instruments(
+        instruments=instruments,
+        principal=body.principal,
+        business_days=body.business_days,
+        calendar_days=body.calendar_days,
+        cdi_rate=body.cdi_rate,
+        ipca_rate=body.ipca_rate,
+    )
+    return [FixedIncomeComparisonResult(**r.__dict__) for r in results]
