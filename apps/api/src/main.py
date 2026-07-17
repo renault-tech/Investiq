@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
 
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
 from src.config import settings
+from src.database import AsyncSessionLocal
 from src.shared.limiter import limiter
 from src.auth.router import router as auth_router
 from src.portfolio.router import router as portfolio_router
@@ -19,9 +23,11 @@ from src.workers.scheduler import start_scheduler, stop_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background workers on startup; stop on shutdown."""
-    # start_scheduler()
+    if settings.ENABLE_SCHEDULER:
+        start_scheduler()
     yield
-    # stop_scheduler()
+    if settings.ENABLE_SCHEDULER:
+        stop_scheduler()
 
 
 app = FastAPI(title="InvestIQ API", version="0.1.0", lifespan=lifespan)
@@ -54,4 +60,23 @@ async def health():
 
 @app.get("/health/db")
 async def health_db():
-    return {"status": "ok", "db": "not_connected_yet"}
+    db_status = "ok"
+    redis_status = "ok"
+
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception:
+        db_status = "error"
+
+    redis_client = aioredis.from_url(settings.REDIS_URL)
+    try:
+        await redis_client.ping()
+    except Exception:
+        redis_status = "error"
+    finally:
+        await redis_client.aclose()
+
+    healthy = db_status == "ok" and redis_status == "ok"
+    body = {"status": "ok" if healthy else "error", "db": db_status, "redis": redis_status}
+    return JSONResponse(status_code=200 if healthy else 503, content=body)
