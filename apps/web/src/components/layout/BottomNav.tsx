@@ -2,22 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, BarChart2, LineChart, Settings } from "lucide-react";
+import { TrendingUp, BarChart2, CreditCard, LineChart, Settings } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/investments", label: "Dashboard", icon: TrendingUp },
   { href: "/finances", label: "Finanças", icon: BarChart2 },
+  { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/analysis", label: "Análise", icon: LineChart },
   { href: "/settings", label: "Ajustes", icon: Settings },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const activeHref = NAV_ITEMS
+    .filter((item) => pathname.startsWith(item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[var(--surface)] border-t border-[var(--border)] pb-safe flex justify-around items-center h-16 px-2 z-50">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname.startsWith(href);
+        const active = href === activeHref;
         return (
           <Link
             key={href}
