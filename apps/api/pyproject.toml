@@ -24,6 +24,7 @@ dependencies = [
   "resend>=0.8.0",
   "anthropic>=0.28.0",
   "openai>=1.30.0",
+  "python-dateutil>=2.9.0",
 ]
 
 [project.optional-dependencies]
