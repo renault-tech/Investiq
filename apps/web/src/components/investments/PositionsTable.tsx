@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RebalanceTag } from "./RebalanceTag";
 import type { PositionSummary } from "@/lib/portfolio-api";
 
@@ -83,7 +84,12 @@ export function PositionsTable({
                 <td className="px-2 py-1.5 text-left flex items-center gap-2">
                   <div>
                     <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-primary)]">
-                      {pos.ticker}
+                      <Link
+                        href={`/investments/${pos.ticker}`}
+                        className="hover:text-[var(--accent)] hover:underline underline-offset-2"
+                      >
+                        {pos.ticker}
+                      </Link>
                       {pos.quantity === 0 && (
                         <span className="px-1 py-0.5 rounded text-[8px] bg-blue-500/20 text-blue-400 font-normal tracking-wide">
                           MONITORANDO
