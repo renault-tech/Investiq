@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.workers.price_refresh import price_refresh_job
 from src.workers.alert_checker import alert_checker_job
 from src.workers.fx_updater import fx_update_job
+from src.workers.snapshot_worker import snapshot_job
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,17 @@ def create_scheduler() -> AsyncIOScheduler:
         hour=18,
         minute=0,
         id="fx_update",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
+    # Portfolio value snapshot: daily at 21:00 UTC (after B3 close)
+    scheduler.add_job(
+        snapshot_job,
+        "cron",
+        hour=21,
+        minute=0,
+        id="portfolio_snapshot",
         replace_existing=True,
         misfire_grace_time=3600,
     )

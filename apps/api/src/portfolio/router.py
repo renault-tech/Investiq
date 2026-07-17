@@ -3,7 +3,7 @@ import uuid
 import logging
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -14,6 +14,7 @@ from src.portfolio.schemas import (
     PortfolioCreate,
     PortfolioResponse,
     PortfolioSummaryResponse,
+    PerformancePoint,
     TransactionCreate,
     TransactionResponse,
     BankAccountCreate,
@@ -118,6 +119,27 @@ async def get_portfolio_summary(
         brapi_key=provider_settings["brapi_key"],
     )
     return data
+
+
+@router.get("/{portfolio_id}/performance", response_model=list[PerformancePoint])
+async def get_portfolio_performance(
+    portfolio_id: uuid.UUID,
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Portfolio value over time (snapshots + reconstruction from transactions)."""
+    return await service.get_portfolio_performance(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
 
 
 @router.post("/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

@@ -1,7 +1,7 @@
 ﻿"""Portfolio Pydantic schemas."""
 from decimal import Decimal
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date as dt_date
 import uuid
 
 from pydantic import BaseModel, Field
@@ -73,6 +73,12 @@ class PositionSummary(BaseModel):
 # Portfolio summary
 # ---------------------------------------------------------------------------
 
+class AllocationSlice(BaseModel):
+    asset_type: str
+    value: Decimal
+    weight: Decimal   # 0.0-1.0 fraction of portfolio
+
+
 class PortfolioSummaryResponse(BaseModel):
     portfolio_id: uuid.UUID
     portfolio_name: str
@@ -82,6 +88,17 @@ class PortfolioSummaryResponse(BaseModel):
     total_pnl_percent: Decimal
     positions: list[PositionSummary]
     rebalance_suggestions: list[dict]
+    allocation_by_type: list[AllocationSlice] = []
+
+
+# ---------------------------------------------------------------------------
+# Performance series
+# ---------------------------------------------------------------------------
+
+class PerformancePoint(BaseModel):
+    date: dt_date
+    total_value: Decimal
+    total_invested: Decimal
 
 
 # ---------------------------------------------------------------------------
