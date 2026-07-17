@@ -7,7 +7,9 @@ from datetime import datetime
 
 import redis.asyncio as aioredis
 
-from src.market_data.base import Quote, HistoricalBar
+from dataclasses import asdict
+
+from src.market_data.base import Quote, HistoricalBar, Fundamentals
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,8 @@ logger = logging.getLogger(__name__)
 QUOTE_TTL = 300
 # Historical data TTL (4 hours — less volatile)
 HISTORY_TTL = 14400
+# Fundamentals TTL (24 hours — updates at most daily)
+FUNDAMENTALS_TTL = 86400
 
 
 def _quote_to_dict(quote: Quote) -> dict:
@@ -185,3 +189,34 @@ class MarketDataCache:
             )
         except Exception as exc:
             logger.warning("Cache set_historical failed for %s: %s", ticker, exc)
+
+    # ------------------------------------------------------------------
+    # Fundamentals cache
+    # ------------------------------------------------------------------
+
+    def _fundamentals_key(self, ticker: str) -> str:
+        return f"fundamentals:{ticker.upper()}"
+
+    async def get_fundamentals(self, ticker: str) -> Optional[Fundamentals]:
+        try:
+            raw = await self._redis.get(self._fundamentals_key(ticker))
+            if raw is None:
+                return None
+            data = json.loads(raw)
+            return Fundamentals(**{
+                key: (Decimal(value) if key not in ("ticker", "name", "sector") and value is not None else value)
+                for key, value in data.items()
+            })
+        except Exception as exc:
+            logger.warning("Cache get_fundamentals failed for %s: %s", ticker, exc)
+            return None
+
+    async def set_fundamentals(self, fundamentals: Fundamentals, ttl: int = FUNDAMENTALS_TTL) -> None:
+        try:
+            data = {
+                key: (str(value) if isinstance(value, Decimal) else value)
+                for key, value in asdict(fundamentals).items()
+            }
+            await self._redis.setex(self._fundamentals_key(fundamentals.ticker), ttl, json.dumps(data))
+        except Exception as exc:
+            logger.warning("Cache set_fundamentals failed for %s: %s", fundamentals.ticker, exc)

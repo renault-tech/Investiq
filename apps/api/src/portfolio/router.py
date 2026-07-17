@@ -2,13 +2,14 @@
 import uuid
 import logging
 
-import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.auth.dependencies import get_current_user
-from src.auth.models import User, UserSettings
+from src.auth.models import User
+from src.market_data.dependencies import get_redis as _get_redis
+from src.market_data.dependencies import get_user_provider_settings as _get_user_provider_settings
 from src.portfolio import service
 from src.portfolio.schemas import (
     PortfolioCreate,
@@ -26,37 +27,6 @@ from src.portfolio.schemas import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
-
-
-async def _get_redis():
-    """Dependency: yields Redis client and closes it after request. Yields None if unavailable."""
-    from src.config import settings
-    client = None
-    try:
-        client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-        yield client
-    except Exception as exc:
-        logger.warning("Redis unavailable, cache disabled: %s", exc)
-        yield None
-    finally:
-        if client:
-            await client.aclose()
-
-
-async def _get_user_provider_settings(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Fetch user's preferred market data provider from settings."""
-    from sqlalchemy import select
-    result = await db.execute(
-        select(UserSettings).where(UserSettings.user_id == current_user.id)
-    )
-    settings_obj = result.scalar_one_or_none()
-    return {
-        "preferred": settings_obj.preferred_provider if settings_obj else "yahoo",
-        "brapi_key": settings_obj.brapi_key if settings_obj else None,
-    }
 
 
 @router.get("/", response_model=list[PortfolioResponse])
