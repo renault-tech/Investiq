@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard } from "lucide-react";
-import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
+import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
+import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { LeftPanel } from "./LeftPanel";
 import { PositionsTable } from "./PositionsTable";
+import { ChartCard } from "@/components/charts/ChartCard";
+import { AllocationDonut } from "@/components/charts/AllocationDonut";
+import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
@@ -26,6 +30,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [defaultTransactionPositionId, setDefaultTransactionPositionId] = useState<
     string | undefined
   >(undefined);
+  const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
+  const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
 
   const { data: portfolios = initialPortfolios } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
@@ -37,6 +43,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
   const { data: summary, isLoading: isSummaryLoading, dataUpdatedAt } =
     usePortfolioSummary(activePortfolioId);
+  const { data: performance, isLoading: isPerformanceLoading } =
+    usePortfolioPerformance(activePortfolioId, performancePeriod);
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -111,6 +119,73 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </p>
             )}
+
+            {/* Visão Geral — gráficos */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+              <div className="xl:col-span-2">
+                <ChartCard
+                  title="Evolução patrimonial"
+                  isLoading={isPerformanceLoading}
+                  isEmpty={!performance || performance.length === 0}
+                  emptyMessage="Registre transações para ver a evolução da carteira."
+                  actions={
+                    <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+                      {PERIODS.map((p) => (
+                        <button
+                          key={p.value}
+                          onClick={() => setPerformancePeriod(p.value)}
+                          className={`px-2 py-0.5 text-xs transition-colors ${
+                            performancePeriod === p.value
+                              ? "bg-[var(--navy)] text-white"
+                              : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                >
+                  <PortfolioEvolutionChart data={performance ?? []} />
+                </ChartCard>
+              </div>
+              <ChartCard
+                title="Alocação"
+                isLoading={isSummaryLoading}
+                isEmpty={!summary || summary.allocation_by_type.length === 0}
+                emptyMessage="Adicione posições para ver a alocação."
+                actions={
+                  <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+                    {([["type", "Tipo"], ["asset", "Ativo"]] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        onClick={() => setAllocationMode(mode)}
+                        className={`px-2 py-0.5 text-xs transition-colors ${
+                          allocationMode === mode
+                            ? "bg-[var(--navy)] text-white"
+                            : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                }
+              >
+                <AllocationDonut
+                  allocation={
+                    allocationMode === "type"
+                      ? summary?.allocation_by_type ?? []
+                      : (summary?.positions ?? []).map((p) => ({
+                          asset_type: p.ticker,
+                          value: p.market_value_brl,
+                          weight: p.weight,
+                        }))
+                  }
+                />
+              </ChartCard>
+            </div>
+
             <PositionsTable
               positions={summary?.positions ?? []}
               isLoading={isSummaryLoading}
