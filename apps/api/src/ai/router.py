@@ -68,7 +68,7 @@ async def analyze(
     system_prompt = body.system
 
     if body.previous_analyses:
-        analyses_text = "\\n---\\n".join(body.previous_analyses)
+        analyses_text = "\n---\n".join(body.previous_analyses)
         system_prompt = f"""Você é um analista financeiro institucional. Ao gerar a análise, mantenha
 consistência com as análises anteriores do mesmo portfólio fornecidas abaixo.
 Estruture a resposta com os seguintes headers markdown exatos:

@@ -64,12 +64,13 @@ async def sse_stream(
     Each yielded string is a complete SSE event line:
       data: {"type": "delta", "text": "...chunk..."}\n\n
 
-    A final event is emitted:
-      data: {"type": "done"}\n\n
+    A final event is emitted with the provider/model that produced the stream:
+      data: {"type": "done", "provider": "claude", "model": "..."}\n\n
 
     On error:
       data: {"type": "error", "message": "..."}\n\n
     """
+    resolved_model = model or provider.default_model
     try:
         async for chunk in provider.stream(
             messages=messages,
@@ -80,7 +81,10 @@ async def sse_stream(
         ):
             payload = json.dumps({"type": "delta", "text": chunk})
             yield f"data: {payload}\n\n"
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        done_payload = json.dumps(
+            {"type": "done", "provider": provider.name, "model": resolved_model}
+        )
+        yield f"data: {done_payload}\n\n"
     except LLMProviderError as exc:
         payload = json.dumps({"type": "error", "message": str(exc)})
         yield f"data: {payload}\n\n"

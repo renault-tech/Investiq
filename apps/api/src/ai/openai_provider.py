@@ -21,6 +21,10 @@ class OpenAIProvider(LLMProvider):
     def name(self) -> str:
         return "openai"
 
+    @property
+    def default_model(self) -> str:
+        return DEFAULT_MODEL
+
     def _build_messages(self, messages: list[dict], system: str | None) -> list[dict]:
         """Prepend system message in OpenAI format if provided."""
         if system:
