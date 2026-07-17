@@ -53,3 +53,12 @@ export const saveAnalysis = async (input: SaveAnalysisInput): Promise<{ id: stri
   const { data } = await apiClient.post(`/analyses`, input);
   return data;
 };
+
+export const addMessage = async (
+  analysisId: string,
+  content: string,
+  role: "user" | "assistant" = "user",
+): Promise<AnalysisMessage> => {
+  const { data } = await apiClient.post(`/analyses/${analysisId}/messages`, { content, role });
+  return data;
+};

@@ -12,7 +12,7 @@ import { AnalysisStreamingSkeleton } from "./AnalysisStreamingSkeleton";
 import { useAnalysis as useAnalysisHook } from "@/hooks/useAnalysis";
 import { getRecentContext, saveAnalysis } from "@/lib/analysis-api";
 import { getPortfolioSummary } from "@/lib/portfolio-api";
-import { getAccessToken } from "@/lib/api-client";
+import { streamAnalysis } from "@/lib/sse";
 
 const SECTION_HEADERS: Record<string, string> = {
   "## Contexto da Análise": "context",
@@ -28,12 +28,12 @@ function parseSections(rawText: string): Record<string, string> {
   let currentKey: string | null = null;
   let currentContent: string[] = [];
 
-  const lines = rawText.split("\\n");
+  const lines = rawText.split("\n");
   for (const line of lines) {
     const trimmed = line.trim();
     if (SECTION_HEADERS[trimmed]) {
       if (currentKey) {
-        sections[currentKey] = currentContent.join("\\n").trim();
+        sections[currentKey] = currentContent.join("\n").trim();
       }
       currentKey = SECTION_HEADERS[trimmed];
       currentContent = [];
@@ -43,7 +43,7 @@ function parseSections(rawText: string): Record<string, string> {
   }
 
   if (currentKey) {
-    sections[currentKey] = currentContent.join("\\n").trim();
+    sections[currentKey] = currentContent.join("\n").trim();
   }
 
   return sections;
@@ -64,7 +64,6 @@ export function AnalysisClient() {
     setStreaming(true);
     setStreamedSections({});
     setActiveAnalysisId(null);
-    let rawText = "";
 
     try {
       const recentCtx = await getRecentContext(activePortfolioId).catch(() => ({ raw_texts: [] }));
@@ -78,57 +77,24 @@ export function AnalysisClient() {
 
       const payload = {
         messages: [{
-          role: "user",
+          role: "user" as const,
           content: `Analise as posições do meu portfólio (IDs e ativos): ${JSON.stringify(portfolioSum.positions)}`
         }],
         portfolio_id: activePortfolioId,
         previous_analyses: recentCtx.raw_texts
       };
 
-      const token = getAccessToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/ai/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(payload)
+      const { text: rawText, provider, model } = await streamAnalysis(payload, (fullText) => {
+        setStreamedSections(parseSections(fullText));
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error("Failed to start analysis stream");
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              rawText += data;
-              setStreamedSections(parseSections(rawText));
-            } catch (e) {}
-          }
-        }
-      }
-
-      // Finalizado o stream
       const finalSections = parseSections(rawText);
       const saved = await saveAnalysis({
         portfolio_id: activePortfolioId,
         raw_text: rawText,
         sections: finalSections,
-        provider: "unknown",
-        model: "unknown"
+        provider,
+        model
       });
 
       queryClient.invalidateQueries({ queryKey: ["analyses", activePortfolioId] });
@@ -199,9 +165,10 @@ export function AnalysisClient() {
                     provider={analysisDetail.provider}
                     model={analysisDetail.model}
                   />
-                  <AnalysisChat 
+                  <AnalysisChat
                     analysisId={activeAnalysisId}
                     messages={analysisDetail.messages}
+                    analysisRawText={analysisDetail.raw_text}
                   />
                 </>
               ) : (

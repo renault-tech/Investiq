@@ -2,18 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send } from "lucide-react";
-import { AnalysisMessage } from "@/lib/analysis-api";
+import { AnalysisMessage, addMessage } from "@/lib/analysis-api";
 import { AnalysisChatMessage } from "./AnalysisChatMessage";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { getAccessToken } from "@/lib/api-client";
+import { streamAnalysis } from "@/lib/sse";
 
 interface AnalysisChatProps {
   analysisId: string;
   messages: AnalysisMessage[];
+  analysisRawText?: string;
 }
 
-export function AnalysisChat({ analysisId, messages }: AnalysisChatProps) {
+export function AnalysisChat({ analysisId, messages, analysisRawText }: AnalysisChatProps) {
   const [inputValue, setInputValue] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<AnalysisMessage[]>([]);
   const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
@@ -47,48 +48,29 @@ export function AnalysisChat({ analysisId, messages }: AnalysisChatProps) {
     setStreamingMessage("");
 
     try {
-      const token = getAccessToken();
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/analyses/${analysisId}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      // 1. Persiste a mensagem do usuário
+      await addMessage(analysisId, userContent, "user");
+
+      // 2. Abre o stream de resposta com o histórico da conversa
+      const history = [...messages, ...optimisticMessages]
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const system = analysisRawText
+        ? `Você é um analista financeiro institucional. O usuário está conversando sobre a análise de portfólio abaixo. Responda em português, de forma objetiva.\n\nAnálise:\n${analysisRawText}`
+        : undefined;
+
+      const { text: assistantText } = await streamAnalysis(
+        {
+          messages: [...history, { role: "user", content: userContent }],
+          system,
         },
-        body: JSON.stringify({ content: userContent })
-      });
+        (fullText) => setStreamingMessage(fullText),
+      );
 
-      if (!res.ok || !res.body) {
-        throw new Error("Failed to send message");
-      }
+      // 3. Persiste a resposta do assistente
+      await addMessage(analysisId, assistantText, "assistant");
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantText = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              // Assuming API sends just text chunks or JSON {text: "..."}
-              // The backend SSE endpoint might send bare text or JSON. We accumulate it.
-              // Wait, previous implementation of /ai/analyze sends bare text chunks usually.
-              // We'll append the data directly (it might need unescaping if JSON).
-              assistantText += data;
-              setStreamingMessage(assistantText);
-            } catch (e) {}
-          }
-        }
-      }
-
-      // Stream Finished
       queryClient.invalidateQueries({ queryKey: ["analysis", analysisId] });
       setOptimisticMessages([]);
       setStreamingMessage(null);
