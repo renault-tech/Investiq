@@ -14,15 +14,23 @@ logger = logging.getLogger(__name__)
 
 
 async def get_redis():
-    """Yield a Redis client, closing it after the request. Yields None if unavailable."""
+    """Yield a Redis client, closing it after the request. Yields None if unavailable.
+
+    Connection setup is guarded so a broken Redis doesn't break the request; the
+    yield itself is NOT guarded — a bare try/except around a generator's yield
+    swallows exceptions raised by the route handler too (FastAPI delivers them
+    into the generator at that yield point), masking real errors as 500s.
+    """
     from src.config import settings
     client = None
     try:
         client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-        yield client
     except Exception as exc:
         logger.warning("Redis unavailable, cache disabled: %s", exc)
-        yield None
+        client = None
+
+    try:
+        yield client
     finally:
         if client:
             await client.aclose()

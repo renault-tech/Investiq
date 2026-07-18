@@ -20,8 +20,8 @@ class UnauthorizedError(InvestIQException):
 
 
 class ForbiddenError(InvestIQException):
-    def __init__(self):
-        super().__init__(403, "auth.forbidden", "Access denied")
+    def __init__(self, message: str = "Access denied"):
+        super().__init__(403, "auth.forbidden", message)
 
 
 class ConflictError(InvestIQException):

@@ -23,7 +23,7 @@ from src.portfolio.calculations import (
     calculate_transaction_total,
 )
 from src.market_data.factory import get_provider, get_cache
-from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError
+from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -422,7 +422,7 @@ async def record_transaction(
     elif transaction_type == "sell":
         new_qty = position.quantity - quantity
         if new_qty < _ZERO:
-            raise ValueError("Sell quantity exceeds current position")
+            raise ValidationError("Sell quantity exceeds current position")
         # Reduce total_invested proportionally to the fraction sold
         if position.quantity > _ZERO:
             sold_fraction = quantity / position.quantity

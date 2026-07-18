@@ -3,7 +3,7 @@ import { apiClient } from "./api-client";
 export interface UserSettings {
   theme: string;
   accent_color: string;
-  font_size_scale: string;
+  font_size_scale: number;
   base_currency: string;
   preferred_provider: "yahoo" | "brapi";
   preferred_llm: "claude" | "openai" | "gemini";

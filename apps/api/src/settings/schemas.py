@@ -1,4 +1,5 @@
 """Pydantic schemas for user settings endpoints."""
+from decimal import Decimal
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 class SettingsResponse(BaseModel):
     theme: str
     accent_color: str
-    font_size_scale: str
+    font_size_scale: Decimal
     base_currency: str
     preferred_provider: str
     preferred_llm: str
@@ -28,7 +29,7 @@ class SettingsPatchRequest(BaseModel):
     """Partial update for non-sensitive settings (appearance, preferences)."""
     theme: Optional[str] = Field(default=None, pattern="^(dark|light)$")
     accent_color: Optional[str] = None
-    font_size_scale: Optional[str] = None
+    font_size_scale: Optional[Decimal] = Field(default=None, ge=Decimal("0.5"), le=Decimal("2.0"))
     base_currency: Optional[str] = None
     preferred_provider: Optional[str] = Field(default=None, pattern="^(yahoo|brapi)$")
     preferred_llm: Optional[str] = Field(default=None, pattern="^(claude|openai|gemini)$")
