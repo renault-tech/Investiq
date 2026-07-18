@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,6 +25,42 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # `docker compose --profile full up` also builds and runs the app
+  # containers; plain `docker compose up` (no profile) stays infra-only for
+  # local dev against `npm run dev` / `uvicorn --reload`.
+  api:
+    profiles: ["full"]
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://investiq:investiq@postgres:5432/investiq
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: http://localhost:3000
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?set JWT_PRIVATE_KEY (see apps/api/README.md)}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?set JWT_PUBLIC_KEY (see apps/api/README.md)}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY (Fernet.generate_key())}
+      ENABLE_SCHEDULER: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    profiles: ["full"]
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
 
 volumes:
   postgres_data:
