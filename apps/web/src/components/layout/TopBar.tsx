@@ -4,16 +4,27 @@ import { Moon, Sun, ZoomIn, ZoomOut, Search, Bell, ChevronDown } from "lucide-re
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export function TopBar() {
   const { fontScale, setFontScale } = useUIStore();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
-  
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+
   // Prevent hydration mismatch for theme toggle
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const ticker = search.trim().toUpperCase();
+    if (!ticker) return;
+    router.push(`/investments/${encodeURIComponent(ticker)}`);
+    setSearch("");
+  };
 
   return (
     <header className="h-14 border-b border-[var(--border)] bg-[var(--surface)] flex items-center px-6 gap-6 flex-shrink-0 justify-between">
@@ -24,19 +35,22 @@ export function TopBar() {
         </span>
       </div>
 
-      {/* Global Search */}
-      <div className="flex-1 flex justify-center max-w-md w-full">
+      {/* Global Search — digite um ticker e Enter abre a página do ativo */}
+      <form onSubmit={handleSearchSubmit} className="flex-1 flex justify-center max-w-md w-full">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search size={16} className="text-[var(--text-muted)]" />
           </div>
           <input
             type="text"
-            placeholder="Buscar ativos, portfólios..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar ticker (ex: PETR4) e pressione Enter"
+            aria-label="Buscar ativo por ticker"
             className="block w-full pl-10 pr-3 py-1.5 border border-[var(--border)] rounded-lg text-sm bg-[var(--background)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
           />
         </div>
-      </div>
+      </form>
 
       <div className="flex items-center gap-4">
         {/* Zoom controls */}

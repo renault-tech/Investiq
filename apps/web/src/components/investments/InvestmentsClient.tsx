@@ -12,6 +12,8 @@ import { PositionsTable } from "./PositionsTable";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { AllocationDonut } from "@/components/charts/AllocationDonut";
 import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
@@ -59,26 +61,25 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Investimentos</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowNewPortfolio(true)}
-            className="px-3 py-1.5 text-sm bg-[var(--navy)] text-white rounded-lg hover:bg-blue-700"
-          >
+          <Button size="sm" onClick={() => setShowNewPortfolio(true)}>
             + Portfólio
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
             onClick={() => setShowAddPosition(true)}
             disabled={!activePortfolioId}
-            className="px-3 py-1.5 text-sm bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Ativo
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
             onClick={() => { setDefaultTransactionPositionId(undefined); setShowNewTransaction(true); }}
             disabled={!activePortfolioId}
-            className="px-3 py-1.5 text-sm bg-neutral-700 text-white rounded-lg hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Transação
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -95,15 +96,13 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
       {/* Empty state */}
       {portfolios.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-[var(--text-muted)]">
-          <LayoutDashboard className="w-12 h-12 text-neutral-600" />
-          <p>Nenhum portfólio encontrado.</p>
-          <button
-            onClick={() => setShowNewPortfolio(true)}
-            className="px-4 py-2 bg-[var(--navy)] text-white rounded-lg text-sm hover:bg-blue-700"
-          >
-            Criar Portfólio
-          </button>
+        <div className="flex-1 flex items-center justify-center">
+          <EmptyState
+            icon={LayoutDashboard}
+            title="Nenhum portfólio encontrado."
+            description="Crie seu primeiro portfólio para começar a acompanhar seus investimentos."
+            action={<Button onClick={() => setShowNewPortfolio(true)}>Criar Portfólio</Button>}
+          />
         </div>
       )}
 

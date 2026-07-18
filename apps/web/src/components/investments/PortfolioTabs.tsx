@@ -67,7 +67,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
             className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full shrink-0 transition-all ${
               portfolio.id === activeId
                 ? "bg-[var(--navy)] text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] hover:bg-neutral-700 hover:text-neutral-200"
+                : "bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-[var(--text-primary)]"
             }`}
           >
             <span>{portfolio.name}</span>
@@ -81,7 +81,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
                 <Pencil size={11} />
               </span>
               <span
-                className="p-0.5 rounded-full hover:bg-red-500/70 transition-colors"
+                className="p-0.5 rounded-full hover:bg-[var(--danger)]/70 transition-colors"
                 onClick={(e) => handleDeleteClick(e, portfolio.id, portfolio.name)}
                 title="Excluir"
               >
@@ -104,7 +104,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
           >
             <div className="flex items-start gap-4 mb-5">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
-                <AlertTriangle size={20} className="text-red-500" />
+                <AlertTriangle size={20} className="text-[var(--danger)]" />
               </div>
               <div>
                 <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">
@@ -136,7 +136,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
               <button
                 onClick={() => deleteMut.mutate(confirmDelete.id)}
                 disabled={deleteMut.isPending}
-                className="px-4 py-2 text-[12px] text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-[12px] text-white bg-[var(--danger)] rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deleteMut.isPending ? "Excluindo..." : "Sim, excluir"}
               </button>

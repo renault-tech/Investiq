@@ -1,8 +1,10 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+
 export default function OfflinePage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--background)] text-[var(--text-primary)]">
       <div className="flex flex-col items-center gap-6 px-8 text-center">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -10,7 +12,7 @@ export default function OfflinePage() {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
-          className="h-16 w-16 text-slate-400"
+          className="h-16 w-16 text-[var(--text-muted)]"
         >
           <path
             strokeLinecap="round"
@@ -21,17 +23,12 @@ export default function OfflinePage() {
 
         <div>
           <h1 className="text-2xl font-bold">Sem conexão</h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-2 text-[var(--text-secondary)]">
             Você está offline. Verifique sua conexão e tente novamente.
           </p>
         </div>
 
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
-        >
-          Tentar novamente
-        </button>
+        <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
       </div>
     </div>
   );

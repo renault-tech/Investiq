@@ -69,7 +69,7 @@ export function LeftPanel({ summary, isLoading }: LeftPanelProps) {
               <span className="text-[11px] font-semibold text-[var(--text-primary)]">{pos.ticker}</span>
               <span
                 className={`text-[10px] ${
-                  pos.pnl_percent >= 0 ? "text-green-500" : "text-red-500"
+                  pos.pnl_percent >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"
                 }`}
               >
                 {fmtPct(pos.pnl_percent)}
