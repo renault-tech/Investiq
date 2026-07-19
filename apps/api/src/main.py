@@ -22,6 +22,7 @@ from src.finance.router import router as finance_router
 from src.cards.router import router as cards_router
 from src.alerts.router import router as alerts_router
 from src.notifications.router import router as notifications_router
+from src.onboarding.router import router as onboarding_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
 
 
@@ -61,6 +62,7 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(cards_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(onboarding_router, prefix="/api/v1")
 
 
 @app.get("/health")

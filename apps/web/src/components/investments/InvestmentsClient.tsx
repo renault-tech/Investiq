@@ -16,6 +16,7 @@ import { ChartCard } from "@/components/charts/ChartCard";
 import { AllocationDonut } from "@/components/charts/AllocationDonut";
 import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
 import { BenchmarkChart } from "@/components/charts/BenchmarkChart";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
@@ -99,6 +100,10 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             + Transação
           </Button>
         </div>
+      </div>
+
+      <div className="px-6 pt-4">
+        <OnboardingChecklist />
       </div>
 
       {/* Portfolio Tabs */}
