@@ -6,6 +6,7 @@ import { Check, KeyRound, Moon, Sun } from "lucide-react";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
 import { ApiKeysUpdate } from "@/lib/settings-api";
 import { useUserStore } from "@/store/useUserStore";
+import { SessionsSection } from "./SessionsSection";
 
 const LLM_OPTIONS = [
   { value: "claude", label: "Claude (Anthropic)", keyField: "claude_api_key" as const, hasField: "has_claude_api_key" as const },
@@ -207,6 +208,10 @@ export function SettingsClient() {
             ))}
           </div>
         </div>
+      </Section>
+
+      <Section title="Sessões" description="Dispositivos com uma sessão ativa na sua conta.">
+        <SessionsSection />
       </Section>
 
       <Section title="Notificações">

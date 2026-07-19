@@ -1,3 +1,7 @@
+import uuid
+from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -33,3 +37,16 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+
+class SessionResponse(BaseModel):
+    id: uuid.UUID
+    device_info: Optional[str]
+    ip_address: Optional[str]
+    created_at: datetime
+    expires_at: datetime
+    is_current: bool
+
+
+class RevokeOtherSessionsResponse(BaseModel):
+    revoked_count: int

@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Response, Cookie, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,8 @@ from src.auth.schemas import (
     UserResponse,
     ForgotPasswordRequest,
     ResetPasswordRequest,
+    SessionResponse,
+    RevokeOtherSessionsResponse,
 )
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
@@ -42,7 +46,11 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    access_token, refresh_token = await service.login_user(body.email, body.password, db)
+    access_token, refresh_token = await service.login_user(
+        body.email, body.password, db,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
     response.set_cookie(
         REFRESH_COOKIE,
         refresh_token,
@@ -56,6 +64,7 @@ async def login(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
+    request: Request,
     response: Response,
     refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
     db: AsyncSession = Depends(get_db),
@@ -63,7 +72,11 @@ async def refresh(
     from src.shared.exceptions import UnauthorizedError
     if not refresh_token:
         raise UnauthorizedError("No refresh token provided")
-    new_access, new_refresh = await service.refresh_access_token(refresh_token, db)
+    new_access, new_refresh = await service.refresh_access_token(
+        refresh_token, db,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
     response.set_cookie(
         REFRESH_COOKIE,
         new_refresh,
@@ -76,7 +89,12 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.logout_user(refresh_token, db)
     response.delete_cookie(REFRESH_COOKIE)
     return {"message": "Logged out"}
 
@@ -108,3 +126,34 @@ async def me(current_user: User = Depends(get_current_user)):
         is_verified=current_user.is_verified,
         plan=current_user.plan,
     )
+
+
+@router.get("/sessions", response_model=list[SessionResponse])
+async def list_sessions(
+    current_user: User = Depends(get_current_user),
+    refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
+    db: AsyncSession = Depends(get_db),
+):
+    """Active sessions (devices) for the current user, most recent first."""
+    return await service.list_sessions(current_user.id, refresh_token, db)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def revoke_session(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sign out a specific device/session (including — deliberately — the current one)."""
+    await service.revoke_session(current_user.id, session_id, db)
+
+
+@router.post("/sessions/revoke-others", response_model=RevokeOtherSessionsResponse)
+async def revoke_other_sessions(
+    current_user: User = Depends(get_current_user),
+    refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sign out every other device, keeping only the session making this request."""
+    count = await service.revoke_other_sessions(current_user.id, refresh_token, db)
+    return RevokeOtherSessionsResponse(revoked_count=count)
