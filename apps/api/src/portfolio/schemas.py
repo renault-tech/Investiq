@@ -102,6 +102,28 @@ class PerformancePoint(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Income (dividends)
+# ---------------------------------------------------------------------------
+
+class MonthlyIncomePoint(BaseModel):
+    month: str  # "2026-07"
+    amount: Decimal
+
+
+class AssetIncomeSummary(BaseModel):
+    ticker: str
+    total_12m: Decimal
+    yield_on_cost: Decimal
+
+
+class PortfolioIncomeResponse(BaseModel):
+    year: int
+    total: Decimal
+    monthly_series: list[MonthlyIncomePoint]
+    by_asset: list[AssetIncomeSummary]
+
+
+# ---------------------------------------------------------------------------
 # Transaction
 # ---------------------------------------------------------------------------
 

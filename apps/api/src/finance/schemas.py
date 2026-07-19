@@ -114,3 +114,23 @@ class FinanceSummaryResponse(BaseModel):
     expense_prev_pct: Optional[Decimal]
     by_category: list[CategorySummary]    # despesas do mês por categoria
     monthly_series: list[MonthlyFlowPoint]  # últimos 12 meses
+
+
+# ---------------------------------------------------------------------------
+# Budgets
+# ---------------------------------------------------------------------------
+
+class BudgetUpsert(BaseModel):
+    category_id: uuid.UUID
+    amount: Decimal = Field(..., gt=0)
+
+
+class BudgetResponse(BaseModel):
+    id: uuid.UUID
+    category_id: uuid.UUID
+    category_name: str
+    category_color: Optional[str]
+    amount: Decimal
+    period: str
+    spent: Decimal   # gasto no mês corrente na categoria
+    pct_used: Decimal  # spent / amount (fração; pode passar de 1)

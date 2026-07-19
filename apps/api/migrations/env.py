@@ -11,8 +11,10 @@ from src.database import Base
 import src.auth.models  # noqa
 import src.portfolio.models  # noqa
 import src.finance.models  # noqa
+import src.finance.budget_models  # noqa
 import src.analysis.models  # noqa
 import src.cards.models  # noqa
+import src.notifications.models  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

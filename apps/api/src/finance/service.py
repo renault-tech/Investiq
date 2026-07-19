@@ -18,7 +18,10 @@ from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from src.finance.models import FinanceCategory, FinancialTransaction
+from src.finance.budget_models import FinanceBudget
 from src.shared.exceptions import NotFoundError, ConflictError
 
 logger = logging.getLogger(__name__)
@@ -264,6 +267,10 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
     db.add(txn)
     await db.commit()
     await db.refresh(txn, attribute_names=["category"])
+
+    if txn.transaction_type == "expense" and txn.category_id:
+        await _notify_if_budget_just_exceeded(user_id, txn.category_id, txn.amount, txn.transaction_date, db)
+
     return _txn_to_dict(txn)
 
 
@@ -392,3 +399,95 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
         "by_category": by_category,
         "monthly_series": list(months.values())[-12:],
     }
+
+
+# ---------------------------------------------------------------------------
+# Budgets
+# ---------------------------------------------------------------------------
+
+async def _month_spend_for_category(user_id: uuid.UUID, category_id: uuid.UUID, on_date: datetime, db: AsyncSession) -> Decimal:
+    start, end = _month_bounds(f"{on_date.year:04d}-{on_date.month:02d}")
+    result = await db.execute(
+        select(sa_func.coalesce(sa_func.sum(FinancialTransaction.amount), _ZERO)).where(
+            FinancialTransaction.user_id == user_id,
+            FinancialTransaction.category_id == category_id,
+            FinancialTransaction.transaction_type == "expense",
+            FinancialTransaction.deleted_at.is_(None),
+            FinancialTransaction.transaction_date >= start,
+            FinancialTransaction.transaction_date <= end,
+        )
+    )
+    return result.scalar() or _ZERO
+
+
+async def _notify_if_budget_just_exceeded(
+    user_id: uuid.UUID, category_id: uuid.UUID, txn_amount: Decimal, txn_date: datetime, db: AsyncSession,
+) -> None:
+    """Fire a notification the moment a category's monthly spend crosses its
+    budget — not on every subsequent transaction once already over."""
+    result = await db.execute(
+        select(FinanceBudget).where(FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id)
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        return
+
+    spend_after = await _month_spend_for_category(user_id, category_id, txn_date, db)
+    spend_before = spend_after - txn_amount
+    if spend_before <= budget.amount < spend_after:
+        from src.notifications.service import create_notification
+        category = await _get_category(category_id, user_id, db)
+        await create_notification(
+            user_id, "budget_exceeded",
+            f"Orçamento de {category.name} estourado",
+            f"Gasto do mês: {spend_after} / orçado: {budget.amount}",
+            db,
+        )
+
+
+async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(FinanceBudget, FinanceCategory)
+        .join(FinanceCategory, FinanceCategory.id == FinanceBudget.category_id)
+        .where(FinanceBudget.user_id == user_id)
+        .order_by(FinanceCategory.name)
+    )
+    now = datetime.now(timezone.utc)
+    budgets = []
+    for budget, category in result.all():
+        spent = await _month_spend_for_category(user_id, category.id, now, db)
+        budgets.append({
+            "id": budget.id,
+            "category_id": category.id,
+            "category_name": category.name,
+            "category_color": category.color,
+            "amount": budget.amount,
+            "period": budget.period,
+            "spent": spent,
+            "pct_used": (spent / budget.amount) if budget.amount > _ZERO else _ZERO,
+        })
+    return budgets
+
+
+async def upsert_budget(user_id: uuid.UUID, category_id: uuid.UUID, amount: Decimal, db: AsyncSession) -> dict:
+    await _get_category(category_id, user_id, db)  # 404 if not owned
+    stmt = pg_insert(FinanceBudget).values(
+        user_id=user_id, category_id=category_id, amount=amount,
+    ).on_conflict_do_update(
+        constraint="uq_finance_budgets_user_category", set_={"amount": amount},
+    )
+    await db.execute(stmt)
+    await db.commit()
+    budgets = await list_budgets(user_id, db)
+    return next(b for b in budgets if b["category_id"] == category_id)
+
+
+async def delete_budget(user_id: uuid.UUID, category_id: uuid.UUID, db: AsyncSession) -> None:
+    result = await db.execute(
+        select(FinanceBudget).where(FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id)
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        raise NotFoundError("Orçamento não encontrado")
+    await db.delete(budget)
+    await db.commit()

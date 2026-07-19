@@ -21,6 +21,7 @@ from src.portfolio.calculations import (
     calculate_rebalance_suggestion,
     calculate_weighted_average_cost,
     calculate_transaction_total,
+    calculate_yield_on_cost,
 )
 from src.market_data.factory import get_provider, get_cache
 from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
@@ -513,3 +514,57 @@ async def add_position(
         "target_weight": position.target_weight,
         "created_at": position.created_at,
     }
+
+
+async def get_portfolio_income(
+    portfolio_id: uuid.UUID, user_id: uuid.UUID, year: int, db: AsyncSession,
+) -> dict:
+    """Dividend income for a portfolio: monthly series for `year` + trailing-12m
+    yield-on-cost per asset (as of today, independent of `year`)."""
+    result = await db.execute(
+        select(Portfolio)
+        .options(
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.asset),
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.transactions),
+        )
+        .where(Portfolio.id == portfolio_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if portfolio is None:
+        raise NotFoundError(f"Portfolio {portfolio_id} not found")
+    if portfolio.user_id != user_id:
+        raise ForbiddenError("Access denied")
+
+    today = date.today()
+    trailing_12m_start = today - timedelta(days=365)
+
+    months = {f"{year}-{m:02d}": _ZERO for m in range(1, 13)}
+
+    total = _ZERO
+    by_asset: dict[str, dict] = {}
+
+    for position in portfolio.positions:
+        ticker = position.asset.ticker
+        dividends_12m = _ZERO
+        for txn in position.transactions:
+            if txn.transaction_type != "dividend":
+                continue
+            txn_date = txn.transaction_date.date() if hasattr(txn.transaction_date, "date") else txn.transaction_date
+            if txn_date.year == year:
+                key = f"{year}-{txn_date.month:02d}"
+                months[key] = months[key] + txn.total_amount
+                total += txn.total_amount
+            if txn_date >= trailing_12m_start:
+                dividends_12m += txn.total_amount
+
+        if dividends_12m > _ZERO or position.quantity > _ZERO:
+            by_asset[ticker] = {
+                "ticker": ticker,
+                "total_12m": dividends_12m,
+                "yield_on_cost": calculate_yield_on_cost(dividends_12m, position.total_invested),
+            }
+
+    monthly_series = [{"month": k, "amount": v} for k, v in sorted(months.items())]
+    by_asset_list = sorted(by_asset.values(), key=lambda a: a["total_12m"], reverse=True)
+
+    return {"year": year, "total": total, "monthly_series": monthly_series, "by_asset": by_asset_list}

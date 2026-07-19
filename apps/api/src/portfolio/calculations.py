@@ -94,6 +94,17 @@ def calculate_cost_basis(
     return round_financial(add(multiply(quantity, avg_cost), _fees))
 
 
+def calculate_yield_on_cost(dividends_12m: Decimal, cost_basis: Decimal) -> Decimal:
+    """Trailing-12-month dividends as a fraction of the original cost basis.
+
+    Returns 0 when cost_basis is zero/negative rather than dividing by zero —
+    a position that hasn't been fully sold down to zero cost basis yet.
+    """
+    if cost_basis <= _ZERO:
+        return _ZERO
+    return round_financial(divide(dividends_12m, cost_basis))
+
+
 # ---------------------------------------------------------------------------
 # Portfolio-level calculations
 # ---------------------------------------------------------------------------

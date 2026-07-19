@@ -11,11 +11,15 @@ from src.auth.models import User
 from src.market_data.dependencies import get_redis as _get_redis
 from src.market_data.dependencies import get_user_provider_settings as _get_user_provider_settings
 from src.portfolio import service
+from src.shared.csv_export import build_csv_response
+from datetime import date as dt_date
+
 from src.portfolio.schemas import (
     PortfolioCreate,
     PortfolioResponse,
     PortfolioSummaryResponse,
     PerformancePoint,
+    PortfolioIncomeResponse,
     TransactionCreate,
     TransactionResponse,
     BankAccountCreate,
@@ -109,6 +113,48 @@ async def get_portfolio_performance(
         redis=redis,
         preferred_provider=provider_settings["preferred"],
         brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/{portfolio_id}/income", response_model=PortfolioIncomeResponse)
+async def get_portfolio_income(
+    portfolio_id: uuid.UUID,
+    year: int = Query(default_factory=lambda: dt_date.today().year),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dividend income: monthly series for `year` + trailing-12m yield-on-cost per asset."""
+    return await service.get_portfolio_income(portfolio_id, current_user.id, year, db)
+
+
+@router.get("/{portfolio_id}/export")
+async def export_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """CSV export of current positions (';' separator, ',' decimal — Excel PT-BR)."""
+    summary = await service.get_portfolio_summary(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+    rows = [
+        [
+            pos["ticker"], pos["quantity"], pos["avg_cost"], pos["current_price"],
+            pos["market_value_brl"], pos["pnl_absolute"], pos["pnl_percent"],
+        ]
+        for pos in summary["positions"]
+    ]
+    return build_csv_response(
+        f"{summary['portfolio_name']}.csv",
+        ["Ativo", "Quantidade", "Preço Médio", "Preço Atual", "Valor de Mercado", "P&L R$", "P&L %"],
+        rows,
     )
 
 
