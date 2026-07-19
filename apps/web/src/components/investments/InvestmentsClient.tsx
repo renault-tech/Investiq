@@ -7,6 +7,7 @@ import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/po
 import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
+import { usePortfolioBenchmark } from "@/hooks/usePortfolioBenchmark";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { LeftPanel } from "./LeftPanel";
 import { PositionsTable } from "./PositionsTable";
@@ -14,6 +15,7 @@ import { IncomeTab } from "./IncomeTab";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { AllocationDonut } from "@/components/charts/AllocationDonut";
 import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
+import { BenchmarkChart } from "@/components/charts/BenchmarkChart";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
@@ -50,6 +52,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     usePortfolioSummary(activePortfolioId);
   const { data: performance, isLoading: isPerformanceLoading } =
     usePortfolioPerformance(activePortfolioId, performancePeriod);
+  const { data: benchmark, isLoading: isBenchmarkLoading } =
+    usePortfolioBenchmark(activePortfolioId, performancePeriod);
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -196,6 +200,17 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                         }))
                   }
                 />
+              </ChartCard>
+            </div>
+
+            <div className="mb-4">
+              <ChartCard
+                title="Rentabilidade vs. CDI e Ibovespa"
+                isLoading={isBenchmarkLoading}
+                isEmpty={!benchmark || benchmark.length === 0}
+                emptyMessage="Registre transações para comparar a carteira com CDI e Ibovespa."
+              >
+                <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>
             </div>
 

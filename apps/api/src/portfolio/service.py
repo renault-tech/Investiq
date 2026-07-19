@@ -25,7 +25,8 @@ from src.portfolio.calculations import (
 )
 from src.market_data.factory import get_provider, get_cache
 from src.market_data.base import default_currency_for_ticker
-from src.shared.decimal_utils import multiply
+from src.market_data.bcb import get_cdi_daily_rates
+from src.shared.decimal_utils import multiply, pct_change, round_financial
 from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -422,6 +423,104 @@ async def get_portfolio_performance(
         })
 
     return series
+
+
+def _compound_index(rates: list[tuple[date, Decimal]]) -> list[tuple[date, Decimal]]:
+    """Turn daily % rates into a cumulative compounded index, sorted by date."""
+    cum = _ONE
+    index = []
+    for day, rate_pct in sorted(rates):
+        cum = cum * (_ONE + rate_pct / Decimal("100"))
+        index.append((day, cum))
+    return index
+
+
+def _value_at(series: list[tuple[date, Decimal]], day: date) -> Optional[Decimal]:
+    """Latest value at or before `day` in a (date, Decimal) series sorted by date."""
+    best = None
+    for d, v in series:
+        if d <= day:
+            best = v
+        else:
+            break
+    return best
+
+
+async def get_portfolio_benchmark(
+    portfolio_id: uuid.UUID,
+    user_id: uuid.UUID,
+    period: str,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> list[dict]:
+    """Portfolio cumulative % return vs. CDI and Ibovespa over the same window.
+
+    Reuses get_portfolio_performance's value series as the portfolio leg. This
+    is a simplification, not a true time-weighted return: a contribution made
+    mid-window shows up as a jump in the line rather than being cash-flow
+    adjusted. Good enough for a quick visual "how am I doing vs. CDI/Ibov"
+    comparison, not for precise performance attribution.
+
+    CDI (BCB SGS série 12) and Ibovespa (^BVSP via the configured market data
+    provider) each degrade independently to null for dates where their data
+    isn't available — a fetch failure on one benchmark never blocks the other
+    or the portfolio leg.
+    """
+    series = await get_portfolio_performance(
+        portfolio_id, user_id, period, db, redis, preferred_provider, brapi_key
+    )
+    if not series:
+        return []
+
+    base_value = series[0]["total_value"]
+    start_date = series[0]["date"]
+    end_date = series[-1]["date"]
+
+    cdi_rates = await get_cdi_daily_rates(start_date, end_date, redis)
+    cdi_index = _compound_index(cdi_rates)
+    cdi_base = cdi_index[0][1] if cdi_index else None
+
+    ibov_bars: list[tuple[date, Decimal]] = []
+    try:
+        provider_period = _PERIOD_TO_PROVIDER.get(period, "max")
+        cache = get_cache(redis) if redis else None
+        bars = await cache.get_historical("^BVSP", provider_period, "1d") if cache else None
+        if not bars:
+            provider = get_provider(preferred_provider, brapi_key)
+            bars = await provider.get_historical("^BVSP", provider_period, "1d")
+            if cache and bars:
+                await cache.set_historical("^BVSP", bars, provider_period, "1d")
+        ibov_bars = sorted(
+            ((b.date.date() if hasattr(b.date, "date") else b.date, b.close) for b in bars),
+            key=lambda item: item[0],
+        )
+    except Exception as exc:
+        logger.warning("Ibovespa history fetch failed: %s", exc)
+    ibov_base = ibov_bars[0][1] if ibov_bars else None
+
+    result = []
+    for point in series:
+        day = point["date"]
+        portfolio_pct = (
+            round_financial(pct_change(point["total_value"], base_value))
+            if base_value > _ZERO else round_financial(_ZERO)
+        )
+
+        cdi_val = _value_at(cdi_index, day)
+        cdi_pct = round_financial(pct_change(cdi_val, cdi_base)) if cdi_base and cdi_val is not None else None
+
+        ibov_val = _value_at(ibov_bars, day)
+        ibov_pct = round_financial(pct_change(ibov_val, ibov_base)) if ibov_base and ibov_val is not None else None
+
+        result.append({
+            "date": day,
+            "portfolio_pct": portfolio_pct,
+            "cdi_pct": cdi_pct,
+            "ibov_pct": ibov_pct,
+        })
+    return result
 
 
 async def record_transaction(

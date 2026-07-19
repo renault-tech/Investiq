@@ -57,6 +57,13 @@ export interface PerformancePoint {
   total_invested: number;
 }
 
+export interface BenchmarkPoint {
+  date: string;
+  portfolio_pct: number;
+  cdi_pct: number | null;
+  ibov_pct: number | null;
+}
+
 export interface CreatePortfolioInput {
   name: string;
   description?: string;
@@ -103,6 +110,17 @@ export async function getPortfolioPerformance(
 ): Promise<PerformancePoint[]> {
   const res = await apiClient.get<PerformancePoint[]>(
     `/portfolios/${portfolioId}/performance`,
+    { params: { period } }
+  );
+  return res.data;
+}
+
+export async function getPortfolioBenchmark(
+  portfolioId: string,
+  period: PerformancePeriod
+): Promise<BenchmarkPoint[]> {
+  const res = await apiClient.get<BenchmarkPoint[]>(
+    `/portfolios/${portfolioId}/benchmark`,
     { params: { period } }
   );
   return res.data;
