@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus, Tags } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
@@ -77,6 +77,19 @@ export function FinancesClient() {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleDownloadReport = async () => {
+    const res = await apiClient.get("/reports/monthly", {
+      params: { month },
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(res.data as Blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `relatorio-${month}.pdf`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto w-full space-y-4">
       {/* Header */}
@@ -96,6 +109,12 @@ export function FinancesClient() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleDownloadReport}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <FileText size={15} /> Relatório PDF
+          </button>
           <button
             onClick={() => setShowCategoryManager(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
