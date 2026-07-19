@@ -7,6 +7,7 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.market_data.factory import get_provider, get_cache
 from src.market_data.dependencies import get_redis, get_user_provider_settings
+from src.market_data.base import is_b3_ticker
 from src.market_data.schemas import (
     BarResponse,
     HistoryResponse,
@@ -28,12 +29,6 @@ router = APIRouter(prefix="/market", tags=["market"])
 
 _ALLOWED_PERIODS = {"1mo", "3mo", "6mo", "1y", "2y", "5y", "max"}
 _ALLOWED_INTERVALS = {"1d", "1wk"}
-
-_B3_SUFFIXES = ("3", "4", "5", "6", "11", "34", "39")
-
-
-def _is_b3_ticker(ticker: str) -> bool:
-    return ticker.endswith(_B3_SUFFIXES) and "." not in ticker
 
 
 async def _fetch_history(
@@ -172,7 +167,7 @@ async def get_asset_fundamentals(
     from src.market_data.brapi import BrapiProvider
 
     fundamentals = None
-    if _is_b3_ticker(ticker) and provider_settings["brapi_key"]:
+    if is_b3_ticker(ticker) and provider_settings["brapi_key"]:
         fundamentals = await BrapiProvider(provider_settings["brapi_key"]).get_fundamentals(ticker)
 
     yahoo_data = await YahooFinanceProvider().get_fundamentals(ticker)

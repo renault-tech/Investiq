@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.portfolio.models import Asset, PriceAlert
+from src.market_data.base import default_currency_for_ticker
 from src.shared.exceptions import NotFoundError
 
 
@@ -14,7 +15,10 @@ async def _get_or_create_asset(ticker: str, db: AsyncSession) -> Asset:
     result = await db.execute(select(Asset).where(Asset.ticker == ticker_upper))
     asset = result.scalar_one_or_none()
     if asset is None:
-        asset = Asset(ticker=ticker_upper, name=ticker_upper, asset_type="stock", currency="BRL")
+        asset = Asset(
+            ticker=ticker_upper, name=ticker_upper, asset_type="stock",
+            currency=default_currency_for_ticker(ticker_upper),
+        )
         db.add(asset)
         await db.flush()
     return asset

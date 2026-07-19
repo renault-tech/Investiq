@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from src.portfolio.models import (
     Portfolio, PortfolioPosition, Asset, InvestmentTransaction, BankAccount,
-    PortfolioSnapshot,
+    PortfolioSnapshot, FxRate,
 )
 from src.portfolio.calculations import (
     calculate_position_pnl,
@@ -24,11 +24,14 @@ from src.portfolio.calculations import (
     calculate_yield_on_cost,
 )
 from src.market_data.factory import get_provider, get_cache
+from src.market_data.base import default_currency_for_ticker
+from src.shared.decimal_utils import multiply
 from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
 
 logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
+_ONE = Decimal("1")
 
 
 async def get_user_portfolios(user_id: uuid.UUID, db: AsyncSession) -> list[Portfolio]:
@@ -99,6 +102,33 @@ async def delete_portfolio(
     await db.commit()
 
 
+async def _get_fx_rates_to_brl(currencies: set[str], db: AsyncSession) -> dict[str, Decimal]:
+    """Latest known rate to BRL for each currency (BRL itself maps to 1).
+
+    Reads the fx_rates table populated daily by workers/fx_updater.py.
+    Missing/stale rates degrade to 1:1 (logged) rather than breaking the
+    summary — the same posture as a missing live quote elsewhere in this file.
+    """
+    rates = {"BRL": _ONE}
+    needed = currencies - {"BRL"}
+    if not needed:
+        return rates
+
+    result = await db.execute(
+        select(FxRate)
+        .where(FxRate.from_currency.in_(needed), FxRate.to_currency == "BRL")
+        .order_by(FxRate.date.desc())
+    )
+    for row in result.scalars().all():
+        rates.setdefault(row.from_currency, row.rate)  # first hit per currency = most recent
+
+    for currency in needed - rates.keys():
+        logger.warning("No fx_rates row for %s->BRL; using 1:1 as a fallback", currency)
+        rates[currency] = _ONE
+
+    return rates
+
+
 async def get_portfolio_summary(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -158,6 +188,8 @@ async def get_portfolio_summary(
             await cache.set_quotes(fresh_quotes)
 
     # Build per-position data
+    fx_rates = await _get_fx_rates_to_brl({p.asset.currency for p in positions}, db)
+
     position_data = []
     for pos in positions:
         asset = pos.asset
@@ -166,8 +198,13 @@ async def get_portfolio_summary(
         if current_price is None:
             current_price = asset.last_price or _ZERO
 
-        market_value = calculate_market_value(pos.quantity, current_price)
-        pnl_abs, pnl_pct = calculate_position_pnl(pos.quantity, pos.avg_cost, current_price)
+        fx_rate = fx_rates.get(asset.currency, _ONE)
+        # current_price is in the asset's native currency; avg_cost/total_invested
+        # are already BRL (each transaction converted at its own historical fx_rate),
+        # so only the live valuation needs today's rate applied here.
+        current_price_brl = multiply(current_price, fx_rate)
+        market_value = calculate_market_value(pos.quantity, current_price_brl)
+        pnl_abs, pnl_pct = calculate_position_pnl(pos.quantity, pos.avg_cost, current_price_brl)
 
         position_data.append({
             "position_id": pos.id,
@@ -178,13 +215,13 @@ async def get_portfolio_summary(
             "broker": pos.broker,
             "quantity": pos.quantity,
             "avg_cost": pos.avg_cost,
-            "current_price": current_price,
+            "current_price": current_price_brl,
             "market_value_brl": market_value,
             "cost_basis_brl": pos.total_invested,
             "pnl_absolute": pnl_abs,
             "pnl_percent": pnl_pct,
             "target_weight": pos.target_weight,
-            "fx_rate_to_brl": Decimal("1"),  # TODO: multi-currency FX lookup
+            "fx_rate_to_brl": fx_rate,
         })
 
     # Aggregate portfolio summary
@@ -414,8 +451,12 @@ async def record_transaction(
     total_amount = calculate_transaction_total(quantity, unit_price, fees, fx_rate)
 
     if transaction_type == "buy":
+        # avg_cost is stored in BRL (like total_invested), so unit_price/fees —
+        # both in the asset's native currency — must be converted here too.
+        unit_price_brl = multiply(unit_price, fx_rate)
+        fees_brl = multiply(fees, fx_rate)
         new_avg_cost = calculate_weighted_average_cost(
-            position.quantity, position.avg_cost, quantity, unit_price, fees
+            position.quantity, position.avg_cost, quantity, unit_price_brl, fees_brl
         )
         position.quantity = position.quantity + quantity
         position.avg_cost = new_avg_cost
@@ -474,7 +515,10 @@ async def add_position(
     asset = result.scalar_one_or_none()
     if asset is None:
         # Create minimal asset record — prices will be fetched on next summary call
-        asset = Asset(ticker=ticker_upper, name=ticker_upper, asset_type="stock", currency="BRL")
+        asset = Asset(
+            ticker=ticker_upper, name=ticker_upper, asset_type="stock",
+            currency=default_currency_for_ticker(ticker_upper),
+        )
         db.add(asset)
         await db.flush()
 

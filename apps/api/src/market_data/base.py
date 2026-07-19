@@ -5,6 +5,19 @@ from decimal import Decimal
 from typing import Optional
 from datetime import datetime
 
+# B3 tickers end in a share-class digit (3=ON, 4=PN, 11=unit/FII...) with no
+# exchange suffix; anything else (AAPL, VOO, PETR4.SA) is treated as foreign.
+_B3_SUFFIXES = ("3", "4", "5", "6", "11", "34", "39")
+
+
+def is_b3_ticker(ticker: str) -> bool:
+    return ticker.endswith(_B3_SUFFIXES) and "." not in ticker
+
+
+def default_currency_for_ticker(ticker: str) -> str:
+    """Best-effort currency guess for a ticker with no known Asset row yet."""
+    return "BRL" if is_b3_ticker(ticker) else "USD"
+
 
 @dataclass
 class Quote:

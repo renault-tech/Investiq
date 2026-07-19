@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 import logging
 
-from src.market_data.base import MarketDataProvider, Quote, HistoricalBar, Fundamentals
+from src.market_data.base import MarketDataProvider, Quote, HistoricalBar, Fundamentals, is_b3_ticker
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class YahooFinanceProvider(MarketDataProvider):
             query_tickers = []
             for t in tickers:
                 # Add .SA for Brazilian tickers if no suffix exists
-                if t.endswith(("3", "4", "5", "6", "11", "34", "39")) and "." not in t:
+                if is_b3_ticker(t):
                     yf_t = f"{t}.SA"
                 else:
                     yf_t = t
@@ -99,7 +99,7 @@ class YahooFinanceProvider(MarketDataProvider):
     def _fetch_fundamentals_sync(self, ticker: str) -> Optional[Fundamentals]:
         try:
             import yfinance as yf
-            yf_t = f"{ticker}.SA" if ticker.endswith(("3", "4", "5", "6", "11", "34", "39")) and "." not in ticker else ticker
+            yf_t = f"{ticker}.SA" if is_b3_ticker(ticker) else ticker
             info = yf.Ticker(yf_t).get_info()
             if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
                 return None
@@ -128,7 +128,7 @@ class YahooFinanceProvider(MarketDataProvider):
         try:
             import yfinance as yf
             import pandas as pd
-            yf_t = f"{ticker}.SA" if ticker.endswith(("3", "4", "5", "6", "11", "34", "39")) and "." not in ticker else ticker
+            yf_t = f"{ticker}.SA" if is_b3_ticker(ticker) else ticker
             df = yf.download(yf_t, period=period, interval=interval, progress=False, auto_adjust=True)
             if df.empty:
                 return []
