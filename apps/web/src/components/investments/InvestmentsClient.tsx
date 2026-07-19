@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, Download } from "lucide-react";
 import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/portfolio-api";
+import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { LeftPanel } from "./LeftPanel";
 import { PositionsTable } from "./PositionsTable";
+import { IncomeTab } from "./IncomeTab";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { AllocationDonut } from "@/components/charts/AllocationDonut";
 import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
@@ -34,6 +36,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   >(undefined);
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
   const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
+  const [activeTab, setActiveTab] = useState<"positions" | "income">("positions");
 
   const { data: portfolios = initialPortfolios } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
@@ -54,6 +57,17 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       setActivePortfolioId(portfolios[0].id);
     }
   }, [portfolios, activePortfolioId]);
+
+  const handleExport = async () => {
+    if (!activePortfolioId) return;
+    const res = await apiClient.get(`/portfolios/${activePortfolioId}/export`, { responseType: "blob" });
+    const url = window.URL.createObjectURL(res.data as Blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${summary?.portfolio_name ?? "portfolio"}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -185,14 +199,42 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </ChartCard>
             </div>
 
-            <PositionsTable
-              positions={summary?.positions ?? []}
-              isLoading={isSummaryLoading}
-              onAddTransaction={(positionId, _ticker) => {
-                setDefaultTransactionPositionId(positionId);
-                setShowNewTransaction(true);
-              }}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+                {([["positions", "Posições"], ["income", "Proventos"]] as const).map(([tab, label]) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-1.5 text-xs transition-colors ${
+                      activeTab === tab
+                        ? "bg-[var(--navy)] text-white"
+                        : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <Download size={13} /> Exportar CSV
+              </button>
+            </div>
+
+            {activeTab === "positions" ? (
+              <PositionsTable
+                positions={summary?.positions ?? []}
+                isLoading={isSummaryLoading}
+                onAddTransaction={(positionId, _ticker) => {
+                  setDefaultTransactionPositionId(positionId);
+                  setShowNewTransaction(true);
+                }}
+              />
+            ) : (
+              activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
+            )}
           </div>
         </div>
       )}

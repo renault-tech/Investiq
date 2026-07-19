@@ -1,11 +1,12 @@
 "use client";
 
-import { Moon, Sun, ZoomIn, ZoomOut, Search, Bell, ChevronDown } from "lucide-react";
+import { Moon, Sun, ZoomIn, ZoomOut, Search, ChevronDown } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { NotificationsDropdown } from "./NotificationsDropdown";
 
 export function TopBar() {
   const { fontScale, setFontScale } = useUIStore();
@@ -88,11 +89,7 @@ export function TopBar() {
           </button>
         )}
 
-        {/* Notifications */}
-        <button className="relative p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-          <Bell size={16} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--danger)] rounded-full border border-[var(--surface)]"></span>
-        </button>
+        <NotificationsDropdown />
 
         {/* Avatar/Perfil */}
         {user && (

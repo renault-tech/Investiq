@@ -16,6 +16,7 @@ import { CandlestickChart } from "./CandlestickChart";
 import { IndicatorToggle, IndicatorState, DEFAULT_INDICATOR_STATE } from "./IndicatorToggle";
 import { FundamentalsGrid } from "./FundamentalsGrid";
 import { AssetAiPanel } from "./AssetAiPanel";
+import { AssetAlerts } from "./AssetAlerts";
 
 const PERIODS: { value: HistoryPeriod; label: string }[] = [
   { value: "1mo", label: "1m" },
@@ -132,6 +133,8 @@ export function AssetClient({ ticker }: AssetClientProps) {
       </div>
 
       <FundamentalsGrid fundamentals={fundamentals} isLoading={fundamentalsLoading} />
+
+      <AssetAlerts ticker={ticker} />
 
       <AssetAiPanel text={aiText} streaming={aiStreaming} />
     </div>

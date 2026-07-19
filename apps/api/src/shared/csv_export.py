@@ -12,7 +12,10 @@ def _format_cell(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, Decimal):
-        return str(value).replace(".", ",")
+        # 'f' avoids scientific notation — a zero read back from a
+        # NUMERIC(18,8) column normalizes to Decimal('0E-8'), which str()
+        # would render as the confusing "0E-8" instead of "0,00000000".
+        return format(value, "f").replace(".", ",")
     return str(value)
 
 

@@ -1,15 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Tags } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
 import { FinanceTransaction } from "@/lib/finance-api";
+import { apiClient } from "@/lib/api-client";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { SummaryCards } from "./SummaryCards";
 import { ExpensesByCategoryDonut, MonthlyFlowChart } from "./FinanceCharts";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
+import { BudgetsSection } from "./BudgetsSection";
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -59,6 +61,19 @@ export function FinancesClient() {
     if (window.confirm(`Excluir "${txn.description ?? "transação"}"?${txn.is_recurring ? " A série recorrente inteira será encerrada." : ""}`)) {
       deleteMutation.mutate(txn.id);
     }
+  };
+
+  const handleExport = async () => {
+    const res = await apiClient.get("/finance/transactions/export", {
+      params: { date_from: bounds.from, date_to: bounds.to },
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(res.data as Blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `transacoes-${month}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -116,9 +131,11 @@ export function FinancesClient() {
         </ChartCard>
       </div>
 
+      <BudgetsSection categories={categories} />
+
       {/* Filtros + tabela */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
@@ -148,6 +165,12 @@ export function FinancesClient() {
             className="flex-1 min-w-40 px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
             aria-label="Buscar por descrição"
           />
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+          >
+            <Download size={13} /> Exportar CSV
+          </button>
         </div>
 
         <TransactionsTable
