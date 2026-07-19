@@ -1,5 +1,12 @@
 import axios from "axios";
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
+// "localhost", not "127.0.0.1": the refresh_token cookie is SameSite=Lax,
+// and 127.0.0.1/localhost count as different sites for that policy even on
+// the same machine — a request from a page served on localhost:3000 to an
+// API on 127.0.0.1:8000 silently drops the cookie, breaking session
+// persistence across page reloads. Matches infrastructure/docker-compose.yml,
+// which already sets NEXT_PUBLIC_API_URL to the localhost form; this is
+// only the fallback for when that env var isn't set.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 export const apiClient = axios.create({ baseURL: API_BASE, withCredentials: true });
 let accessToken: string | null = null;
 export function setAccessToken(token: string) { accessToken = token; }
@@ -9,6 +16,30 @@ apiClient.interceptors.request.use((config) => {
   if (accessToken) { config.headers.Authorization = "Bearer " + accessToken; }
   return config;
 });
+
+// Refresh tokens rotate server-side (each use revokes it and issues a new
+// one), so if two requests 401 at the same time — e.g. a page that fires
+// several queries on mount with no access token yet in memory — and each
+// independently calls /auth/refresh, the second call presents a
+// refresh_token cookie the first call already revoked and gets rejected,
+// wrongly logging the user out. Sharing one in-flight refresh call (all
+// concurrent 401s await the same promise) fixes that.
+let refreshPromise: Promise<string> | null = null;
+
+function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(API_BASE + "/auth/refresh", {}, { withCredentials: true })
+      .then((res) => {
+        const newToken = res.data.access_token;
+        setAccessToken(newToken);
+        return newToken;
+      })
+      .finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -21,9 +52,7 @@ apiClient.interceptors.response.use(
     ) {
       original._retry = true;
       try {
-        const res = await axios.post(API_BASE + "/auth/refresh", {}, { withCredentials: true });
-        const newToken = res.data.access_token;
-        setAccessToken(newToken);
+        const newToken = await refreshAccessToken();
         original.headers.Authorization = "Bearer " + newToken;
         return apiClient(original);
       } catch { clearAccessToken(); if (typeof window !== "undefined") { window.location.href = "/login"; } }
