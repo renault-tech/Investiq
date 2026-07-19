@@ -120,6 +120,10 @@ export function BenchmarkChart({ data }: BenchmarkChartProps) {
           </span>
         ))}
       </div>
+      <p className="pt-1.5 text-[11px] text-[var(--text-muted)]">
+        Retorno simplificado: aportes feitos durante o período aparecem como variação na
+        carteira, sem ajuste ponderado pelo tempo (TWR).
+      </p>
     </div>
   );
 }

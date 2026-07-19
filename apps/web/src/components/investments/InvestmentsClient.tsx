@@ -209,6 +209,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 isLoading={isBenchmarkLoading}
                 isEmpty={!benchmark || benchmark.length === 0}
                 emptyMessage="Registre transações para comparar a carteira com CDI e Ibovespa."
+                height={290}
               >
                 <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>
