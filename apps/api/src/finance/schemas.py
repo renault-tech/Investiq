@@ -4,7 +4,9 @@ from datetime import datetime, date as dt_date
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from src.shared.schema_base import AppModel as BaseModel
 
 
 # ---------------------------------------------------------------------------

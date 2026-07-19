@@ -4,7 +4,9 @@ from typing import Optional
 from datetime import datetime, date as dt_date
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from src.shared.schema_base import AppModel as BaseModel
 
 
 # ---------------------------------------------------------------------------
