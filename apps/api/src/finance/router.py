@@ -23,6 +23,11 @@ from src.finance.schemas import (
     FinanceSummaryResponse,
     BudgetUpsert,
     BudgetResponse,
+    GoalCreate,
+    GoalUpdate,
+    GoalContributeRequest,
+    GoalContributionResponse,
+    GoalResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -207,3 +212,66 @@ async def delete_budget(
     db: AsyncSession = Depends(get_db),
 ):
     await service.delete_budget(current_user.id, category_id, db)
+
+
+# ---------------------------------------------------------------------------
+# Savings goals
+# ---------------------------------------------------------------------------
+
+@router.get("/goals", response_model=list[GoalResponse])
+async def list_goals(
+    include_archived: bool = Query(default=False),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.list_goals(current_user.id, db, include_archived=include_archived)
+
+
+@router.post("/goals", response_model=GoalResponse, status_code=status.HTTP_201_CREATED)
+async def create_goal(
+    body: GoalCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.create_goal(
+        current_user.id, body.name, body.target_amount, body.target_date, body.color, body.icon, db
+    )
+
+
+@router.put("/goals/{goal_id}", response_model=GoalResponse)
+async def update_goal(
+    goal_id: uuid.UUID,
+    body: GoalUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.update_goal(current_user.id, goal_id, body.model_dump(exclude_unset=True), db)
+
+
+@router.delete("/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(
+    goal_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.delete_goal(current_user.id, goal_id, db)
+
+
+@router.post("/goals/{goal_id}/contributions", response_model=GoalResponse, status_code=status.HTTP_201_CREATED)
+async def contribute_to_goal(
+    goal_id: uuid.UUID,
+    body: GoalContributeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add (positive amount) or withdraw (negative amount) funds from a goal."""
+    return await service.contribute_to_goal(current_user.id, goal_id, body.amount, body.note, db)
+
+
+@router.get("/goals/{goal_id}/contributions", response_model=list[GoalContributionResponse])
+async def list_goal_contributions(
+    goal_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.list_goal_contributions(current_user.id, goal_id, db)

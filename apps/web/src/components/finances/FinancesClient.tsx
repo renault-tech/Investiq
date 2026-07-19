@@ -12,6 +12,7 @@ import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { BudgetsSection } from "./BudgetsSection";
+import { GoalsSection } from "./GoalsSection";
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -131,7 +132,10 @@ export function FinancesClient() {
         </ChartCard>
       </div>
 
-      <BudgetsSection categories={categories} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BudgetsSection categories={categories} />
+        <GoalsSection />
+      </div>
 
       {/* Filtros + tabela */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">

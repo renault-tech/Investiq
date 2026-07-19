@@ -1,6 +1,6 @@
 """Finance Pydantic schemas — categories, transactions, monthly summary."""
 import uuid
-from datetime import datetime
+from datetime import datetime, date as dt_date
 from decimal import Decimal
 from typing import Literal, Optional
 
@@ -134,3 +134,50 @@ class BudgetResponse(BaseModel):
     period: str
     spent: Decimal   # gasto no mês corrente na categoria
     pct_used: Decimal  # spent / amount (fração; pode passar de 1)
+
+
+# ---------------------------------------------------------------------------
+# Savings goals
+# ---------------------------------------------------------------------------
+
+class GoalCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    target_amount: Decimal = Field(..., gt=0)
+    target_date: Optional[dt_date] = None
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    icon: Optional[str] = Field(None, max_length=50)
+
+
+class GoalUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    target_amount: Optional[Decimal] = Field(None, gt=0)
+    target_date: Optional[dt_date] = None
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    icon: Optional[str] = Field(None, max_length=50)
+    is_archived: Optional[bool] = None
+
+
+class GoalContributeRequest(BaseModel):
+    amount: Decimal = Field(..., description="Positivo para aportar, negativo para retirar")
+    note: Optional[str] = Field(None, max_length=255)
+
+
+class GoalContributionResponse(BaseModel):
+    id: uuid.UUID
+    amount: Decimal
+    note: Optional[str]
+    contributed_at: datetime
+
+
+class GoalResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    target_amount: Decimal
+    current_amount: Decimal
+    pct_complete: Decimal  # current_amount / target_amount (fração; capada em 1)
+    target_date: Optional[dt_date]
+    color: Optional[str]
+    icon: Optional[str]
+    is_archived: bool
+    is_complete: bool
+    created_at: datetime

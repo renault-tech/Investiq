@@ -9,7 +9,7 @@ dedup problem. Editing/deleting the template affects the whole series.
 import json
 import uuid
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
@@ -22,11 +22,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.finance.models import FinanceCategory, FinancialTransaction
 from src.finance.budget_models import FinanceBudget
-from src.shared.exceptions import NotFoundError, ConflictError
+from src.finance.goal_models import FinanceGoal, FinanceGoalContribution
+from src.shared.exceptions import NotFoundError, ConflictError, ValidationError
 
 logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
+_ONE = Decimal("1")
 
 DEFAULT_CATEGORIES: list[tuple[str, str, str, str]] = [
     # (name, type, color, icon)
@@ -491,3 +493,125 @@ async def delete_budget(user_id: uuid.UUID, category_id: uuid.UUID, db: AsyncSes
         raise NotFoundError("Orçamento não encontrado")
     await db.delete(budget)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Savings goals
+# ---------------------------------------------------------------------------
+
+
+async def _get_goal(goal_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> FinanceGoal:
+    result = await db.execute(
+        select(FinanceGoal).where(FinanceGoal.id == goal_id, FinanceGoal.user_id == user_id)
+    )
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise NotFoundError("Meta não encontrada")
+    return goal
+
+
+def _goal_to_dict(goal: FinanceGoal) -> dict:
+    pct = (goal.current_amount / goal.target_amount) if goal.target_amount > _ZERO else _ZERO
+    if pct > _ONE:
+        pct = _ONE
+    return {
+        "id": goal.id,
+        "name": goal.name,
+        "target_amount": goal.target_amount,
+        "current_amount": goal.current_amount,
+        "pct_complete": pct,
+        "target_date": goal.target_date,
+        "color": goal.color,
+        "icon": goal.icon,
+        "is_archived": goal.is_archived,
+        "is_complete": goal.current_amount >= goal.target_amount,
+        "created_at": goal.created_at,
+    }
+
+
+async def list_goals(user_id: uuid.UUID, db: AsyncSession, *, include_archived: bool = False) -> list[dict]:
+    query = select(FinanceGoal).where(FinanceGoal.user_id == user_id)
+    if not include_archived:
+        query = query.where(FinanceGoal.is_archived.is_(False))
+    result = await db.execute(query.order_by(FinanceGoal.created_at))
+    return [_goal_to_dict(g) for g in result.scalars().all()]
+
+
+async def create_goal(
+    user_id: uuid.UUID,
+    name: str,
+    target_amount: Decimal,
+    target_date: Optional[date],
+    color: Optional[str],
+    icon: Optional[str],
+    db: AsyncSession,
+) -> dict:
+    goal = FinanceGoal(
+        user_id=user_id, name=name, target_amount=target_amount,
+        target_date=target_date, color=color, icon=icon,
+    )
+    db.add(goal)
+    await db.commit()
+    await db.refresh(goal)
+    return _goal_to_dict(goal)
+
+
+async def update_goal(user_id: uuid.UUID, goal_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
+    goal = await _get_goal(goal_id, user_id, db)
+    for field, value in updates.items():
+        if value is not None:
+            setattr(goal, field, value)
+    await db.commit()
+    await db.refresh(goal)
+    return _goal_to_dict(goal)
+
+
+async def delete_goal(user_id: uuid.UUID, goal_id: uuid.UUID, db: AsyncSession) -> None:
+    goal = await _get_goal(goal_id, user_id, db)
+    await db.delete(goal)
+    await db.commit()
+
+
+async def contribute_to_goal(
+    user_id: uuid.UUID, goal_id: uuid.UUID, amount: Decimal, note: Optional[str], db: AsyncSession
+) -> dict:
+    """Add (or, with a negative amount, withdraw) funds from a goal.
+
+    Fires a one-time "goal_reached" notification the first time current_amount
+    crosses target_amount — same crossing-edge pattern as budget-exceeded
+    notifications in this module, so re-contributing after the goal is
+    already complete doesn't re-notify every time.
+    """
+    if amount == _ZERO:
+        raise ValidationError("O valor do aporte não pode ser zero")
+    goal = await _get_goal(goal_id, user_id, db)
+    was_complete = goal.current_amount >= goal.target_amount
+    goal.current_amount = goal.current_amount + amount
+
+    contribution = FinanceGoalContribution(goal_id=goal.id, user_id=user_id, amount=amount, note=note)
+    db.add(contribution)
+    await db.commit()
+    await db.refresh(goal)
+
+    if not was_complete and goal.current_amount >= goal.target_amount:
+        from src.notifications.service import create_notification
+        await create_notification(
+            user_id, "goal_reached",
+            f'Meta "{goal.name}" concluída!',
+            f"Você atingiu {goal.current_amount} de {goal.target_amount}.",
+            db,
+        )
+
+    return _goal_to_dict(goal)
+
+
+async def list_goal_contributions(
+    user_id: uuid.UUID, goal_id: uuid.UUID, db: AsyncSession
+) -> list[FinanceGoalContribution]:
+    await _get_goal(goal_id, user_id, db)  # 404/ownership check
+    result = await db.execute(
+        select(FinanceGoalContribution)
+        .where(FinanceGoalContribution.goal_id == goal_id, FinanceGoalContribution.user_id == user_id)
+        .order_by(FinanceGoalContribution.contributed_at.desc())
+    )
+    return list(result.scalars().all())
