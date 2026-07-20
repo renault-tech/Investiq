@@ -22,13 +22,15 @@ RUN npm run build --workspace apps/web
 # --- runtime -----------------------------------------------------------------
 FROM node:22-alpine AS runtime
 WORKDIR /app
-RUN addgroup -g 1000 investiq && adduser -u 1000 -G investiq -s /bin/sh -D investiq
+# node:22-alpine already ships a non-root "node" user (uid/gid 1000) —
+# reuse it instead of creating one, since that uid/gid is already taken by
+# the image's own group and adduser fails with "gid '1000' in use".
 
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /repo/apps/web/public ./apps/web/public
 
-USER investiq
+USER node
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0 NODE_ENV=production
 
