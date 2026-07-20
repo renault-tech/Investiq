@@ -13,8 +13,20 @@ import pytest
 from sqlalchemy import select
 
 from src.market_data.base import is_b3_ticker
+from src.portfolio import service
 from src.portfolio.models import Asset, FxRate
 from .conftest import register_and_login
+
+
+class _NoQuotesProvider:
+    """Simulates "no live quote available" deterministically. Without this,
+    these tests relied on the sandbox's blocked network to force the
+    asset.last_price fallback path — which passed locally but broke in real
+    CI, where the runner has actual internet access and the live Yahoo/Brapi
+    quote came back for real, silently overriding the seeded stub price."""
+
+    async def get_quotes(self, tickers):
+        return {}
 
 
 def test_is_b3_ticker_classifies_correctly():
@@ -53,7 +65,8 @@ async def test_new_b3_ticker_position_is_tagged_brl(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_summary_converts_usd_market_value_to_brl(client, db_session):
+async def test_summary_converts_usd_market_value_to_brl(client, db_session, monkeypatch):
+    monkeypatch.setattr(service, "get_provider", lambda *a, **kw: _NoQuotesProvider())
     session = await register_and_login(client)
     headers = session["headers"]
     portfolio = await client.post("/portfolios/", json={"name": "Intl", "currency": "USD"}, headers=headers)
@@ -98,8 +111,9 @@ async def test_summary_converts_usd_market_value_to_brl(client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_summary_falls_back_to_1to1_when_fx_rate_missing(client, db_session):
+async def test_summary_falls_back_to_1to1_when_fx_rate_missing(client, db_session, monkeypatch):
     """No fx_rates row yet (e.g. worker hasn't run) shouldn't crash the summary."""
+    monkeypatch.setattr(service, "get_provider", lambda *a, **kw: _NoQuotesProvider())
     session = await register_and_login(client)
     headers = session["headers"]
     portfolio = await client.post("/portfolios/", json={"name": "Intl", "currency": "USD"}, headers=headers)
