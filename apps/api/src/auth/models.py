@@ -27,6 +27,7 @@ class RefreshToken(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_hash = Column(Text, nullable=False, unique=True)
     device_info = Column(Text)
+    ip_address = Column(Text)
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     revoked_at = Column(TIMESTAMP(timezone=True))
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())

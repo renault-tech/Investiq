@@ -31,6 +31,12 @@ export interface PositionSummary {
   rebalance_delta_units: number | null;
 }
 
+export interface AllocationSlice {
+  asset_type: string;
+  value: number;
+  weight: number;
+}
+
 export interface PortfolioSummary {
   portfolio_id: string;
   portfolio_name: string;
@@ -40,6 +46,22 @@ export interface PortfolioSummary {
   total_pnl_percent: number;
   positions: PositionSummary[];
   rebalance_suggestions: unknown[];
+  allocation_by_type: AllocationSlice[];
+}
+
+export type PerformancePeriod = "1m" | "3m" | "6m" | "1y" | "max";
+
+export interface PerformancePoint {
+  date: string;
+  total_value: number;
+  total_invested: number;
+}
+
+export interface BenchmarkPoint {
+  date: string;
+  portfolio_pct: number;
+  cdi_pct: number | null;
+  ibov_pct: number | null;
 }
 
 export interface CreatePortfolioInput {
@@ -79,6 +101,28 @@ export async function createPortfolio(input: CreatePortfolioInput): Promise<Port
 
 export async function getPortfolioSummary(portfolioId: string): Promise<PortfolioSummary> {
   const res = await apiClient.get<PortfolioSummary>(`/portfolios/${portfolioId}/summary`);
+  return res.data;
+}
+
+export async function getPortfolioPerformance(
+  portfolioId: string,
+  period: PerformancePeriod
+): Promise<PerformancePoint[]> {
+  const res = await apiClient.get<PerformancePoint[]>(
+    `/portfolios/${portfolioId}/performance`,
+    { params: { period } }
+  );
+  return res.data;
+}
+
+export async function getPortfolioBenchmark(
+  portfolioId: string,
+  period: PerformancePeriod
+): Promise<BenchmarkPoint[]> {
+  const res = await apiClient.get<BenchmarkPoint[]>(
+    `/portfolios/${portfolioId}/benchmark`,
+    { params: { period } }
+  );
   return res.data;
 }
 

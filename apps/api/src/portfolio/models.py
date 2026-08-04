@@ -122,6 +122,23 @@ class PriceAlert(Base):
     asset = relationship("Asset", back_populates="price_alerts")
 
 
+class PortfolioSnapshot(Base):
+    __tablename__ = "portfolio_snapshots"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "snapshot_date", name="uq_portfolio_snapshots_portfolio_date"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    portfolio_id = Column(UUID(as_uuid=True), ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    snapshot_date = Column(Date(), nullable=False)
+    total_value = Column(Numeric(18, 8), nullable=False)
+    total_invested = Column(Numeric(18, 8), nullable=False)
+    total_pnl = Column(Numeric(18, 8), nullable=False)
+    currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
 class FxRate(Base):
     __tablename__ = "fx_rates"
     __table_args__ = (

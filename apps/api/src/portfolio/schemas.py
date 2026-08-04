@@ -1,10 +1,12 @@
 ﻿"""Portfolio Pydantic schemas."""
 from decimal import Decimal
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date as dt_date
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from src.shared.schema_base import AppModel as BaseModel
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +75,12 @@ class PositionSummary(BaseModel):
 # Portfolio summary
 # ---------------------------------------------------------------------------
 
+class AllocationSlice(BaseModel):
+    asset_type: str
+    value: Decimal
+    weight: Decimal   # 0.0-1.0 fraction of portfolio
+
+
 class PortfolioSummaryResponse(BaseModel):
     portfolio_id: uuid.UUID
     portfolio_name: str
@@ -82,6 +90,52 @@ class PortfolioSummaryResponse(BaseModel):
     total_pnl_percent: Decimal
     positions: list[PositionSummary]
     rebalance_suggestions: list[dict]
+    allocation_by_type: list[AllocationSlice] = []
+
+
+# ---------------------------------------------------------------------------
+# Performance series
+# ---------------------------------------------------------------------------
+
+class PerformancePoint(BaseModel):
+    date: dt_date
+    total_value: Decimal
+    total_invested: Decimal
+
+
+class BenchmarkPoint(BaseModel):
+    """Cumulative % return since the start of the window, for chart overlay.
+
+    cdi_pct/ibov_pct are null wherever the corresponding benchmark data
+    wasn't available yet (e.g. before the first CDI/Ibovespa data point in
+    range), never a fabricated zero.
+    """
+    date: dt_date
+    portfolio_pct: Decimal
+    cdi_pct: Optional[Decimal] = None
+    ibov_pct: Optional[Decimal] = None
+
+
+# ---------------------------------------------------------------------------
+# Income (dividends)
+# ---------------------------------------------------------------------------
+
+class MonthlyIncomePoint(BaseModel):
+    month: str  # "2026-07"
+    amount: Decimal
+
+
+class AssetIncomeSummary(BaseModel):
+    ticker: str
+    total_12m: Decimal
+    yield_on_cost: Decimal
+
+
+class PortfolioIncomeResponse(BaseModel):
+    year: int
+    total: Decimal
+    monthly_series: list[MonthlyIncomePoint]
+    by_asset: list[AssetIncomeSummary]
 
 
 # ---------------------------------------------------------------------------

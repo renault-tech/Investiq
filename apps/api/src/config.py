@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ENVIRONMENT: str = "development"
+    ENABLE_SCHEDULER: bool = True
 
     def get_jwt_private(self) -> str:
         return self.JWT_PRIVATE_KEY.strip('"').strip("'")

@@ -11,6 +11,11 @@ class LLMProvider(ABC):
     def name(self) -> str:
         """Provider identifier: 'claude' | 'openai' | 'gemini'"""
 
+    @property
+    @abstractmethod
+    def default_model(self) -> str:
+        """Model used when the caller does not pass an explicit model."""
+
     @abstractmethod
     async def stream(
         self,

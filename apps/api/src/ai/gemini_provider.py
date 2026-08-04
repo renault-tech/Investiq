@@ -21,6 +21,10 @@ class GeminiProvider(LLMProvider):
     def name(self) -> str:
         return "gemini"
 
+    @property
+    def default_model(self) -> str:
+        return DEFAULT_MODEL
+
     def _convert_messages(self, messages: list[dict], system: str | None) -> tuple[list[dict], str | None]:
         """Convert messages to Gemini format (no 'system' role in history)."""
         history = []

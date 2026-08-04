@@ -61,15 +61,10 @@ async def add_analysis_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Note: SSE stream is initiated directly via /ai/analyze by frontend
-    # This just saves the user's message before the stream, or the assistant's message after the stream
-    # Wait, the spec says "POST /analyses/{id}/messages" Envia follow-up; stream SSE + salva ambos os lados.
-    # But later it says "addMessage não usa apiClient — usa fetch diretamente (ReadableStream SSE)", meaning the frontend hits "/analyses/{id}/messages" for the SSE!
-    # "fetch POST /analyses/{id}/messages com body { content } -> lê ReadableStream igual ao fluxo de análise"
-    # Actually wait! The AI analysis isn't doing SSE here, it says "salva mensagem... abre stream para /ai/analyze" - the spec is ambiguous whether the backend or frontend opens the stream.
-    # Ah, the spec says: "Fluxo: salva mensagem do usuário -> abre stream para /ai/analyze com histórico". That means the *frontend* saves it, then streams /ai, then saves assistant.
-    # So this endpoint here just saves the message and returns it!
-    # Wait, "role" is missing from AddMessageRequest. So how does it know if it's user or assistant?
-    # I'll just default to "user" if not provided, wait! The spec says AddMessageRequest has only "content: str".
-    # I'd better add a "role" field to AddMessageRequest to let frontend specify.
-    return await analysis_service.add_message(id, current_user.id, "user", req.content, db)
+    """Persist a chat message attached to an analysis.
+
+    This endpoint only stores messages — streaming stays on POST /ai/analyze.
+    The frontend flow is: save the user message here, stream the reply from
+    /ai/analyze, then save the assistant message here with role="assistant".
+    """
+    return await analysis_service.add_message(id, current_user.id, req.role, req.content, db)

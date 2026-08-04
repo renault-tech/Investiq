@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from src.market_data.base import MarketDataProvider, Quote, HistoricalBar
+from src.market_data.base import MarketDataProvider, Quote, HistoricalBar, Fundamentals
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,59 @@ class BrapiProvider(MarketDataProvider):
         except Exception as exc:
             logger.error("Brapi quote failed for %s: %s", tickers, exc)
             return {}
+
+    async def get_fundamentals(self, ticker: str) -> Optional[Fundamentals]:
+        """Fetch fundamentals from Brapi.
+
+        Uses `fundamental=true` (free tier: priceEarnings, earningsPerShare) and
+        best-effort extra modules — paid-only modules are silently ignored so the
+        free tier never errors out.
+        """
+        try:
+            resp = await self._client.get(
+                f"{BRAPI_BASE}/quote/{ticker}",
+                params=self._params({
+                    "fundamental": "true",
+                    "modules": "summaryProfile,defaultKeyStatistics,financialData",
+                }),
+            )
+            resp.raise_for_status()
+            results = resp.json().get("results", [])
+            if not results:
+                return None
+            item = results[0]
+
+            profile = item.get("summaryProfile") or {}
+            key_stats = item.get("defaultKeyStatistics") or {}
+            financial = item.get("financialData") or {}
+
+            price = _to_decimal(item.get("regularMarketPrice"))
+            lpa = _to_decimal(item.get("earningsPerShare")) or _to_decimal(key_stats.get("trailingEps"))
+            vpa = _to_decimal(key_stats.get("bookValue"))
+            p_vp = _to_decimal(key_stats.get("priceToBook"))
+            if p_vp is None and price is not None and vpa is not None and vpa != 0:
+                p_vp = price / vpa
+
+            return Fundamentals(
+                ticker=ticker,
+                name=item.get("longName") or item.get("shortName"),
+                sector=profile.get("sector"),
+                market_cap=_to_decimal(item.get("marketCap")),
+                p_l=_to_decimal(item.get("priceEarnings")),
+                p_vp=p_vp,
+                dividend_yield=_to_decimal(key_stats.get("dividendYield")),
+                roe=_to_decimal(financial.get("returnOnEquity")),
+                net_margin=_to_decimal(financial.get("profitMargins")),
+                lpa=lpa,
+                vpa=vpa,
+                revenue_ttm=_to_decimal(financial.get("totalRevenue")),
+                net_income_ttm=None,
+                week52_high=_to_decimal(item.get("fiftyTwoWeekHigh")),
+                week52_low=_to_decimal(item.get("fiftyTwoWeekLow")),
+            )
+        except Exception as exc:
+            logger.warning("Brapi fundamentals failed for %s: %s", ticker, exc)
+            return None
 
     async def get_historical(
         self,

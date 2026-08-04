@@ -14,6 +14,9 @@ from sqlalchemy import select, update
 from src.config import settings
 from src.database import AsyncSessionLocal
 from src.portfolio.models import PriceAlert, Asset
+from src.notifications.models import Notification
+
+_ALERT_LABEL = {"price_above": "subiu acima de", "price_below": "caiu abaixo de"}
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,7 @@ async def alert_checker_job() -> None:
 
         triggered_ids: list = []
         triggered_payloads: list[str] = []
+        notifications: list[Notification] = []
         now = datetime.now(ZoneInfo("UTC"))
 
         for alert, asset in rows:
@@ -70,6 +74,12 @@ async def alert_checker_job() -> None:
                     "threshold": str(threshold),
                     "price": str(price),
                 }))
+                notifications.append(Notification(
+                    user_id=alert.user_id,
+                    type="price_alert",
+                    title=f"{asset.ticker} {_ALERT_LABEL[alert.alert_type]} {threshold}",
+                    body=f"Preço atual: {price}",
+                ))
 
         # Persist state BEFORE publishing — prevents duplicate notifications on partial failure
         if triggered_ids:
@@ -79,6 +89,7 @@ async def alert_checker_job() -> None:
                     .where(PriceAlert.id.in_(triggered_ids))
                     .values(is_active=False, triggered_at=now)
                 )
+                db.add_all(notifications)
                 await db.commit()
 
             for payload in triggered_payloads:

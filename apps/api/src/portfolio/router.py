@@ -2,18 +2,25 @@
 import uuid
 import logging
 
-import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.auth.dependencies import get_current_user
-from src.auth.models import User, UserSettings
+from src.auth.models import User
+from src.market_data.dependencies import get_redis as _get_redis
+from src.market_data.dependencies import get_user_provider_settings as _get_user_provider_settings
 from src.portfolio import service
+from src.shared.csv_export import build_csv_response
+from datetime import date as dt_date
+
 from src.portfolio.schemas import (
     PortfolioCreate,
     PortfolioResponse,
     PortfolioSummaryResponse,
+    PerformancePoint,
+    BenchmarkPoint,
+    PortfolioIncomeResponse,
     TransactionCreate,
     TransactionResponse,
     BankAccountCreate,
@@ -25,37 +32,6 @@ from src.portfolio.schemas import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
-
-
-async def _get_redis():
-    """Dependency: yields Redis client and closes it after request. Yields None if unavailable."""
-    from src.config import settings
-    client = None
-    try:
-        client = aioredis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-        yield client
-    except Exception as exc:
-        logger.warning("Redis unavailable, cache disabled: %s", exc)
-        yield None
-    finally:
-        if client:
-            await client.aclose()
-
-
-async def _get_user_provider_settings(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Fetch user's preferred market data provider from settings."""
-    from sqlalchemy import select
-    result = await db.execute(
-        select(UserSettings).where(UserSettings.user_id == current_user.id)
-    )
-    settings_obj = result.scalar_one_or_none()
-    return {
-        "preferred": settings_obj.preferred_provider if settings_obj else "yahoo",
-        "brapi_key": settings_obj.brapi_key if settings_obj else None,
-    }
 
 
 @router.get("/", response_model=list[PortfolioResponse])
@@ -118,6 +94,90 @@ async def get_portfolio_summary(
         brapi_key=provider_settings["brapi_key"],
     )
     return data
+
+
+@router.get("/{portfolio_id}/performance", response_model=list[PerformancePoint])
+async def get_portfolio_performance(
+    portfolio_id: uuid.UUID,
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Portfolio value over time (snapshots + reconstruction from transactions)."""
+    return await service.get_portfolio_performance(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/{portfolio_id}/benchmark", response_model=list[BenchmarkPoint])
+async def get_portfolio_benchmark(
+    portfolio_id: uuid.UUID,
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Portfolio cumulative return vs. CDI and Ibovespa over the same window."""
+    return await service.get_portfolio_benchmark(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/{portfolio_id}/income", response_model=PortfolioIncomeResponse)
+async def get_portfolio_income(
+    portfolio_id: uuid.UUID,
+    year: int = Query(default_factory=lambda: dt_date.today().year),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dividend income: monthly series for `year` + trailing-12m yield-on-cost per asset."""
+    return await service.get_portfolio_income(portfolio_id, current_user.id, year, db)
+
+
+@router.get("/{portfolio_id}/export")
+async def export_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """CSV export of current positions (';' separator, ',' decimal — Excel PT-BR)."""
+    summary = await service.get_portfolio_summary(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+    rows = [
+        [
+            pos["ticker"], pos["quantity"], pos["avg_cost"], pos["current_price"],
+            pos["market_value_brl"], pos["pnl_absolute"], pos["pnl_percent"],
+        ]
+        for pos in summary["positions"]
+    ]
+    return build_csv_response(
+        f"{summary['portfolio_name']}.csv",
+        ["Ativo", "Quantidade", "Preço Médio", "Preço Atual", "Valor de Mercado", "P&L R$", "P&L %"],
+        rows,
+    )
 
 
 @router.post("/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

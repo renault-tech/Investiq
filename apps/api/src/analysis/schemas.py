@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 class SaveAnalysisRequest(BaseModel):
@@ -51,6 +51,7 @@ class AnalysisDetail(BaseModel):
 
 class AddMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
+    role: Literal["user", "assistant"] = "user"
 
 
 class RecentContextResponse(BaseModel):

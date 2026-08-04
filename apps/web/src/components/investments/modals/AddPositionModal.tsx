@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { X } from "lucide-react";
 import { addPosition, createTransaction } from "@/lib/portfolio-api";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 
 interface AddPositionModalProps {
   portfolioId: string;
   onClose: () => void;
 }
+
+const fieldClass =
+  "w-full px-2.5 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)] font-mono";
 
 export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps) {
   const queryClient = useQueryClient();
@@ -19,12 +23,6 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
 
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -71,107 +69,98 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
   });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl w-[360px] p-5 animate-in fade-in slide-in-from-bottom-2 duration-150">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[13px] font-semibold text-white">Adicionar Ativo</h2>
-          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-neutral-200">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {/* Main Ticker Field */}
-          <div>
-            <label htmlFor="position-ticker" className="block text-[10px] text-[var(--text-muted)] mb-1">Ticker <span className="text-red-400">*</span></label>
-            <input
-              id="position-ticker"
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              maxLength={20}
-              className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500 font-mono"
-              placeholder="Ex: PETR4"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="pos-qty" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade</label>
-              <input
-                id="pos-qty"
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                min={0}
-                step={1}
-                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
-                placeholder="Opcional"
-              />
-            </div>
-            <div>
-              <label htmlFor="pos-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Atual</label>
-              <input
-                id="pos-price"
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                min={0}
-                step={0.01}
-                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
-                placeholder="R$ Opcional"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo do Portfólio %</label>
-              <input
-                id="position-target-weight"
-                type="number"
-                value={targetPct}
-                onChange={(e) => setTargetPct(e.target.value)}
-                min={0}
-                max={100}
-                step={0.1}
-                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
-                placeholder="Ex: 5%"
-              />
-            </div>
-            <div>
-              <label htmlFor="position-broker" className="block text-[10px] text-[var(--text-muted)] mb-1">Corretora</label>
-              <input
-                id="position-broker"
-                type="text"
-                value={broker}
-                onChange={(e) => setBroker(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-neutral-100 dark:bg-black/40 border border-neutral-300 dark:border-neutral-700/50 rounded-md text-[11px] text-black dark:text-white outline-none focus:border-blue-500"
-                placeholder="Ex: NuInvest"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] bg-slate-100 dark:bg-slate-800 border border-[var(--border)] rounded-md hover:bg-neutral-700"
-          >
+    <Modal
+      title="Adicionar Ativo"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
+            size="sm"
             onClick={() => mutation.mutate()}
             disabled={!ticker.trim() || mutation.isPending}
-            className="px-3 py-1.5 text-[11px] text-white bg-[var(--navy)] rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={mutation.isPending}
           >
             {mutation.isPending ? "Adicionando..." : "Adicionar"}
-          </button>
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <label htmlFor="position-ticker" className="block text-[10px] text-[var(--text-muted)] mb-1">
+            Ticker <span className="text-[var(--danger)]">*</span>
+          </label>
+          <input
+            id="position-ticker"
+            type="text"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            maxLength={20}
+            className={fieldClass}
+            placeholder="Ex: PETR4"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="pos-qty" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade</label>
+            <input
+              id="pos-qty"
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              min={0}
+              step={1}
+              className={fieldClass}
+              placeholder="Opcional"
+            />
+          </div>
+          <div>
+            <label htmlFor="pos-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Atual</label>
+            <input
+              id="pos-price"
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              min={0}
+              step={0.01}
+              className={fieldClass}
+              placeholder="R$ Opcional"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo do Portfólio %</label>
+            <input
+              id="position-target-weight"
+              type="number"
+              value={targetPct}
+              onChange={(e) => setTargetPct(e.target.value)}
+              min={0}
+              max={100}
+              step={0.1}
+              className={fieldClass}
+              placeholder="Ex: 5%"
+            />
+          </div>
+          <div>
+            <label htmlFor="position-broker" className="block text-[10px] text-[var(--text-muted)] mb-1">Corretora</label>
+            <input
+              id="position-broker"
+              type="text"
+              value={broker}
+              onChange={(e) => setBroker(e.target.value)}
+              className={fieldClass}
+              placeholder="Ex: NuInvest"
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

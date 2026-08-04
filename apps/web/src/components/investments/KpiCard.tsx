@@ -8,9 +8,9 @@ interface KpiCardProps {
 export function KpiCard({ label, value, sub, subColor = "neutral" }: KpiCardProps) {
   const subColorClass =
     subColor === "green"
-      ? "text-green-500"
+      ? "text-[var(--accent)]"
       : subColor === "red"
-      ? "text-red-500"
+      ? "text-[var(--danger)]"
       : "text-[var(--text-muted)]";
 
   return (

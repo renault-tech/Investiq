@@ -10,7 +10,7 @@ from sqlalchemy import select
 from src.auth.models import User, RefreshToken, PasswordResetToken, UserSettings
 from src.auth.jwt import create_access_token
 from src.config import settings
-from src.shared.exceptions import ValidationError, UnauthorizedError
+from src.shared.exceptions import ValidationError, UnauthorizedError, NotFoundError
 
 import bcrypt
 
@@ -28,6 +28,46 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def parse_device_label(user_agent: str | None) -> str:
+    """Best-effort "Browser on OS" label from a User-Agent string.
+
+    Not a real UA parser (no dependency added just for this) — just enough
+    heuristic to make the sessions list human-readable. Falls back to a
+    generic label rather than guessing wrong.
+    """
+    if not user_agent:
+        return "Dispositivo desconhecido"
+    ua = user_agent.lower()
+
+    if "edg/" in ua:
+        browser = "Edge"
+    elif "opr/" in ua or "opera" in ua:
+        browser = "Opera"
+    elif "chrome/" in ua and "chromium" not in ua:
+        browser = "Chrome"
+    elif "firefox/" in ua:
+        browser = "Firefox"
+    elif "safari/" in ua and "chrome/" not in ua:
+        browser = "Safari"
+    else:
+        browser = "Navegador"
+
+    if "iphone" in ua or "ipad" in ua:
+        os_name = "iOS"
+    elif "android" in ua:
+        os_name = "Android"
+    elif "mac os" in ua or "macintosh" in ua:
+        os_name = "macOS"
+    elif "windows" in ua:
+        os_name = "Windows"
+    elif "linux" in ua:
+        os_name = "Linux"
+    else:
+        os_name = "dispositivo desconhecido"
+
+    return f"{browser} em {os_name}"
 
 
 async def register_user(
@@ -59,6 +99,8 @@ async def login_user(
     email: str,
     password: str,
     db: AsyncSession,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
 ) -> tuple[str, str]:
     """Returns (access_token, raw_refresh_token)."""
     result = await db.execute(select(User).where(User.email == email))
@@ -66,11 +108,11 @@ async def login_user(
     if not user:
         print(f"User not found for email: {email}")
         raise UnauthorizedError(f"User not found: {email}")
-        
+
     if not verify_password(password, user.hashed_password):
         print(f"Password mismatch for email: {email}")
         raise UnauthorizedError("Password mismatch")
-        
+
     if not user.is_active:
         print(f"User disabled: {email}")
         raise UnauthorizedError("Account disabled")
@@ -81,6 +123,8 @@ async def login_user(
         id=uuid.uuid4(),
         user_id=user.id,
         token_hash=hash_token(raw_refresh),
+        device_info=parse_device_label(user_agent),
+        ip_address=ip_address,
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(rt)
@@ -91,8 +135,16 @@ async def login_user(
 async def refresh_access_token(
     raw_refresh_token: str,
     db: AsyncSession,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
 ) -> tuple[str, str]:
-    """Rotate refresh token. Returns (new_access_token, new_raw_refresh_token)."""
+    """Rotate refresh token. Returns (new_access_token, new_raw_refresh_token).
+
+    The new row gets a fresh device_info/ip_address read from the request
+    doing the refreshing — same device in practice, but this keeps the
+    sessions list accurate if a session is ever refreshed from a different
+    network/browser than it started on.
+    """
     token_hash = hash_token(raw_refresh_token)
     result = await db.execute(
         select(RefreshToken).where(
@@ -117,11 +169,99 @@ async def refresh_access_token(
         id=uuid.uuid4(),
         user_id=user.id,
         token_hash=hash_token(new_raw_refresh),
+        device_info=parse_device_label(user_agent),
+        ip_address=ip_address,
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(new_rt)
     await db.commit()
     return new_access, new_raw_refresh
+
+
+async def logout_user(raw_refresh_token: str | None, db: AsyncSession) -> None:
+    """Revoke the refresh token server-side, not just the client-side cookie.
+
+    Previously logout only cleared the cookie — the token itself stayed
+    valid in the DB until natural expiry, so a captured cookie kept working
+    after the user "logged out". Silent no-op if there's no cookie or it's
+    already invalid, matching this module's logout being idempotent.
+    """
+    if not raw_refresh_token:
+        return
+    token_hash = hash_token(raw_refresh_token)
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    rt = result.scalar_one_or_none()
+    if rt:
+        rt.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+
+
+async def list_sessions(
+    user_id: uuid.UUID, current_raw_refresh_token: str | None, db: AsyncSession
+) -> list[dict]:
+    """Active (non-revoked, non-expired) sessions, most recent first."""
+    current_hash = hash_token(current_raw_refresh_token) if current_raw_refresh_token else None
+    result = await db.execute(
+        select(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(RefreshToken.created_at.desc())
+    )
+    return [
+        {
+            "id": rt.id,
+            "device_info": rt.device_info,
+            "ip_address": rt.ip_address,
+            "created_at": rt.created_at,
+            "expires_at": rt.expires_at,
+            "is_current": rt.token_hash == current_hash,
+        }
+        for rt in result.scalars().all()
+    ]
+
+
+async def revoke_session(user_id: uuid.UUID, session_id: uuid.UUID, db: AsyncSession) -> None:
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.id == session_id,
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    rt = result.scalar_one_or_none()
+    if not rt:
+        raise NotFoundError("Sessão")
+    rt.revoked_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
+async def revoke_other_sessions(
+    user_id: uuid.UUID, current_raw_refresh_token: str | None, db: AsyncSession
+) -> int:
+    """Revoke every active session except the one making this request. Returns the count revoked."""
+    current_hash = hash_token(current_raw_refresh_token) if current_raw_refresh_token else None
+    query = select(RefreshToken).where(
+        RefreshToken.user_id == user_id,
+        RefreshToken.revoked_at.is_(None),
+        RefreshToken.expires_at > datetime.now(timezone.utc),
+    )
+    if current_hash:
+        query = query.where(RefreshToken.token_hash != current_hash)
+    result = await db.execute(query)
+    sessions = result.scalars().all()
+    now = datetime.now(timezone.utc)
+    for rt in sessions:
+        rt.revoked_at = now
+    await db.commit()
+    return len(sessions)
 
 
 async def create_password_reset_token(email: str, db: AsyncSession) -> str | None:

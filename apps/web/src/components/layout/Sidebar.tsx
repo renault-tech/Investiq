@@ -6,6 +6,7 @@ import {
   TrendingUp,
   BarChart2,
   LineChart,
+  CreditCard,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -16,12 +17,16 @@ import { useUserStore } from "@/store/useUserStore";
 const NAV_ITEMS = [
   { href: "/investments", label: "Investimentos", icon: TrendingUp },
   { href: "/finances", label: "Finanças", icon: BarChart2 },
+  { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/analysis", label: "Análise", icon: LineChart },
   { href: "/settings", label: "Configurações", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const activeHref = NAV_ITEMS
+    .filter((item) => pathname.startsWith(item.href))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const user = useUserStore((s) => s.user);
 
@@ -50,7 +55,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
+          const active = href === activeHref;
           return (
             <Link
               key={href}

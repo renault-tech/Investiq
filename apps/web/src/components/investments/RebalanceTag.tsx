@@ -4,15 +4,15 @@ interface RebalanceTagProps {
 }
 
 export function RebalanceTag({ action, deltaUnits }: RebalanceTagProps) {
-  if (!action || action === "hold") return <span className="text-neutral-600">—</span>;
+  if (!action || action === "hold") return <span className="text-[var(--text-muted)]">—</span>;
 
   const isBuy = action === "buy";
   return (
     <span
       className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded ${
         isBuy
-          ? "bg-blue-950 text-[var(--accent)]"
-          : "bg-red-950 text-[var(--danger)]"
+          ? "bg-emerald-100 dark:bg-emerald-950/40 text-[var(--accent)]"
+          : "bg-red-100 dark:bg-red-950/40 text-[var(--danger)]"
       }`}
     >
       {isBuy ? "COMPRAR" : "VENDER"}

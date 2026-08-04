@@ -1,4 +1,7 @@
+import Link from "next/link";
+import { Wallet } from "lucide-react";
 import { RebalanceTag } from "./RebalanceTag";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { PositionSummary } from "@/lib/portfolio-api";
 
 interface PositionsTableProps {
@@ -40,11 +43,12 @@ export function PositionsTable({
 
   if (positions.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[var(--text-muted)]">
-        <div className="text-center">
-          <p className="text-sm mb-1">Nenhuma posição neste portfólio</p>
-          <p className="text-xs text-[var(--text-muted)]">Use "+ Ativo" para adicionar</p>
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          icon={Wallet}
+          title="Nenhuma posição neste portfólio"
+          description='Use "+ Ativo" para adicionar sua primeira posição.'
+        />
       </div>
     );
   }
@@ -72,20 +76,25 @@ export function PositionsTable({
         <tbody>
           {positions.map((pos) => {
             const pnlPositive = pos.pnl_absolute >= 0;
-            const pnlColor = pnlPositive ? "text-green-500" : "text-red-500";
+            const pnlColor = pnlPositive ? "text-[var(--accent)]" : "text-[var(--danger)]";
             return (
               <tr
                 key={pos.position_id}
-                className={`border-b border-neutral-900 transition-colors ${
+                className={`border-b border-[var(--border)] transition-colors ${
                   pos.quantity === 0 ? "opacity-60 bg-black/10 dark:bg-white/5 hover:opacity-100" : "hover:bg-[var(--surface)]/50"
                 }`}
               >
                 <td className="px-2 py-1.5 text-left flex items-center gap-2">
                   <div>
                     <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-primary)]">
-                      {pos.ticker}
+                      <Link
+                        href={`/investments/${pos.ticker}`}
+                        className="hover:text-[var(--accent)] hover:underline underline-offset-2"
+                      >
+                        {pos.ticker}
+                      </Link>
                       {pos.quantity === 0 && (
-                        <span className="px-1 py-0.5 rounded text-[8px] bg-blue-500/20 text-blue-400 font-normal tracking-wide">
+                        <span className="px-1 py-0.5 rounded text-[8px] bg-blue-100 dark:bg-blue-500/20 text-[var(--navy)] dark:text-blue-400 font-normal tracking-wide">
                           MONITORANDO
                         </span>
                       )}
@@ -130,7 +139,7 @@ export function PositionsTable({
                 <td className="px-2 py-1.5 text-right">
                   <button
                     onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
-                    className="text-[9px] text-[var(--accent)] border border-blue-900/30 bg-blue-950/20 px-2 py-0.5 rounded hover:bg-blue-950/50 transition-colors"
+                    className="text-[9px] text-[var(--accent)] border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
                   >
                     Transação
                   </button>

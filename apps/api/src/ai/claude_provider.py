@@ -21,6 +21,10 @@ class ClaudeProvider(LLMProvider):
     def name(self) -> str:
         return "claude"
 
+    @property
+    def default_model(self) -> str:
+        return DEFAULT_MODEL
+
     async def stream(
         self,
         messages: list[dict],

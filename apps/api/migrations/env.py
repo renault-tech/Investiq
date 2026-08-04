@@ -5,13 +5,17 @@ from alembic import context
 from src.config import settings
 from src.database import Base
 
-# Import all models so Base.metadata is populated
-# These imports will be added as models are created
-# import src.auth.models  # noqa
+# Import all models so Base.metadata is populated (required for
+# --autogenerate; hand-written migrations don't strictly need this, but a
+# missing import here silently breaks autogenerate diffs for that module).
 import src.auth.models  # noqa
 import src.portfolio.models  # noqa
 import src.finance.models  # noqa
+import src.finance.budget_models  # noqa
+import src.finance.goal_models  # noqa
 import src.analysis.models  # noqa
+import src.cards.models  # noqa
+import src.notifications.models  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
