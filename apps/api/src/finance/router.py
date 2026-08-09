@@ -13,6 +13,7 @@ from src.auth.models import User
 from src.finance import service
 from src.finance import import_service
 from src.finance import forecast
+from src.finance import analytics
 from src.ai.factory import get_llm_provider
 from src.ai.base import LLMProviderError
 from src.settings import service as settings_service
@@ -44,6 +45,7 @@ from src.finance.schemas import (
     ImportRowResponse,
     ImportConfirmResponse,
     ForecastResponse,
+    AnalyticsResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -360,6 +362,21 @@ async def get_forecast(
     parcela futura, fatura de cartão em aberto) do que é estimativa (mediana
     dos últimos 6 meses por categoria sem essa cobertura)."""
     return await forecast.get_forecast(current_user.id, db, months=months, account_id=account_id)
+
+
+# ---------------------------------------------------------------------------
+# Advanced analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/analytics", response_model=AnalyticsResponse)
+async def get_analytics(
+    months: int = Query(6, ge=3, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Burn rate, taxa de poupança, fôlego e tendência por categoria — tudo
+    derivado das mesmas transações que resumo e projeção já consultam."""
+    return await analytics.get_analytics(current_user.id, db, months=months)
 
 
 # ---------------------------------------------------------------------------

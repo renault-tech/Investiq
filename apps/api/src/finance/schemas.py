@@ -302,3 +302,40 @@ class ForecastResponse(BaseModel):
     current_balance: Decimal
     months: list[ForecastMonth]
     negative_from: Optional[str]     # primeiro mês em que balance_realistic fica negativo
+
+
+# ---------------------------------------------------------------------------
+# Advanced analytics
+# ---------------------------------------------------------------------------
+
+class AnalyticsSavingsPoint(BaseModel):
+    month: str
+    income: Decimal
+    expense: Decimal
+    savings_rate: Optional[Decimal]   # (receita-despesa)/receita — None quando receita é 0
+
+
+class AnalyticsCategoryTrend(BaseModel):
+    category_id: Optional[uuid.UUID]
+    category_name: str
+    category_color: Optional[str]
+    current_amount: Decimal
+    baseline_median: Decimal
+    pct_change: Optional[Decimal]     # None quando não há linha de base (categoria nova)
+    direction: str                    # "up" | "down" | "stable"
+
+
+class AnalyticsMatrixRow(BaseModel):
+    category_id: Optional[uuid.UUID]
+    category_name: str
+    category_color: Optional[str]
+    values: list[Decimal]             # alinhado a AnalyticsResponse.months
+
+
+class AnalyticsResponse(BaseModel):
+    months: list[str]                 # eixo comum da série e da matriz
+    burn_rate: Decimal                # despesa média dos últimos 3 meses fechados
+    savings_series: list[AnalyticsSavingsPoint]
+    runway_months: Optional[Decimal]  # saldo consolidado / burn_rate — None se burn_rate é 0
+    category_trends: list[AnalyticsCategoryTrend]
+    category_matrix: list[AnalyticsMatrixRow]
