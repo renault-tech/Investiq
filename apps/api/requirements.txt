@@ -1,7 +1,10 @@
 # Vercel's Python runtime reads this file directly (no pyproject.toml
-# support) — kept in sync with the dependencies list in pyproject.toml.
+# support) — kept in sync with the dependencies list in pyproject.toml,
+# minus uvicorn: Vercel imports `app` directly (see api/index.py) and
+# never runs a uvicorn server process, so it's dead weight in the
+# function bundle (uvicorn[standard]'s httptools/uvloop/watchfiles/
+# websockets extras only matter for the Docker/local entrypoint).
 fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
 sqlalchemy[asyncio]>=2.0.0
 asyncpg>=0.29.0
 alembic>=1.13.0
