@@ -1,0 +1,42 @@
+name: Scheduled jobs
+
+# Vercel serverless has no long-running process for APScheduler
+# (src/workers/scheduler.py) to live in — ENABLE_SCHEDULER=false in
+# production, so its four jobs never ran. This workflow calls the
+# equivalent endpoint (POST /api/v1/internal/jobs/run, src/workers/router.py)
+# on the same cadence the in-process scheduler used, from outside the app.
+#
+# Requires a repository secret CRON_SECRET matching the API's CRON_SECRET
+# env var (Vercel project settings → Environments → Production).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # price_refresh (market hours only, checked internally) + alert_checker
+    - cron: "0 18 * * *"  # fx_update — matches the old APScheduler time
+    - cron: "0 21 * * *"  # snapshot — matches the old APScheduler time
+  workflow_dispatch: # manual run from the Actions tab, for testing
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick jobs for this schedule
+        id: pick
+        run: |
+          case "${{ github.event.schedule }}" in
+            "*/5 * * * *") echo "jobs=price_refresh,alert_checker" >> "$GITHUB_OUTPUT" ;;
+            "0 18 * * *") echo "jobs=fx_update" >> "$GITHUB_OUTPUT" ;;
+            "0 21 * * *") echo "jobs=snapshot" >> "$GITHUB_OUTPUT" ;;
+            *) echo "jobs=all" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Call /internal/jobs/run
+        run: |
+          http_status=$(curl -s -o response.json -w "%{http_code}" -X POST \
+            "https://investiq-web-9kvc.vercel.app/api/v1/internal/jobs/run?jobs=${{ steps.pick.outputs.jobs }}" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $http_status"
+          cat response.json
+          if [ "$http_status" -ge 300 ]; then
+            exit 1
+          fi

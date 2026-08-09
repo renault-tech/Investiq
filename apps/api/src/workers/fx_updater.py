@@ -16,6 +16,7 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.market_data.yahoo import YahooFinanceProvider
 from src.portfolio.models import FxRate
+from src.workers.locking import acquire_lock_or_proceed
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +35,13 @@ async def fx_update_job() -> None:
     """Fetch current FX rates and upsert today's UTC row in fx_rates."""
     redis_client = None
     try:
-        redis_client = aioredis.from_url(settings.REDIS_URL)
+        try:
+            redis_client = aioredis.from_url(settings.REDIS_URL)
+        except Exception as exc:
+            logger.warning("Redis unavailable for FX update lock: %s", exc)
+            redis_client = None
 
-        acquired = await redis_client.set(_LOCK_KEY, "1", nx=True, px=_LOCK_TTL * 1000)
-        if not acquired:
+        if not await acquire_lock_or_proceed(redis_client, _LOCK_KEY, _LOCK_TTL):
             logger.debug("FX update skipped — lock held by another instance")
             return
 

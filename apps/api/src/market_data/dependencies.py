@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import get_db
 from src.auth.dependencies import get_current_user
 from src.auth.models import User, UserSettings
+from src.settings.service import get_decrypted_api_keys
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,12 @@ async def get_user_provider_settings(
         select(UserSettings).where(UserSettings.user_id == current_user.id)
     )
     settings_obj = result.scalar_one_or_none()
+    if not settings_obj:
+        return {"preferred": "yahoo", "brapi_key": None}
     return {
-        "preferred": settings_obj.preferred_provider if settings_obj else "yahoo",
-        "brapi_key": settings_obj.brapi_key if settings_obj else None,
+        "preferred": settings_obj.preferred_provider,
+        # brapi_key is stored Fernet-encrypted at rest — must be decrypted
+        # before it's usable as an actual API token, or every request to
+        # Brapi is rejected and silently falls back to an empty quote dict.
+        "brapi_key": get_decrypted_api_keys(settings_obj)["brapi_key"],
     }

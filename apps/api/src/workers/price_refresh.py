@@ -16,6 +16,7 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.portfolio.models import Asset, PortfolioPosition
 from src.market_data.factory import get_provider, get_cache
+from src.workers.locking import acquire_lock_or_proceed
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +50,13 @@ async def price_refresh_job() -> None:
 
     redis_client = None
     try:
-        redis_client = aioredis.from_url(settings.REDIS_URL)
+        try:
+            redis_client = aioredis.from_url(settings.REDIS_URL)
+        except Exception as exc:
+            logger.warning("Redis unavailable for price refresh lock: %s", exc)
+            redis_client = None
 
-        # Distributed lock — only one instance runs at a time
-        acquired = await redis_client.set(_LOCK_KEY, "1", nx=True, px=_LOCK_TTL * 1000)
-        if not acquired:
+        if not await acquire_lock_or_proceed(redis_client, _LOCK_KEY, _LOCK_TTL):
             logger.debug("Price refresh skipped — lock held by another instance")
             return
 

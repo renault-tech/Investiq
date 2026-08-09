@@ -15,6 +15,7 @@ from src.config import settings
 from src.database import AsyncSessionLocal
 from src.portfolio.models import PriceAlert, Asset
 from src.notifications.models import Notification
+from src.workers.locking import acquire_lock_or_proceed
 
 _ALERT_LABEL = {"price_above": "subiu acima de", "price_below": "caiu abaixo de"}
 
@@ -28,10 +29,13 @@ async def alert_checker_job() -> None:
     """Check all active price alerts and trigger those whose condition is met."""
     redis_client = None
     try:
-        redis_client = aioredis.from_url(settings.REDIS_URL)
+        try:
+            redis_client = aioredis.from_url(settings.REDIS_URL)
+        except Exception as exc:
+            logger.warning("Redis unavailable for alert checker lock: %s", exc)
+            redis_client = None
 
-        acquired = await redis_client.set(_LOCK_KEY, "1", nx=True, px=_LOCK_TTL * 1000)
-        if not acquired:
+        if not await acquire_lock_or_proceed(redis_client, _LOCK_KEY, _LOCK_TTL):
             logger.debug("Alert checker skipped — lock held by another instance")
             return
 

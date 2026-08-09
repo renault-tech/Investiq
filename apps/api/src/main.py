@@ -23,6 +23,7 @@ from src.finance.router import router as finance_router
 from src.alerts.router import router as alerts_router
 from src.notifications.router import router as notifications_router
 from src.onboarding.router import router as onboarding_router
+from src.workers.router import router as workers_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
 
 # cards (invoice PDF/AI parsing) and reports (PDF export) pull in pdfplumber
@@ -72,6 +73,7 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(onboarding_router, prefix="/api/v1")
+app.include_router(workers_router, prefix="/api/v1")
 if not IS_VERCEL:
     app.include_router(cards_router, prefix="/api/v1")
     app.include_router(reports_router, prefix="/api/v1")
@@ -93,14 +95,18 @@ async def health_db():
     except Exception:
         db_status = "error"
 
-    redis_client = aioredis.from_url(settings.REDIS_URL)
     try:
-        await redis_client.ping()
+        redis_client = aioredis.from_url(settings.REDIS_URL)
+        try:
+            await redis_client.ping()
+        finally:
+            await redis_client.aclose()
     except Exception:
         redis_status = "error"
-    finally:
-        await redis_client.aclose()
 
-    healthy = db_status == "ok" and redis_status == "ok"
+    # Redis is a cache, not a source of truth — its absence degrades
+    # performance, not correctness, so it shouldn't flip external
+    # monitoring to "service down". Only the database gates overall health.
+    healthy = db_status == "ok"
     body = {"status": "ok" if healthy else "error", "db": db_status, "redis": redis_status}
     return JSONResponse(status_code=200 if healthy else 503, content=body)

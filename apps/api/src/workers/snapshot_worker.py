@@ -16,6 +16,8 @@ from src.database import AsyncSessionLocal
 from src.auth.models import UserSettings
 from src.portfolio.models import Portfolio, PortfolioSnapshot
 from src.portfolio import service as portfolio_service
+from src.settings.service import get_decrypted_api_keys
+from src.workers.locking import acquire_lock_or_proceed
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,13 @@ async def snapshot_job() -> None:
     """Compute and upsert today's snapshot for every portfolio."""
     redis_client = None
     try:
-        redis_client = aioredis.from_url(settings.REDIS_URL)
-        acquired = await redis_client.set(_LOCK_KEY, "1", nx=True, px=_LOCK_TTL * 1000)
-        if not acquired:
+        try:
+            redis_client = aioredis.from_url(settings.REDIS_URL)
+        except Exception as exc:
+            logger.warning("Redis unavailable for snapshot lock: %s", exc)
+            redis_client = None
+
+        if not await acquire_lock_or_proceed(redis_client, _LOCK_KEY, _LOCK_TTL):
             logger.debug("Snapshot job skipped — lock held by another instance")
             return
 
@@ -46,7 +52,7 @@ async def snapshot_job() -> None:
             for portfolio in portfolios:
                 user_settings = settings_by_user.get(portfolio.user_id)
                 preferred = user_settings.preferred_provider if user_settings else "yahoo"
-                brapi_key = user_settings.brapi_key if user_settings else None
+                brapi_key = get_decrypted_api_keys(user_settings)["brapi_key"] if user_settings else None
 
                 try:
                     summary = await portfolio_service.get_portfolio_summary(
