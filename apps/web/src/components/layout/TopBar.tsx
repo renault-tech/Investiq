@@ -1,23 +1,44 @@
 "use client";
 
-import { Moon, Sun, ZoomIn, ZoomOut, Search, ChevronDown } from "lucide-react";
+import { Moon, Sun, ZoomIn, ZoomOut, Search, ChevronDown, LogOut } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { logout } from "@/lib/api-client";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 
 export function TopBar() {
   const { fontScale, setFontScale } = useUIStore();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
+  const setUser = useUserStore((s) => s.setUser);
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Prevent hydration mismatch for theme toggle
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  async function handleLogout() {
+    setMenuOpen(false);
+    await logout();
+    setUser(null);
+    router.push("/login");
+  }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,11 +114,41 @@ export function TopBar() {
 
         {/* Avatar/Perfil */}
         {user && (
-          <div className="flex items-center gap-2 cursor-pointer pl-2">
-            <div className="w-8 h-8 rounded-full bg-[var(--navy)] flex items-center justify-center text-xs font-medium text-white shadow-sm border border-[var(--border-strong)]">
-              {(user.full_name ?? user.email).charAt(0).toUpperCase()}
-            </div>
-            <ChevronDown size={14} className="text-[var(--text-muted)] hidden sm:block" />
+          <div className="relative pl-2" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="flex items-center gap-2 cursor-pointer"
+              aria-label="Menu da conta"
+              aria-expanded={menuOpen}
+            >
+              <div className="w-8 h-8 rounded-full bg-[var(--navy)] flex items-center justify-center text-xs font-medium text-white shadow-sm border border-[var(--border-strong)]">
+                {(user.full_name ?? user.email).charAt(0).toUpperCase()}
+              </div>
+              <ChevronDown size={14} className="text-[var(--text-muted)] hidden sm:block" />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg z-50 py-1">
+                <div className="px-3 py-2 border-b border-[var(--border)]">
+                  <p className="text-xs font-medium text-[var(--text-primary)] truncate">
+                    {user.full_name ?? user.email}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
+                </div>
+                <button
+                  onClick={() => { setMenuOpen(false); router.push("/settings"); }}
+                  className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Configurações
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 text-left px-3 py-2 text-sm text-[var(--danger)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <LogOut size={14} /> Sair
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

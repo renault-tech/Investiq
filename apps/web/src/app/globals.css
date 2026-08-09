@@ -14,8 +14,10 @@
 
   --text-primary:  #0F172A;
   --text-secondary:#475569;
-  --text-muted:    #94A3B8;
-  
+  /* #94A3B8 was 2.56:1 on white — fails WCAG AA (4.5:1) and was used for
+     real financial data (quantity, avg price, weight), not just decoration. */
+  --text-muted:    #5B6B80;
+
   --font-scale: 1.0;
 }
 
@@ -30,12 +32,39 @@
   --warning:       #FCD34D;
   --text-primary:  #F1F5F9;
   --text-secondary:#94A3B8;
-  --text-muted:    #475569;
+  /* same fix as light: #475569 was 2.36:1 on #0F172A. */
+  --text-muted:    #8B9CB3;
 }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
+/* Tailwind v4 utility-generating theme — without this, font-sans/font-mono
+   never resolve to the Manrope/Geist Mono variables next/font sets up in
+   layout.tsx, and the app silently renders in the system font stack despite
+   downloading both families. */
+@theme inline {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
   background: var(--background);
   color: var(--text-primary);
+}
+
+body {
+  min-height: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

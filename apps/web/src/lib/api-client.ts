@@ -40,6 +40,17 @@ function refreshAccessToken(): Promise<string> {
   return refreshPromise;
 }
 
+export async function logout(): Promise<void> {
+  try {
+    await apiClient.post("/auth/logout");
+  } catch {
+    // Best-effort: even if the server call fails, still clear local state
+    // below so the user isn't stuck "logged in" on a dead session.
+  } finally {
+    clearAccessToken();
+  }
+}
+
 apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {

@@ -19,6 +19,7 @@ import { BenchmarkChart } from "@/components/charts/BenchmarkChart";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
@@ -49,11 +50,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     staleTime: 30_000,
   });
 
-  const { data: summary, isLoading: isSummaryLoading, dataUpdatedAt } =
+  const { data: summary, isLoading: isSummaryLoading, isError: isSummaryError, refetch: refetchSummary, dataUpdatedAt } =
     usePortfolioSummary(activePortfolioId);
-  const { data: performance, isLoading: isPerformanceLoading } =
+  const { data: performance, isLoading: isPerformanceLoading, isError: isPerformanceError, refetch: refetchPerformance } =
     usePortfolioPerformance(activePortfolioId, performancePeriod);
-  const { data: benchmark, isLoading: isBenchmarkLoading } =
+  const { data: benchmark, isLoading: isBenchmarkLoading, isError: isBenchmarkError, refetch: refetchBenchmark } =
     usePortfolioBenchmark(activePortfolioId, performancePeriod);
 
   // Handle case when activePortfolioId is null but portfolios exist
@@ -129,10 +130,21 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
         </div>
       )}
 
+      {/* Summary failed to load — the whole dashboard below depends on it,
+          so show one error instead of every panel quietly rendering empty. */}
+      {portfolios.length > 0 && isSummaryError && !isSummaryLoading && (
+        <div className="flex-1 flex items-center justify-center">
+          <ErrorState
+            title="Não foi possível carregar o portfólio."
+            onRetry={refetchSummary}
+          />
+        </div>
+      )}
+
       {/* Main split layout */}
-      {portfolios.length > 0 && (
+      {portfolios.length > 0 && !isSummaryError && (
         <div className="flex flex-1 min-h-0">
-          <div className="w-[210px] shrink-0 border-r border-[var(--border)] overflow-y-auto p-4">
+          <div className="hidden md:block w-[210px] shrink-0 border-r border-[var(--border)] overflow-y-auto p-4">
             <LeftPanel summary={summary} isLoading={isSummaryLoading} />
           </div>
           <div className="flex-1 overflow-auto p-4">
@@ -148,6 +160,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <ChartCard
                   title="Evolução patrimonial"
                   isLoading={isPerformanceLoading}
+                  isError={isPerformanceError}
+                  onRetry={refetchPerformance}
                   isEmpty={!performance || performance.length === 0}
                   emptyMessage="Registre transações para ver a evolução da carteira."
                   actions={
@@ -174,6 +188,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               <ChartCard
                 title="Alocação"
                 isLoading={isSummaryLoading}
+                isError={isSummaryError}
+                onRetry={refetchSummary}
                 isEmpty={!summary || summary.allocation_by_type.length === 0}
                 emptyMessage="Adicione posições para ver a alocação."
                 actions={
@@ -212,6 +228,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               <ChartCard
                 title="Rentabilidade vs. CDI e Ibovespa"
                 isLoading={isBenchmarkLoading}
+                isError={isBenchmarkError}
+                onRetry={refetchBenchmark}
                 isEmpty={!benchmark || benchmark.length === 0}
                 emptyMessage="Registre transações para comparar a carteira com CDI e Ibovespa."
                 height={290}

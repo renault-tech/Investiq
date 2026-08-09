@@ -18,7 +18,7 @@ export function PlatformShell({ children }: PlatformShellProps) {
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar />
         <main
-          className="flex-1 overflow-hidden md:mb-0 mb-16"
+          className="flex-1 overflow-y-auto md:mb-0 mb-16"
           style={{ zoom: fontScale }}
         >
           {children}

@@ -32,7 +32,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`flex-shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col transition-all duration-200 ${
+      className={`hidden md:flex flex-shrink-0 bg-[var(--surface)] border-r border-[var(--border)] flex-col transition-all duration-200 ${
         sidebarCollapsed ? "w-16" : "w-60"
       }`}
     >

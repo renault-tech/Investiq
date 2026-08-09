@@ -10,11 +10,10 @@ export function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 
-  // Root redirect to investments
-  if (pathname === "/") {
-    return NextResponse.redirect(new URL("/investments", request.url));
-  }
-
+  // "/" is the landing page and handles its own authenticated-user redirect
+  // (app/page.tsx checks the refresh_token cookie server-side) — redirecting
+  // it here unconditionally made the landing page unreachable for everyone,
+  // including anonymous visitors it's meant for.
   return NextResponse.next();
 }
 
