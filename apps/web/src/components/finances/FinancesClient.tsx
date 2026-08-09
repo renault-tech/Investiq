@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags, TrendingUp, Upload } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
@@ -136,6 +136,12 @@ export function FinancesClient() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link
+            href="/finances/planejamento"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <TrendingUp size={15} /> Planejamento
+          </Link>
           <Link
             href="/finances/importar"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"

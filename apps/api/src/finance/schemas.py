@@ -282,3 +282,23 @@ class ImportRowUpdate(BaseModel):
 class ImportConfirmResponse(BaseModel):
     created: int
     skipped: int
+
+
+# ---------------------------------------------------------------------------
+# Cash-flow forecast
+# ---------------------------------------------------------------------------
+
+class ForecastMonth(BaseModel):
+    month: str                       # "2026-09"
+    committed_income: Decimal        # já aconteceu ou está agendado (recorrência, parcela, fatura aberta)
+    committed_expense: Decimal
+    estimated_income: Decimal        # mediana de 6 meses, só para categorias sem cobertura conhecida
+    estimated_expense: Decimal
+    balance_committed: Decimal       # saldo acumulado só com o que é certo
+    balance_realistic: Decimal       # saldo acumulado com o certo + a estimativa
+
+
+class ForecastResponse(BaseModel):
+    current_balance: Decimal
+    months: list[ForecastMonth]
+    negative_from: Optional[str]     # primeiro mês em que balance_realistic fica negativo

@@ -12,6 +12,7 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.finance import service
 from src.finance import import_service
+from src.finance import forecast
 from src.ai.factory import get_llm_provider
 from src.ai.base import LLMProviderError
 from src.settings import service as settings_service
@@ -42,6 +43,7 @@ from src.finance.schemas import (
     ImportRowUpdate,
     ImportRowResponse,
     ImportConfirmResponse,
+    ForecastResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -341,6 +343,23 @@ async def get_summary(
     if not _MONTH_RE.match(month):
         raise HTTPException(status_code=422, detail="month deve estar no formato YYYY-MM")
     return await service.get_summary(current_user.id, month, db)
+
+
+# ---------------------------------------------------------------------------
+# Cash-flow forecast
+# ---------------------------------------------------------------------------
+
+@router.get("/forecast", response_model=ForecastResponse)
+async def get_forecast(
+    months: int = Query(6, ge=1, le=24),
+    account_id: Optional[uuid.UUID] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Projeção de saldo mês a mês, separando o que já é conhecido (recorrência,
+    parcela futura, fatura de cartão em aberto) do que é estimativa (mediana
+    dos últimos 6 meses por categoria sem essa cobertura)."""
+    return await forecast.get_forecast(current_user.id, db, months=months, account_id=account_id)
 
 
 # ---------------------------------------------------------------------------
