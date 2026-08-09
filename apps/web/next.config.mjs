@@ -16,7 +16,11 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
   turbopack: {},
-  output: "standalone",
+  // "standalone" is only for self-hosting (apps/web/Dockerfile) — Vercel has
+  // its own serverless build output format and expects the plain .next
+  // build, not the standalone server bundle. process.env.VERCEL is set
+  // automatically by Vercel's build environment.
+  output: process.env.VERCEL ? undefined : "standalone",
 };
 
 export default withPWA(nextConfig);
