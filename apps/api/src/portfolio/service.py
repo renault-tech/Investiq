@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.portfolio.models import (
-    Portfolio, PortfolioPosition, Asset, InvestmentTransaction, BankAccount,
+    Portfolio, PortfolioPosition, Asset, InvestmentTransaction,
     PortfolioSnapshot, FxRate,
 )
 from src.portfolio.calculations import (

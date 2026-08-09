@@ -233,12 +233,22 @@ async def confirm_invoice(invoice_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSe
             category_id=item.category_id or item.suggested_category_id,
             transaction_type="expense",
             amount=item.amount,
+            # amount_brl é o que toda agregação de finanças soma; a fatura é
+            # sempre em BRL, então a taxa é 1 — mas a coluna precisa vir
+            # preenchida, senão o lançamento nasce fora dos totais.
+            amount_brl=item.amount,
             description=f"[{card.name}] {item.description}"[:255],
             transaction_date=datetime.combine(
                 item.purchase_date or invoice.due_date or invoice.reference_month,
                 time(12, 0),
                 tzinfo=timezone.utc,
             ),
+            # A fatura já traz a parcela que vence neste mês. Os campos são
+            # rótulo — materializar as futuras aqui contaria em dobro quando a
+            # próxima fatura chegasse.
+            installment_no=item.installment_no,
+            installment_total=item.installment_total,
+            source="card_invoice",
             tags=json.dumps(["cartão"]),
         )
         db.add(txn)

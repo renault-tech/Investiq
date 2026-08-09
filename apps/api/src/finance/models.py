@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Column, String, Numeric, Boolean, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Numeric, Boolean, Integer, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
@@ -36,20 +36,37 @@ class FinancialTransaction(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     category_id = Column(UUID(as_uuid=True), ForeignKey("finance_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     bank_account_id = Column(UUID(as_uuid=True), ForeignKey("bank_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Só para transaction_type='transfer': a conta que recebe. Uma linha só,
+    # com dois FKs — editar e apagar ficam atômicos e não existe par órfão.
+    to_bank_account_id = Column(UUID(as_uuid=True), ForeignKey("bank_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     transaction_type = Column(String(10), nullable=False)  # income | expense | transfer
     amount = Column(Numeric(18, 8), nullable=False)
     currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
+    # Cotação travada na gravação: o histórico não muda quando o câmbio muda.
+    fx_rate = Column(Numeric(18, 8), nullable=False, default=Decimal("1"), server_default=text("1"))
+    amount_brl = Column(Numeric(18, 8), nullable=False)  # amount * fx_rate — o que as agregações somam
     description = Column(String(255), nullable=True)
     notes = Column(Text(), nullable=True)
     transaction_date = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
     is_recurring = Column(Boolean(), nullable=False, default=False, server_default=text("FALSE"))
     recurrence_rule = Column(String(100), nullable=True)
+    # Parcelamento: N linhas materializadas com is_recurring=False, para
+    # ficarem fora de expand_recurring e nunca contarem em dobro.
+    installment_group_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    installment_no = Column(Integer(), nullable=True)
+    installment_total = Column(Integer(), nullable=True)
+    # manual | import_ofx | import_csv | card_invoice | installment
+    source = Column(String(20), nullable=False, default="manual", server_default="manual")
+    external_id = Column(String(100), nullable=True)  # FITID do OFX — chave de deduplicação
     tags = Column(Text(), nullable=True)  # JSON array of strings
     deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     category = relationship("FinanceCategory", back_populates="transactions")
+    # Dois FKs para a mesma tabela, então foreign_keys é obrigatório.
+    bank_account = relationship("BankAccount", foreign_keys=[bank_account_id])
+    to_bank_account = relationship("BankAccount", foreign_keys=[to_bank_account_id])
 
 
 class AuditLog(Base):

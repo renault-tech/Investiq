@@ -28,6 +28,9 @@ from src.finance.schemas import (
     GoalContributeRequest,
     GoalContributionResponse,
     GoalResponse,
+    AccountCreate,
+    AccountUpdate,
+    AccountResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -92,6 +95,8 @@ async def list_transactions(
     transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
     search: Optional[str] = Query(None, max_length=100),
     tag: Optional[str] = Query(None, max_length=50),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -102,7 +107,8 @@ async def list_transactions(
         current_user.id, db,
         date_from=date_from, date_to=date_to,
         category_id=category_id, transaction_type=transaction_type,
-        search=search, tag=tag, page=page, per_page=per_page,
+        search=search, tag=tag, account_id=account_id, holder=holder,
+        page=page, per_page=per_page,
     )
 
 
@@ -161,10 +167,57 @@ async def update_transaction(
 @router.delete("/transactions/{txn_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
     txn_id: uuid.UUID,
+    scope: str = Query("one", pattern="^(one|future|all)$",
+                       description="Parcelamentos: só esta, esta e as futuras, ou a série inteira"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.delete_transaction(txn_id, current_user.id, db)
+    await service.delete_transaction(txn_id, current_user.id, db, scope=scope)
+
+
+# ---------------------------------------------------------------------------
+# Accounts
+# ---------------------------------------------------------------------------
+
+@router.get("/accounts", response_model=list[AccountResponse])
+async def list_accounts(
+    include_inactive: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Contas do usuário com saldo derivado das transações até agora."""
+    return await service.list_accounts(current_user.id, db, include_inactive=include_inactive)
+
+
+@router.post("/accounts", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_account(
+    body: AccountCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.create_account(current_user.id, body.model_dump(), db)
+
+
+@router.patch("/accounts/{account_id}", response_model=AccountResponse)
+async def update_account(
+    account_id: uuid.UUID,
+    body: AccountUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.update_account(
+        account_id, current_user.id, body.model_dump(exclude_unset=True), db
+    )
+
+
+@router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_account(
+    account_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Arquiva (is_active=False) — as transações históricas continuam apontando para ela."""
+    await service.archive_account(account_id, current_user.id, db)
 
 
 # ---------------------------------------------------------------------------

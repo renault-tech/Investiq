@@ -13,6 +13,7 @@ import src.portfolio.models  # noqa
 import src.finance.models  # noqa
 import src.finance.budget_models  # noqa
 import src.finance.goal_models  # noqa
+import src.finance.account_models  # noqa
 import src.analysis.models  # noqa
 import src.cards.models  # noqa
 import src.notifications.models  # noqa
