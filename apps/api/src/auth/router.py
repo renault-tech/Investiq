@@ -3,7 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, Response, Cookie, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.database import get_db
+from src.shared.email import send_password_reset_email
 from src.auth import service
 from src.auth.schemas import (
     RegisterRequest,
@@ -57,7 +59,7 @@ async def login(
         httponly=True,
         samesite="lax",
         max_age=COOKIE_MAX_AGE,
-        secure=False,  # Set True in production (HTTPS)
+        secure=settings.is_https_deploy,
     )
     return TokenResponse(access_token=access_token)
 
@@ -83,7 +85,7 @@ async def refresh(
         httponly=True,
         samesite="lax",
         max_age=COOKIE_MAX_AGE,
-        secure=False,
+        secure=settings.is_https_deploy,
     )
     return TokenResponse(access_token=new_access)
 
@@ -106,7 +108,10 @@ async def forgot_password(
     body: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    await service.create_password_reset_token(body.email, db)
+    raw_token = await service.create_password_reset_token(body.email, db)
+    if raw_token:
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+        send_password_reset_email(body.email, reset_url)
     return {"message": "If the email exists, a reset link has been sent"}
 
 

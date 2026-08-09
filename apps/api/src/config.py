@@ -1,4 +1,5 @@
 import base64
+import os
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,12 +33,24 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ENVIRONMENT: str = "development"
     ENABLE_SCHEDULER: bool = True
+    # Shared secret for POST /internal/jobs/run — see src/workers/router.py.
+    CRON_SECRET: str = ""
 
     def get_jwt_private(self) -> str:
         return _decode_pem(self.JWT_PRIVATE_KEY)
 
     def get_jwt_public(self) -> str:
         return _decode_pem(self.JWT_PUBLIC_KEY)
+
+    @property
+    def is_https_deploy(self) -> bool:
+        """True on Vercel (always HTTPS) or any deploy with ENVIRONMENT=production
+        (e.g. Docker behind a real HTTPS reverse proxy). Used to decide the
+        refresh-token cookie's Secure flag — hardcoding True would break
+        login on local Docker over plain HTTP, hardcoding False leaves the
+        30-day session cookie unprotected in production.
+        """
+        return bool(os.environ.get("VERCEL")) or self.ENVIRONMENT == "production"
 
 
 settings = Settings()

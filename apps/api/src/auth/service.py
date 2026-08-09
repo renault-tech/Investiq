@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,16 @@ from src.config import settings
 from src.shared.exceptions import ValidationError, UnauthorizedError, NotFoundError
 
 import bcrypt
+
+logger = logging.getLogger(__name__)
+
+# Precomputed dummy hash so verify_password always runs a real bcrypt
+# comparison even when the account doesn't exist — keeping login's response
+# time (and error message) identical for "no such account" and "wrong
+# password" so neither the timing nor the message can be used to enumerate
+# registered emails.
+_DUMMY_HASH = bcrypt.hashpw(b"dummy-password-for-timing", bcrypt.gensalt()).decode("utf-8")
+
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
@@ -105,17 +116,22 @@ async def login_user(
     """Returns (access_token, raw_refresh_token)."""
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
+
+    # Same generic message and (via _DUMMY_HASH) same rough timing whether
+    # the account doesn't exist, the password is wrong, or it's disabled —
+    # none of those should be distinguishable from the response.
     if not user:
-        print(f"User not found for email: {email}")
-        raise UnauthorizedError(f"User not found: {email}")
+        verify_password(password, _DUMMY_HASH)
+        logger.info("Login failed: no account for this email")
+        raise UnauthorizedError("Invalid email or password")
 
     if not verify_password(password, user.hashed_password):
-        print(f"Password mismatch for email: {email}")
-        raise UnauthorizedError("Password mismatch")
+        logger.info("Login failed: wrong password for user_id=%s", user.id)
+        raise UnauthorizedError("Invalid email or password")
 
     if not user.is_active:
-        print(f"User disabled: {email}")
-        raise UnauthorizedError("Account disabled")
+        logger.info("Login failed: disabled account user_id=%s", user.id)
+        raise UnauthorizedError("Invalid email or password")
 
     access_token = create_access_token(str(user.id), user.email, user.role)
     raw_refresh = secrets.token_urlsafe(64)

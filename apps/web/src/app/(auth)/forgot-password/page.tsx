@@ -10,14 +10,21 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setLoading(true);
     try {
+      // The API always answers 200 here regardless of whether the email
+      // exists (so this can't be used to enumerate accounts) — only a
+      // genuine network/server failure should land in the catch below.
       await apiClient.post("/auth/forgot-password", { email });
-    } finally {
       setSent(true);
+    } catch {
+      setError("Não foi possível enviar agora. Verifique sua conexão e tente de novo.");
+    } finally {
       setLoading(false);
     }
   }
@@ -56,6 +63,11 @@ export default function ForgotPasswordPage() {
                   required
                   placeholder="seu@email.com"
                 />
+                {error && (
+                  <p className="text-[var(--danger)] text-xs bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
                 <Button type="submit" loading={loading} className="w-full">
                   {loading ? "Enviando..." : "Enviar link"}
                 </Button>
