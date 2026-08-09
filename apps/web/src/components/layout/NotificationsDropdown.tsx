@@ -24,7 +24,7 @@ function timeAgo(iso: string): string {
 export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { data } = useNotifications();
+  const { data, isError } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
@@ -68,7 +68,11 @@ export function NotificationsDropdown() {
           </div>
 
           <div className="overflow-y-auto flex-1">
-            {!data || data.items.length === 0 ? (
+            {isError ? (
+              <p className="p-6 text-center text-sm text-[var(--text-muted)]">
+                Não foi possível carregar as notificações.
+              </p>
+            ) : !data || data.items.length === 0 ? (
               <p className="p-6 text-center text-sm text-[var(--text-muted)]">
                 Nenhuma notificação por aqui.
               </p>

@@ -6,6 +6,7 @@ import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
 import { ChartCard } from "@/components/charts/ChartCard";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { SummaryCards } from "./SummaryCards";
 import { ExpensesByCategoryDonut, MonthlyFlowChart } from "./FinanceCharts";
 import { TransactionsTable } from "./TransactionsTable";
@@ -40,10 +41,10 @@ export function FinancesClient() {
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
 
   const { data: categories = [] } = useCategories();
-  const { data: summary, isLoading: summaryLoading } = useFinanceSummary(month);
+  const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useFinanceSummary(month);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
-  const { data: txnList, isLoading: txnLoading } = useTransactions({
+  const { data: txnList, isLoading: txnLoading, isError: txnError, refetch: refetchTxns } = useTransactions({
     date_from: bounds.from,
     date_to: bounds.to,
     transaction_type: typeFilter || undefined,
@@ -130,12 +131,18 @@ export function FinancesClient() {
         </div>
       </div>
 
-      <SummaryCards summary={summary} isLoading={summaryLoading} />
+      {summaryError && !summaryLoading ? (
+        <ErrorState title="Não foi possível carregar o resumo do mês." onRetry={refetchSummary} />
+      ) : (
+        <SummaryCards summary={summary} isLoading={summaryLoading} />
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard
           title="Despesas por categoria"
           isLoading={summaryLoading}
+          isError={summaryError}
+          onRetry={refetchSummary}
           isEmpty={!summary || summary.by_category.length === 0}
           emptyMessage="Nenhuma despesa neste mês."
         >
@@ -144,6 +151,8 @@ export function FinancesClient() {
         <ChartCard
           title="Fluxo mensal (12 meses)"
           isLoading={summaryLoading}
+          isError={summaryError}
+          onRetry={refetchSummary}
           isEmpty={!summary || summary.monthly_series.every((p) => Number(p.income) === 0 && Number(p.expense) === 0)}
           emptyMessage="Sem movimentações nos últimos 12 meses."
         >
@@ -196,12 +205,16 @@ export function FinancesClient() {
           </button>
         </div>
 
-        <TransactionsTable
-          transactions={txnList?.items ?? []}
-          isLoading={txnLoading}
-          onEdit={(txn) => { setEditingTxn(txn); setShowTransactionModal(true); }}
-          onDelete={handleDelete}
-        />
+        {txnError && !txnLoading ? (
+          <ErrorState title="Não foi possível carregar as transações." onRetry={refetchTxns} />
+        ) : (
+          <TransactionsTable
+            transactions={txnList?.items ?? []}
+            isLoading={txnLoading}
+            onEdit={(txn) => { setEditingTxn(txn); setShowTransactionModal(true); }}
+            onDelete={handleDelete}
+          />
+        )}
       </div>
 
       {showTransactionModal && (
