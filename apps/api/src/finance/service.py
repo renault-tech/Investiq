@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Optional
 
 from dateutil.rrule import rrulestr
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -219,6 +219,20 @@ async def list_transactions(
         query = query.where(FinancialTransaction.transaction_type == transaction_type)
     if search:
         query = query.where(FinancialTransaction.description.ilike(f"%{search}%"))
+    # Bound at the SQL level too (ix_financial_transactions_active covers
+    # user_id+transaction_date) instead of always pulling the user's whole
+    # history — a recurring template's own transaction_date can predate the
+    # window and still be the source of occurrences inside it, so it's kept
+    # regardless of date_from as long as it started before date_to.
+    if date_to is not None:
+        query = query.where(FinancialTransaction.transaction_date <= date_to)
+    if date_from is not None:
+        query = query.where(
+            or_(
+                FinancialTransaction.transaction_date >= date_from,
+                FinancialTransaction.is_recurring.is_(True),
+            )
+        )
 
     result = await db.execute(query.order_by(FinancialTransaction.transaction_date.desc()))
     rows = list(result.scalars().all())

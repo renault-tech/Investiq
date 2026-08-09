@@ -66,8 +66,10 @@ export function AnalysisClient() {
     setActiveAnalysisId(null);
 
     try {
-      const recentCtx = await getRecentContext(activePortfolioId).catch(() => ({ raw_texts: [] }));
-      const portfolioSum = await getPortfolioSummary(activePortfolioId).catch(() => null);
+      const [recentCtx, portfolioSum] = await Promise.all([
+        getRecentContext(activePortfolioId).catch(() => ({ raw_texts: [] })),
+        getPortfolioSummary(activePortfolioId).catch(() => null),
+      ]);
 
       if (!portfolioSum || portfolioSum.positions.length === 0) {
          toast.error("O portfólio não possui posições para análise.");
