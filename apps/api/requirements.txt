@@ -1,9 +1,14 @@
 # Vercel's Python runtime reads this file directly (no pyproject.toml
 # support) — kept in sync with the dependencies list in pyproject.toml,
-# minus uvicorn: Vercel imports `app` directly (see api/index.py) and
-# never runs a uvicorn server process, so it's dead weight in the
-# function bundle (uvicorn[standard]'s httptools/uvloop/watchfiles/
-# websockets extras only matter for the Docker/local entrypoint).
+# minus:
+# - uvicorn: Vercel imports `app` directly (see api/index.py) and never
+#   runs a uvicorn server process, so it's dead weight in the function
+#   bundle (uvicorn[standard]'s httptools/uvloop/watchfiles/websockets
+#   extras only matter for the Docker/local entrypoint).
+# - pdfplumber/fpdf2: only used by src/cards and src/reports, which
+#   main.py skips importing when VERCEL=1 (their fontTools/pypdfium2
+#   chain alone is ~45MB, pushing the function past Vercel's 225MB
+#   bundle cap). Both stay fully available in Docker/local.
 fastapi>=0.111.0
 sqlalchemy[asyncio]>=2.0.0
 asyncpg>=0.29.0
@@ -25,5 +30,3 @@ resend>=0.8.0
 anthropic>=0.28.0
 openai>=1.30.0
 python-dateutil>=2.9.0
-pdfplumber>=0.11.0
-fpdf2>=2.7.0

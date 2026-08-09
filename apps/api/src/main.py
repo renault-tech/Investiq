@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
@@ -19,12 +20,20 @@ from src.analysis.router import router as analysis_portfolios_router
 from src.analysis.router import analysis_router as analysis_endpoints_router
 from src.market_data.router import router as market_router
 from src.finance.router import router as finance_router
-from src.cards.router import router as cards_router
 from src.alerts.router import router as alerts_router
 from src.notifications.router import router as notifications_router
 from src.onboarding.router import router as onboarding_router
-from src.reports.router import router as reports_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
+
+# cards (invoice PDF/AI parsing) and reports (PDF export) pull in pdfplumber
+# + fpdf2, whose fontTools/pypdfium2 chain alone is ~45MB and pushes the
+# Vercel serverless function past its 225MB bundle cap. Skip them on Vercel
+# (requirements.txt omits pdfplumber/fpdf2 accordingly); both stay fully
+# available in Docker/local, which installs from pyproject.toml instead.
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+if not IS_VERCEL:
+    from src.cards.router import router as cards_router
+    from src.reports.router import router as reports_router
 
 
 @asynccontextmanager
@@ -60,11 +69,12 @@ app.include_router(analysis_portfolios_router, prefix="/api/v1")
 app.include_router(analysis_endpoints_router, prefix="/api/v1")
 app.include_router(market_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
-app.include_router(cards_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(onboarding_router, prefix="/api/v1")
-app.include_router(reports_router, prefix="/api/v1")
+if not IS_VERCEL:
+    app.include_router(cards_router, prefix="/api/v1")
+    app.include_router(reports_router, prefix="/api/v1")
 
 
 @app.get("/health")
