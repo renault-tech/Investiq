@@ -245,3 +245,40 @@ class AccountResponse(BaseModel):
     include_in_total: bool
     portfolio_id: Optional[uuid.UUID]
     is_active: bool
+
+
+# ---------------------------------------------------------------------------
+# Statement import (OFX/CSV)
+# ---------------------------------------------------------------------------
+
+class ImportRowResponse(BaseModel):
+    id: uuid.UUID
+    transaction_date: datetime
+    amount: Decimal
+    transaction_type: str
+    description: str
+    external_id: Optional[str]
+    category_id: Optional[uuid.UUID]
+    category_name: Optional[str] = None
+    is_duplicate: bool
+    duplicate_transaction_id: Optional[uuid.UUID]
+    is_selected: bool
+
+
+class ImportBatchResponse(BaseModel):
+    id: uuid.UUID
+    bank_account_id: Optional[uuid.UUID]
+    file_name: str
+    file_type: str
+    status: str
+    rows: list[ImportRowResponse]
+
+
+class ImportRowUpdate(BaseModel):
+    category_id: Optional[uuid.UUID] = None
+    is_selected: Optional[bool] = None
+
+
+class ImportConfirmResponse(BaseModel):
+    created: int
+    skipped: int

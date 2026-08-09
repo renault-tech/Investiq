@@ -4,14 +4,16 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.finance import service
+from src.finance import import_service
 from src.shared.csv_export import build_csv_response
+from src.shared.limiter import limiter
 from src.finance.schemas import (
     CategoryCreate,
     CategoryUpdate,
@@ -31,6 +33,10 @@ from src.finance.schemas import (
     AccountCreate,
     AccountUpdate,
     AccountResponse,
+    ImportBatchResponse,
+    ImportRowUpdate,
+    ImportRowResponse,
+    ImportConfirmResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -218,6 +224,72 @@ async def archive_account(
 ):
     """Arquiva (is_active=False) — as transações históricas continuam apontando para ela."""
     await service.archive_account(account_id, current_user.id, db)
+
+
+# ---------------------------------------------------------------------------
+# Statement import (OFX/CSV)
+# ---------------------------------------------------------------------------
+
+@router.post("/import", response_model=ImportBatchResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
+async def upload_statement(
+    request: Request,
+    file: UploadFile = File(...),
+    bank_account_id: Optional[uuid.UUID] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload de extrato OFX/CSV → dedupe contra o histórico → lote em 'pending'
+    aguardando revisão. Não grava nenhuma transação ainda."""
+    content = await file.read()
+    return await import_service.create_import_batch_from_content(
+        current_user.id, db,
+        file_name=file.filename or "extrato",
+        content=content,
+        bank_account_id=bank_account_id,
+    )
+
+
+@router.get("/import/{batch_id}", response_model=ImportBatchResponse)
+async def get_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await import_service.get_import_batch(batch_id, current_user.id, db)
+
+
+@router.patch("/import/rows/{row_id}", response_model=ImportRowResponse)
+async def update_import_row(
+    row_id: uuid.UUID,
+    body: ImportRowUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ajustar categoria ou incluir/excluir uma linha antes de confirmar."""
+    return await import_service.update_import_row(
+        row_id, current_user.id, body.model_dump(exclude_unset=True), db
+    )
+
+
+@router.post("/import/{batch_id}/confirm", response_model=ImportConfirmResponse)
+async def confirm_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Grava uma transação por linha selecionada. Idempotente na prática: um
+    lote confirmado não pode ser confirmado de novo (409)."""
+    return await import_service.confirm_import_batch(batch_id, current_user.id, db)
+
+
+@router.delete("/import/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def discard_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await import_service.discard_import_batch(batch_id, current_user.id, db)
 
 
 # ---------------------------------------------------------------------------
