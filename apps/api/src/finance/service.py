@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from src.finance import categorizer
 from src.finance.models import FinanceCategory, FinancialTransaction
 from src.finance.account_models import BankAccount
 from src.finance.budget_models import FinanceBudget
@@ -491,6 +492,14 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
             user_id, first.category_id, first.amount, first.transaction_date, db
         )
 
+    # Digitar uma transação com descrição e categoria é o sinal de treino mais
+    # direto que existe — a próxima vez que a mesma loja aparecer, já vem
+    # categorizada. Só para lançamento manual: import/fatura já carregam sua
+    # própria origem de sugestão e reaprender delas em massa seria ruído.
+    if source == "manual" and first.category_id and first.description:
+        await categorizer.learn_from_correction(user_id, first.description, first.category_id, db)
+        await db.commit()
+
     return _txn_to_dict(first)
 
 
@@ -512,6 +521,7 @@ async def _get_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSessi
 
 async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
     txn = await _get_transaction(txn_id, user_id, db)
+    old_category_id = txn.category_id
     if updates.get("category_id"):
         await _get_category(updates["category_id"], user_id, db)
     for field in ("bank_account_id", "to_bank_account_id"):
@@ -532,6 +542,14 @@ async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dic
     txn.amount_brl = txn.amount * (txn.fx_rate or _ONE)
     await db.commit()
     await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
+
+    # Trocar a categoria é uma correção deliberada — o sinal de treino mais
+    # forte que existe, inclusive sobre uma sugestão de IA aceita antes.
+    new_category_id = updates.get("category_id")
+    if new_category_id and new_category_id != old_category_id and txn.description:
+        await categorizer.learn_from_correction(user_id, txn.description, new_category_id, db)
+        await db.commit()
+
     return _txn_to_dict(txn)
 
 

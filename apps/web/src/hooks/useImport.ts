@@ -6,6 +6,7 @@ import {
   updateImportRow,
   confirmImportBatch,
   discardImportBatch,
+  categorizeImportBatchWithAI,
   type ImportRowUpdateInput,
 } from "@/lib/import-api";
 
@@ -58,6 +59,18 @@ export function useConfirmImportBatch() {
       queryClient.invalidateQueries({ queryKey: ["finance"] });
     },
     onError: (err) => toast.error(errorMessage(err, "Falha ao confirmar a importação.")),
+  });
+}
+
+export function useCategorizeImportBatchWithAI() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (batchId: string) => categorizeImportBatchWithAI(batchId),
+    onSuccess: (batch) => {
+      queryClient.setQueryData(["finance", "import", batch.id], batch);
+      toast.success("Categorias sugeridas — confira antes de importar.");
+    },
+    onError: (err) => toast.error(errorMessage(err, "Falha ao sugerir categorias com IA.")),
   });
 }
 

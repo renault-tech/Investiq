@@ -64,3 +64,12 @@ export async function confirmImportBatch(
 export async function discardImportBatch(batchId: string): Promise<void> {
   await apiClient.delete(`/finance/import/${batchId}`);
 }
+
+/** Sugere categoria via IA só para as linhas sem categoria — gasta o crédito
+ * do próprio usuário, por isso é uma ação explícita, nunca automática. */
+export async function categorizeImportBatchWithAI(batchId: string): Promise<ImportBatch> {
+  const res = await apiClient.post<ImportBatch>(`/finance/import/${batchId}/categorize-ai`, null, {
+    timeout: 60_000,
+  });
+  return res.data;
+}

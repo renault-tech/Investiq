@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileText } from "lucide-react";
+import { ArrowLeft, Sparkles, Upload, FileText } from "lucide-react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useFinance";
 import {
   useUploadStatement,
   useImportBatch,
   useConfirmImportBatch,
+  useCategorizeImportBatchWithAI,
   useDiscardImportBatch,
 } from "@/hooks/useImport";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +27,7 @@ export function ImportClient() {
   const { data: batch, isLoading: batchLoading } = useImportBatch(batchId);
   const uploadMutation = useUploadStatement();
   const confirmMutation = useConfirmImportBatch();
+  const categorizeMutation = useCategorizeImportBatchWithAI();
   const discardMutation = useDiscardImportBatch();
 
   const handleFile = async (file: File) => {
@@ -52,6 +54,7 @@ export function ImportClient() {
   };
 
   const selectedCount = batch?.rows.filter((r) => r.is_selected).length ?? 0;
+  const unclassifiedCount = batch?.rows.filter((r) => !r.category_id).length ?? 0;
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full space-y-4">
@@ -130,6 +133,15 @@ export function ImportClient() {
           )}
 
           <div className="flex justify-end gap-2">
+            {unclassifiedCount > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => batchId && categorizeMutation.mutate(batchId)}
+                loading={categorizeMutation.isPending}
+              >
+                <Sparkles size={15} /> Sugerir com IA ({unclassifiedCount})
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleDiscard} loading={discardMutation.isPending}>
               Descartar
             </Button>

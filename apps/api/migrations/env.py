@@ -15,6 +15,7 @@ import src.finance.budget_models  # noqa
 import src.finance.goal_models  # noqa
 import src.finance.account_models  # noqa
 import src.finance.import_models  # noqa
+import src.finance.rule_models  # noqa
 import src.analysis.models  # noqa
 import src.cards.models  # noqa
 import src.notifications.models  # noqa

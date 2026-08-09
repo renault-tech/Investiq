@@ -12,7 +12,12 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.finance import service
 from src.finance import import_service
+from src.ai.factory import get_llm_provider
+from src.ai.base import LLMProviderError
+from src.settings import service as settings_service
+from src.settings.service import get_decrypted_api_keys
 from src.shared.csv_export import build_csv_response
+from src.shared.exceptions import ValidationError
 from src.shared.limiter import limiter
 from src.finance.schemas import (
     CategoryCreate,
@@ -290,6 +295,37 @@ async def discard_import_batch(
     db: AsyncSession = Depends(get_db),
 ):
     await import_service.discard_import_batch(batch_id, current_user.id, db)
+
+
+@router.post("/import/{batch_id}/categorize-ai", response_model=ImportBatchResponse)
+@limiter.limit("10/hour")
+async def categorize_import_batch_with_ai(
+    request: Request,
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sugere categoria via IA só para as linhas que a regra determinística não
+    resolveu. Gasta o crédito do próprio usuário — por isso é um botão, nunca
+    automático, e rate limited (10/hora)."""
+    user_settings = await settings_service.get_or_create(current_user.id, db)
+    await db.commit()
+    keys = get_decrypted_api_keys(user_settings)
+    try:
+        provider = get_llm_provider(
+            preferred=user_settings.preferred_llm,
+            claude_api_key=keys.get("claude_api_key"),
+            openai_api_key=keys.get("openai_api_key"),
+            gemini_api_key=keys.get("gemini_api_key"),
+        )
+    except LLMProviderError as exc:
+        raise ValidationError(
+            "Configure uma chave de IA em Configurações para sugerir categorias"
+        ) from exc
+
+    return await import_service.suggest_categories_ai(
+        batch_id, current_user.id, db, provider=provider, model=user_settings.llm_model,
+    )
 
 
 # ---------------------------------------------------------------------------

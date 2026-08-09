@@ -13,10 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.ai.base import LLMProvider
+from src.finance import categorizer
 from src.finance import service as finance_service
+from src.finance.ai_categorizer import CategorizationError, suggest_categories_with_ai
 from src.finance.import_models import FinanceImportBatch, FinanceImportRow
 from src.finance.import_parsers import ParsedRow, description_similarity, parse_csv, parse_ofx
-from src.finance.models import FinancialTransaction
+from src.finance.models import FinanceCategory, FinancialTransaction
 from src.shared.exceptions import ConflictError, NotFoundError, ValidationError
 
 _SIMILARITY_THRESHOLD = 0.35
@@ -116,6 +119,10 @@ async def create_import_batch_from_content(
 ) -> dict:
     if bank_account_id:
         await finance_service._validate_account(bank_account_id, user_id, db)
+    # Garante que existam categorias antes de tentar sugerir uma — na prática
+    # o front-end sempre chamou /finance/categories antes de chegar aqui, mas
+    # a rota não deveria depender dessa ordem para funcionar direito.
+    await finance_service.ensure_default_categories(user_id, db)
 
     file_type, rows = parse_statement(file_name, content)
     if len(rows) > 2000:
@@ -132,11 +139,16 @@ async def create_import_batch_from_content(
 
     for index, row in enumerate(rows):
         duplicate = duplicates.get(index)
+        # Sugestão determinística e gratuita antes de qualquer coisa — só
+        # entra na revisão já pronta se o usuário (ou uma sugestão de IA
+        # aceita antes) já categorizou esse mesmo estabelecimento.
+        suggested_category_id = await categorizer.suggest_category(user_id, row.description, db)
         db.add(FinanceImportRow(
             batch_id=batch.id, user_id=user_id,
             transaction_date=row.transaction_date, amount=row.amount,
             transaction_type=row.transaction_type, description=row.description[:255],
             external_id=row.external_id,
+            category_id=suggested_category_id,
             is_duplicate=duplicate is not None,
             duplicate_transaction_id=duplicate.id if duplicate else None,
             # Duplicata provável vem desmarcada — o usuário decide se quer
@@ -180,11 +192,21 @@ async def update_import_row(
         raise NotFoundError("Linha de importação não encontrada")
     if updates.get("category_id"):
         await finance_service._get_category(updates["category_id"], user_id, db)
+    # `updates` já veio de model_dump(exclude_unset=True): toda chave presente
+    # foi mandada de propósito, inclusive category_id=None para "sem
+    # categoria" — por isso NÃO pulamos valores None aqui (ao contrário do
+    # padrão usado em update_transaction, onde None significa "não mexer").
     for field, value in updates.items():
-        if value is not None:
-            setattr(row, field, value)
+        setattr(row, field, value)
     await db.commit()
     await db.refresh(row, attribute_names=["category"])
+
+    # Categoria escolhida à mão na revisão é um sinal de treino tão forte
+    # quanto uma correção em uma transação já gravada.
+    if updates.get("category_id") and row.description:
+        await categorizer.learn_from_correction(user_id, row.description, row.category_id, db)
+        await db.commit()
+
     return _row_to_dict(row)
 
 
@@ -251,3 +273,71 @@ async def discard_import_batch(batch_id: uuid.UUID, user_id: uuid.UUID, db: Asyn
         raise ValidationError("Lote já confirmado não pode ser descartado")
     await db.delete(batch)
     await db.commit()
+
+
+async def suggest_categories_ai(
+    batch_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    provider: LLMProvider,
+    model: Optional[str],
+) -> dict:
+    """Chama a IA só para o que a regra determinística não resolveu — o botão
+    "Sugerir com IA" da revisão. Cada estabelecimento novo custa uma sugestão
+    só uma vez: aceita, vira regra 'ai' e nunca mais precisa da IA de novo."""
+    batch = await _get_batch(batch_id, user_id, db)
+    if batch.status != "pending":
+        raise ValidationError(f"Lote em status '{batch.status}' não pode ser categorizado")
+    await finance_service.ensure_default_categories(user_id, db)
+
+    unclassified = [r for r in batch.rows if r.category_id is None]
+    if not unclassified:
+        return _batch_to_dict(batch)
+
+    categories = list((await db.execute(
+        select(FinanceCategory).where(
+            FinanceCategory.user_id == user_id, FinanceCategory.is_active.is_(True),
+        )
+    )).scalars().all())
+    income_names = [c.name for c in categories if c.category_type == "income"]
+    expense_names = [c.name for c in categories if c.category_type == "expense"]
+    category_by_name = {(c.category_type, c.name.casefold()): c for c in categories}
+
+    # Uma sugestão por chave de estabelecimento, não por linha — várias
+    # compras no mesmo lugar não precisam de várias perguntas à IA.
+    by_key: dict[str, list[FinanceImportRow]] = {}
+    for row in unclassified:
+        key = categorizer.merchant_key(row.description)
+        by_key.setdefault(key, []).append(row)
+
+    items = [
+        {"key": key, "description": rows[0].description, "type": rows[0].transaction_type}
+        for key, rows in by_key.items()
+    ]
+
+    try:
+        suggestions = await suggest_categories_with_ai(
+            provider, model, items, income_names, expense_names
+        )
+    except CategorizationError as exc:
+        raise ValidationError(f"Falha ao sugerir categorias: {exc}") from exc
+
+    for key, rows in by_key.items():
+        category_name = suggestions.get(key)
+        if not category_name:
+            continue
+        category = category_by_name.get((rows[0].transaction_type, category_name.casefold()))
+        if not category:
+            continue
+        for row in rows:
+            # Atribuir pelo relacionamento, não pelo FK cru: `row.category`
+            # já foi carregado (como None) por _get_batch, e SQLAlchemy não
+            # reconsulta um relacionamento só porque a coluna FK mudou — só
+            # escrever category_id deixaria row.category (e portanto
+            # category_name na resposta) preso no valor antigo em cache.
+            row.category = category
+        await categorizer.save_ai_suggestion(user_id, rows[0].description, category.id, db)
+
+    await db.commit()
+    return await get_import_batch(batch_id, user_id, db)
