@@ -72,9 +72,10 @@ export function useUpdateTransaction() {
 export function useDeleteTransaction() {
   const invalidate = useInvalidateFinance();
   return useMutation({
-    mutationFn: (id: string) => deleteTransaction(id),
-    onSuccess: () => {
-      toast.success("Transação excluída.");
+    mutationFn: ({ id, scope }: { id: string; scope?: "one" | "future" | "all" }) =>
+      deleteTransaction(id, scope ?? "one"),
+    onSuccess: (_data, { scope }) => {
+      toast.success(scope === "all" ? "Parcelamento excluído." : "Transação excluída.");
       invalidate();
     },
     onError: () => toast.error("Falha ao excluir transação."),

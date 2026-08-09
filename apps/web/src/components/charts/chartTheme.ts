@@ -28,11 +28,24 @@ export function assetTypeLabel(type: string): string {
   return ASSET_TYPE_LABELS[type] ?? type;
 }
 
+/** Arredonda para reais inteiros acima de mil — desejável em eixo de gráfico,
+ * onde os centavos são ruído. Para extrato, saldo e qualquer número que o
+ * usuário vá conferir contra o banco, use formatBRLExact. */
 export function formatBRL(value: number): string {
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
     maximumFractionDigits: value >= 1000 ? 0 : 2,
+  });
+}
+
+/** Sempre com centavos. R$ 1.234,50 não pode virar "R$ 1.235" num livro-caixa. */
+export function formatBRLExact(value: number): string {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 

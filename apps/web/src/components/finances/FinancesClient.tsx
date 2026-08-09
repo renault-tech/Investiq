@@ -12,6 +12,7 @@ import { ExpensesByCategoryDonut, MonthlyFlowChart } from "./FinanceCharts";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
+import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
 import { GoalsSection } from "./GoalsSection";
 
@@ -39,6 +40,8 @@ export function FinancesClient() {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
+  // "" = todos os titulares. Escopa a tabela de transações junto com as contas.
+  const [holder, setHolder] = useState("");
 
   const { data: categories = [] } = useCategories();
   const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useFinanceSummary(month);
@@ -50,6 +53,7 @@ export function FinancesClient() {
     transaction_type: typeFilter || undefined,
     category_id: categoryFilter || undefined,
     search: search || undefined,
+    holder: holder || undefined,
     per_page: 200,
   });
   const deleteMutation = useDeleteTransaction();
@@ -60,8 +64,29 @@ export function FinancesClient() {
   };
 
   const handleDelete = (txn: FinanceTransaction) => {
-    if (window.confirm(`Excluir "${txn.description ?? "transação"}"?${txn.is_recurring ? " A série recorrente inteira será encerrada." : ""}`)) {
-      deleteMutation.mutate(txn.id);
+    const isSeries = (txn.installment_total ?? 0) > 1;
+    if (isSeries) {
+      // Parcelamento tem três desfechos possíveis; confirm() só tem dois
+      // botões, então a pergunta é encadeada em vez de adivinhar a intenção.
+      const all = window.confirm(
+        `"${txn.description ?? "Transação"}" é a parcela ${txn.installment_no}/${txn.installment_total}.\n\n` +
+          "OK apaga a série inteira. Cancelar deixa você escolher apagar só esta parcela."
+      );
+      if (all) {
+        deleteMutation.mutate({ id: txn.id, scope: "all" });
+        return;
+      }
+      if (window.confirm("Apagar somente esta parcela?")) {
+        deleteMutation.mutate({ id: txn.id, scope: "one" });
+      }
+      return;
+    }
+    if (
+      window.confirm(
+        `Excluir "${txn.description ?? "transação"}"?${txn.is_recurring ? " A série recorrente inteira será encerrada." : ""}`
+      )
+    ) {
+      deleteMutation.mutate({ id: txn.id });
     }
   };
 
@@ -130,6 +155,8 @@ export function FinancesClient() {
           </button>
         </div>
       </div>
+
+      <AccountsBar holder={holder} onHolderChange={setHolder} />
 
       {summaryError && !summaryLoading ? (
         <ErrorState title="Não foi possível carregar o resumo do mês." onRetry={refetchSummary} />

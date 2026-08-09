@@ -19,12 +19,28 @@ export interface FinanceTransaction {
   category_id: string | null;
   category_name: string | null;
   category_color: string | null;
+  bank_account_id: string | null;
+  bank_account_name: string | null;
+  to_bank_account_id: string | null;
+  to_bank_account_name: string | null;
   transaction_date: string;
   is_recurring: boolean;
   recurrence_rule: string | null;
+  installment_no: number | null;
+  installment_total: number | null;
+  source: TransactionSource;
   is_virtual: boolean;
   tags: string[];
 }
+
+/** De onde o lançamento veio. "manual" é digitado à mão e aparece marcado
+ * como tal na tabela — importado e vindo de fatura têm outra procedência. */
+export type TransactionSource =
+  | "manual"
+  | "import_ofx"
+  | "import_csv"
+  | "card_invoice"
+  | "installment";
 
 export interface TransactionList {
   items: FinanceTransaction[];
@@ -39,6 +55,8 @@ export interface TransactionFilters {
   category_id?: string;
   transaction_type?: "income" | "expense" | "transfer";
   search?: string;
+  account_id?: string;
+  holder?: string;
   page?: number;
   per_page?: number;
 }
@@ -74,8 +92,12 @@ export interface CreateTransactionInput {
   description?: string;
   notes?: string;
   category_id?: string;
+  bank_account_id?: string;
+  to_bank_account_id?: string;
   transaction_date: string;
   recurrence_rule?: string;
+  /** >1 materializa N parcelas mensais; `amount` é o total da compra. */
+  installments?: number;
   tags?: string[];
 }
 
@@ -124,8 +146,13 @@ export async function updateTransaction(
   return res.data;
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
-  await apiClient.delete(`/finance/transactions/${id}`);
+/** `scope` só importa para parcelamentos: apagar uma parcela, esta e as
+ * seguintes, ou a série inteira. */
+export async function deleteTransaction(
+  id: string,
+  scope: "one" | "future" | "all" = "one"
+): Promise<void> {
+  await apiClient.delete(`/finance/transactions/${id}`, { params: { scope } });
 }
 
 export async function getFinanceSummary(month: string): Promise<FinanceSummary> {

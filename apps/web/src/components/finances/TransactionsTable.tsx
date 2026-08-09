@@ -1,8 +1,16 @@
 "use client";
 
-import { Pencil, Repeat, Trash2 } from "lucide-react";
-import { FinanceTransaction } from "@/lib/finance-api";
-import { formatBRL } from "@/components/charts/chartTheme";
+import { ArrowLeftRight, Pencil, Repeat, Trash2 } from "lucide-react";
+import { FinanceTransaction, TransactionSource } from "@/lib/finance-api";
+import { formatBRLExact } from "@/components/charts/chartTheme";
+
+/** Só o que não é digitado à mão ganha rótulo — marcar todo lançamento
+ * poluiria a tabela, e "manual" é o caso comum. */
+const SOURCE_LABELS: Partial<Record<TransactionSource, string>> = {
+  import_ofx: "OFX",
+  import_csv: "CSV",
+  card_invoice: "Fatura",
+};
 
 interface TransactionsTableProps {
   transactions: FinanceTransaction[];
@@ -39,6 +47,7 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
             <th className="px-2 py-2 font-medium">Data</th>
             <th className="px-2 py-2 font-medium">Descrição</th>
             <th className="px-2 py-2 font-medium">Categoria</th>
+            <th className="px-2 py-2 font-medium">Conta</th>
             <th className="px-2 py-2 font-medium text-right">Valor</th>
             <th className="px-2 py-2 font-medium text-right">Ações</th>
           </tr>
@@ -46,6 +55,7 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
         <tbody>
           {transactions.map((txn) => {
             const isExpense = txn.transaction_type === "expense";
+            const isTransfer = txn.transaction_type === "transfer";
             return (
               <tr
                 key={txn.id}
@@ -57,12 +67,36 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
                   {new Date(txn.transaction_date).toLocaleDateString("pt-BR")}
                 </td>
                 <td className="px-2 py-2 text-[var(--text-primary)]">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 flex-wrap">
                     {txn.description || "—"}
                     {txn.is_recurring && (
                       <span title={txn.is_virtual ? "Ocorrência projetada" : "Recorrente"}>
                         <Repeat size={12} className="text-[var(--text-muted)]" />
                       </span>
+                    )}
+                    {isTransfer && (
+                      <span title="Transferência entre contas">
+                        <ArrowLeftRight size={12} className="text-[var(--text-muted)]" />
+                      </span>
+                    )}
+                    {txn.installment_total && txn.installment_total > 1 && (
+                      <span className="text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border)] rounded px-1">
+                        {txn.installment_no}/{txn.installment_total}
+                      </span>
+                    )}
+                    {txn.source === "manual" ? (
+                      <span
+                        className="text-[10px] text-[var(--text-muted)] border border-[var(--border)] rounded px-1"
+                        title="Lançado manualmente"
+                      >
+                        Manual
+                      </span>
+                    ) : (
+                      SOURCE_LABELS[txn.source] && (
+                        <span className="text-[10px] text-[var(--text-muted)] border border-[var(--border)] rounded px-1">
+                          {SOURCE_LABELS[txn.source]}
+                        </span>
+                      )
                     )}
                   </span>
                 </td>
@@ -81,13 +115,22 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
                     <span className="text-xs text-[var(--text-muted)]">—</span>
                   )}
                 </td>
+                <td className="px-2 py-2 text-xs text-[var(--text-secondary)] whitespace-nowrap">
+                  {isTransfer && txn.to_bank_account_name
+                    ? `${txn.bank_account_name ?? "—"} → ${txn.to_bank_account_name}`
+                    : txn.bank_account_name || "—"}
+                </td>
                 <td
                   className={`px-2 py-2 text-right font-mono whitespace-nowrap ${
-                    isExpense ? "text-[var(--danger)]" : "text-[var(--accent)]"
+                    isTransfer
+                      ? "text-[var(--text-secondary)]"
+                      : isExpense
+                        ? "text-[var(--danger)]"
+                        : "text-[var(--accent)]"
                   }`}
                 >
-                  {isExpense ? "−" : "+"}
-                  {formatBRL(Number(txn.amount))}
+                  {isTransfer ? "" : isExpense ? "−" : "+"}
+                  {formatBRLExact(Number(txn.amount))}
                 </td>
                 <td className="px-2 py-2 text-right whitespace-nowrap">
                   {!txn.is_virtual && (
