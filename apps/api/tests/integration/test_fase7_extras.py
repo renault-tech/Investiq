@@ -1,4 +1,6 @@
 """Integration: price alerts, notifications, budgets, dividend income, CSV export."""
+from datetime import datetime, timezone
+
 import pytest
 
 from .conftest import register_and_login
@@ -82,6 +84,18 @@ async def _first_expense_category(client, headers) -> str:
     return next(c["id"] for c in categories if c["category_type"] == "expense")
 
 
+def _this_month_date(day: int) -> str:
+    """ISO datetime on the given day of the *current* real-world month.
+
+    list_budgets scopes "spent" to the calendar month as of datetime.now()
+    (correct behavior for a budgets dashboard), so a transaction dated in a
+    hardcoded past month stops counting as soon as the wall clock moves into
+    the next month — day is capped at 28 so this is valid in every month.
+    """
+    now = datetime.now(timezone.utc)
+    return now.replace(day=min(day, 28), hour=12, minute=0, second=0, microsecond=0).isoformat()
+
+
 @pytest.mark.asyncio
 async def test_budget_upsert_and_spend_tracking(client):
     session = await register_and_login(client)
@@ -94,7 +108,7 @@ async def test_budget_upsert_and_spend_tracking(client):
 
     await client.post(
         "/finance/transactions",
-        json={"transaction_type": "expense", "amount": 200, "category_id": category_id, "transaction_date": "2026-07-05T12:00:00Z"},
+        json={"transaction_type": "expense", "amount": 200, "category_id": category_id, "transaction_date": _this_month_date(5)},
         headers=headers,
     )
     budgets = await client.get("/finance/budgets", headers=headers)
@@ -121,7 +135,7 @@ async def test_exceeding_budget_creates_notification_once(client):
     # first transaction pushes spend to 80 — still under budget, no notification
     await client.post(
         "/finance/transactions",
-        json={"transaction_type": "expense", "amount": 80, "category_id": category_id, "transaction_date": "2026-07-05T12:00:00Z"},
+        json={"transaction_type": "expense", "amount": 80, "category_id": category_id, "transaction_date": _this_month_date(5)},
         headers=headers,
     )
     assert (await client.get("/notifications", headers=headers)).json()["unread_count"] == 0
@@ -129,7 +143,7 @@ async def test_exceeding_budget_creates_notification_once(client):
     # second transaction crosses the threshold (80 -> 150) — notification fires
     await client.post(
         "/finance/transactions",
-        json={"transaction_type": "expense", "amount": 70, "category_id": category_id, "transaction_date": "2026-07-06T12:00:00Z"},
+        json={"transaction_type": "expense", "amount": 70, "category_id": category_id, "transaction_date": _this_month_date(6)},
         headers=headers,
     )
     assert (await client.get("/notifications", headers=headers)).json()["unread_count"] == 1
@@ -137,7 +151,7 @@ async def test_exceeding_budget_creates_notification_once(client):
     # a third transaction, already over budget, does not spam another notification
     await client.post(
         "/finance/transactions",
-        json={"transaction_type": "expense", "amount": 10, "category_id": category_id, "transaction_date": "2026-07-07T12:00:00Z"},
+        json={"transaction_type": "expense", "amount": 10, "category_id": category_id, "transaction_date": _this_month_date(7)},
         headers=headers,
     )
     assert (await client.get("/notifications", headers=headers)).json()["unread_count"] == 1
