@@ -1,4 +1,21 @@
+import base64
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _decode_pem(value: str) -> str:
+    """Accepts either a raw PEM block (local/Docker .env) or a base64-encoded
+    one (Vercel env var UI). Multi-line PEM pasted into a web text field is
+    prone to silent corruption (smart quotes/dashes swapped in by the
+    browser); base64 collapses it to one line of plain ASCII, immune to that.
+    """
+    value = value.strip('"').strip("'")
+    if not value or value.startswith("-----BEGIN"):
+        return value
+    try:
+        return base64.b64decode(value).decode("utf-8")
+    except Exception:
+        return value
 
 
 class Settings(BaseSettings):
@@ -17,10 +34,10 @@ class Settings(BaseSettings):
     ENABLE_SCHEDULER: bool = True
 
     def get_jwt_private(self) -> str:
-        return self.JWT_PRIVATE_KEY.strip('"').strip("'")
-        
+        return _decode_pem(self.JWT_PRIVATE_KEY)
+
     def get_jwt_public(self) -> str:
-        return self.JWT_PUBLIC_KEY.strip('"').strip("'")
+        return _decode_pem(self.JWT_PUBLIC_KEY)
 
 
 settings = Settings()
