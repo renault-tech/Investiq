@@ -4,6 +4,7 @@ from typing import Optional
 import redis.asyncio as aioredis
 
 from src.market_data.base import MarketDataProvider
+from src.market_data.fallback import FallbackProvider
 from src.market_data.yahoo import YahooFinanceProvider
 from src.market_data.brapi import BrapiProvider
 from src.market_data.cache import MarketDataCache
@@ -15,6 +16,11 @@ def get_provider(
 ) -> MarketDataProvider:
     """Return the appropriate market data provider.
 
+    O preferido do usuário vem primeiro, o outro entra como rede de proteção:
+    fonte gratuita cai, bloqueia IP de datacenter ou simplesmente não cobre um
+    papel, e sem encadear os dois o ativo aparece sem preço atual — sintoma
+    idêntico a "ticker inexistente" para quem está olhando a carteira.
+
     Args:
         preferred: 'yahoo' | 'brapi' | (future: 'alpha_vantage' | 'polygon')
         brapi_key: Optional Brapi API key for higher rate limits.
@@ -22,10 +28,12 @@ def get_provider(
     Returns:
         Configured provider instance.
     """
+    yahoo = YahooFinanceProvider()
+    brapi = BrapiProvider(api_key=brapi_key)
     if preferred == "brapi":
-        return BrapiProvider(api_key=brapi_key)
+        return FallbackProvider(primary=brapi, secondary=yahoo)
     # Default: Yahoo Finance (free, no key required)
-    return YahooFinanceProvider()
+    return FallbackProvider(primary=yahoo, secondary=brapi)
 
 
 def get_cache(redis: aioredis.Redis) -> MarketDataCache:

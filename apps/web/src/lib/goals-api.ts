@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export interface Goal {
   id: string;
@@ -21,9 +22,11 @@ export interface CreateGoalInput {
   color?: string;
 }
 
+const GOAL_NUMERIC = ["target_amount", "current_amount", "pct_complete"] as const;
+
 export async function listGoals(): Promise<Goal[]> {
   const res = await apiClient.get<Goal[]>("/finance/goals");
-  return res.data;
+  return coerceNumbersInList(res.data, GOAL_NUMERIC);
 }
 
 export async function createGoal(input: CreateGoalInput): Promise<Goal> {

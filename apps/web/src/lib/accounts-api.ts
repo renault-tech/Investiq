@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbersInList } from "./coerce";
 
 export type AccountType = "checking" | "savings" | "cash" | "investment" | "other";
 
@@ -44,7 +45,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 
 export async function listAccounts(): Promise<Account[]> {
   const res = await apiClient.get<Account[]>("/finance/accounts");
-  return res.data;
+  return coerceNumbersInList(res.data, ["opening_balance", "balance"] as const);
 }
 
 export async function createAccount(input: AccountInput): Promise<Account> {

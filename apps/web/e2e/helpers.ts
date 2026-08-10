@@ -23,8 +23,8 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
 
 /**
  * Creates a portfolio through the modal. Scoped to the dialog throughout —
- * the empty-state CTA on /investments ("Nenhum portfólio encontrado.") uses
- * the exact same label as the modal's submit button ("Criar Portfólio"),
+ * the empty-state CTA on /investments ("Nenhuma carteira encontrada.") uses
+ * the exact same label as the modal's submit button ("Criar carteira"),
  * so an unscoped locator is ambiguous while the empty state is still on
  * screen (i.e. right up until the mutation resolves).
  */
@@ -32,10 +32,10 @@ export async function createPortfolio(page: Page, name: string): Promise<void> {
   if (!page.url().includes("/investments")) {
     await page.goto("/investments");
   }
-  await page.getByRole("button", { name: "+ Portfólio" }).click();
-  const dialog = page.getByRole("dialog", { name: "Novo Portfólio" });
+  await page.getByRole("button", { name: "+ Nova carteira" }).click();
+  const dialog = page.getByRole("dialog", { name: "Nova carteira" });
   await dialog.getByLabel("Nome *").fill(name);
-  await dialog.getByRole("button", { name: "Criar Portfólio" }).click();
+  await dialog.getByRole("button", { name: "Criar carteira" }).click();
   await expect(dialog).not.toBeVisible({ timeout: 10_000 });
 }
 

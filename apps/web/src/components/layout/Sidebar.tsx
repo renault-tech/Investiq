@@ -16,6 +16,8 @@ import {
   Settings,
   Sun,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -36,7 +38,7 @@ export function Sidebar() {
   const activeHref = NAV_ITEMS
     .filter((item) => pathname.startsWith(item.href))
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
-  const { sidebarCollapsed } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const user = useUserStore((s) => s.user);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -61,12 +63,33 @@ export function Sidebar() {
           iQ
         </div>
         {!sidebarCollapsed && (
-          <div className="min-w-0">
-            <div className="text-[15px] font-semibold tracking-[-.03em] text-[var(--text-primary)]">InvestIQ</div>
-            <div className="text-[10.5px] text-[var(--text-muted)] tracking-[.08em] uppercase">Wealth OS</div>
-          </div>
+          <>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold tracking-[-.03em] text-[var(--text-primary)]">InvestIQ</div>
+              <div className="text-[10.5px] text-[var(--text-muted)] tracking-[.08em] uppercase">Wealth OS</div>
+            </div>
+            <button
+              onClick={toggleSidebar}
+              title="Recolher menu"
+              aria-label="Recolher menu"
+              className="w-7 h-7 rounded-[9px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors flex-shrink-0"
+            >
+              <PanelLeftClose size={15} />
+            </button>
+          </>
         )}
       </div>
+
+      {sidebarCollapsed && (
+        <button
+          onClick={toggleSidebar}
+          title="Expandir menu"
+          aria-label="Expandir menu"
+          className="w-full h-8 mb-2 rounded-[9px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
+        >
+          <PanelLeftOpen size={15} />
+        </button>
+      )}
 
       {!sidebarCollapsed && (
         <div className="text-[10.5px] text-[var(--text-muted)] tracking-[.1em] uppercase px-[10px] pb-2">Painel</div>

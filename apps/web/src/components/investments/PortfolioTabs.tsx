@@ -25,7 +25,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
     mutationFn: deletePortfolio,
     onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      toast.success("Portfólio apagado.");
+      toast.success("Carteira apagada.");
       setConfirmDelete(null);
       if (activeId === deletedId && portfolios.length > 1) {
         const next = portfolios.find(p => p.id !== deletedId);
@@ -38,13 +38,13 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
     mutationFn: ({ id, name }: { id: string; name: string }) => updatePortfolio(id, name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      toast.success("Portfólio renomeado.");
+      toast.success("Carteira renomeada.");
     },
   });
 
   const handleEdit = (e: React.MouseEvent, id: string, oldName: string) => {
     e.stopPropagation();
-    const newName = window.prompt("Novo nome do portfólio:", oldName);
+    const newName = window.prompt("Novo nome da carteira:", oldName);
     if (newName && newName.trim() !== "" && newName !== oldName) {
       editMut.mutate({ id, name: newName.trim() });
     }
@@ -109,7 +109,7 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
               </div>
               <div>
                 <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-1">
-                  Excluir portfólio
+                  Excluir carteira
                 </h3>
                 <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
                   Tem certeza que deseja excluir{" "}

@@ -37,7 +37,7 @@ export function PositionsTable({ positions, isLoading, onAddTransaction }: Posit
   }
 
   if (positions.length === 0) {
-    return <EmptyState icon={Wallet} title="Nenhuma posição neste portfólio" description='Use "+ Ativo" para adicionar sua primeira posição.' />;
+    return <EmptyState icon={Wallet} title="Nenhuma posição nesta carteira" description='Use "+ Ativo" para adicionar sua primeira posição.' />;
   }
 
   return (

@@ -17,7 +17,7 @@ export function PortfolioSelector({ activeId, onChange }: PortfolioSelectorProps
   return (
     <div className="mb-6">
       <label className="block text-xs font-medium text-[var(--text-muted)] mb-2 uppercase tracking-wide">
-        Portfólio para Análise
+        Carteira para análise
       </label>
       <select
         value={activeId || ""}
@@ -26,7 +26,7 @@ export function PortfolioSelector({ activeId, onChange }: PortfolioSelectorProps
         className="block w-full px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)] disabled:opacity-50 appearance-none"
       >
         <option value="" disabled>
-          {isLoading ? "Carregando..." : "Selecione um portfólio"}
+          {isLoading ? "Carregando..." : "Selecione uma carteira"}
         </option>
         {portfolios.map((p) => (
           <option key={p.id} value={p.id}>

@@ -52,7 +52,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
     },
     onSuccess: (tickerName) => {
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
-      toast.success(`${tickerName} adicionado ao portfólio!`);
+      toast.success(`${tickerName} adicionado à carteira!`);
       onClose();
     },
     onError: (err: unknown) => {
@@ -135,7 +135,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo do Portfólio %</label>
+            <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo na carteira %</label>
             <input
               id="position-target-weight"
               type="number"

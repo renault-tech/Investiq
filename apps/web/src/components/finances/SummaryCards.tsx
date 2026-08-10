@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { FinanceSummary } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useMask } from "@/hooks/useMask";
 
 interface SummaryCardsProps {
   summary?: FinanceSummary;
@@ -25,25 +26,26 @@ function Variation({ pct, invert = false }: { pct: number | null; invert?: boole
 
 export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   const { data: analytics } = useAnalytics(6);
+  const mask = useMask();
   const savingsSeries = analytics?.savings_series ?? [];
   const lastRate = savingsSeries[savingsSeries.length - 1]?.savings_rate;
 
   const cards = [
     {
       label: "Receitas · mês",
-      value: formatBRLExact(Number(summary?.income ?? 0)),
+      value: mask(formatBRLExact(Number(summary?.income ?? 0))),
       sub: <Variation pct={summary?.income_prev_pct ?? null} />,
       color: "var(--accent)",
     },
     {
       label: "Despesas · mês",
-      value: formatBRLExact(Number(summary?.expense ?? 0)),
+      value: mask(formatBRLExact(Number(summary?.expense ?? 0))),
       sub: <Variation pct={summary?.expense_prev_pct ?? null} invert />,
       color: "var(--danger)",
     },
     {
       label: "Sobra",
-      value: formatBRLExact(Number(summary?.net ?? 0)),
+      value: mask(formatBRLExact(Number(summary?.net ?? 0))),
       sub: <span className="text-xs text-[var(--text-secondary)]">Receitas − despesas do mês</span>,
       color: Number(summary?.net ?? 0) >= 0 ? "var(--accent)" : "var(--danger)",
     },

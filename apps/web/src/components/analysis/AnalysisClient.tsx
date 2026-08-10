@@ -72,7 +72,7 @@ export function AnalysisClient() {
       ]);
 
       if (!portfolioSum || portfolioSum.positions.length === 0) {
-         toast.error("O portfólio não possui posições para análise.");
+         toast.error("A carteira não possui posições para análise.");
          setStreaming(false);
          return;
       }

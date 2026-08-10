@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { coerceNumbers, coerceNumbersInList } from "@/lib/coerce";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -99,9 +100,25 @@ export async function createPortfolio(input: CreatePortfolioInput): Promise<Port
   return res.data;
 }
 
+// Pydantic serializa Decimal como string — coagir aqui, na fronteira, para
+// os componentes poderem confiar nos tipos declarados acima (ver lib/coerce.ts).
+const SUMMARY_NUMERIC = [
+  "total_invested_brl", "total_market_value_brl", "total_pnl_absolute", "total_pnl_percent",
+] as const;
+const POSITION_NUMERIC = [
+  "quantity", "avg_cost", "current_price", "market_value_brl", "cost_basis_brl",
+  "pnl_absolute", "pnl_percent", "weight", "target_weight", "rebalance_delta_units",
+] as const;
+const ALLOCATION_NUMERIC = ["value", "weight"] as const;
+
 export async function getPortfolioSummary(portfolioId: string): Promise<PortfolioSummary> {
   const res = await apiClient.get<PortfolioSummary>(`/portfolios/${portfolioId}/summary`);
-  return res.data;
+  const data = coerceNumbers(res.data, SUMMARY_NUMERIC);
+  return {
+    ...data,
+    positions: coerceNumbersInList(data.positions ?? [], POSITION_NUMERIC),
+    allocation_by_type: coerceNumbersInList(data.allocation_by_type ?? [], ALLOCATION_NUMERIC),
+  };
 }
 
 export async function getPortfolioPerformance(
@@ -112,7 +129,7 @@ export async function getPortfolioPerformance(
     `/portfolios/${portfolioId}/performance`,
     { params: { period } }
   );
-  return res.data;
+  return coerceNumbersInList(res.data, ["total_value", "total_invested"] as const);
 }
 
 export async function getPortfolioBenchmark(
@@ -123,7 +140,7 @@ export async function getPortfolioBenchmark(
     `/portfolios/${portfolioId}/benchmark`,
     { params: { period } }
   );
-  return res.data;
+  return coerceNumbersInList(res.data, ["portfolio_pct", "cdi_pct", "ibov_pct"] as const);
 }
 
 export async function addPosition(

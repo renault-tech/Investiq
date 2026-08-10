@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export interface SavingsPoint {
   month: string;
@@ -35,5 +36,10 @@ export interface Analytics {
 
 export async function getAnalytics(months = 6): Promise<Analytics> {
   const res = await apiClient.get<Analytics>("/finance/analytics", { params: { months } });
-  return res.data;
+  const data = coerceNumbers(res.data, ["burn_rate", "runway_months"] as const);
+  return {
+    ...data,
+    savings_series: coerceNumbersInList(data.savings_series ?? [], ["income", "expense", "savings_rate"] as const),
+    category_trends: coerceNumbersInList(data.category_trends ?? [], ["current_amount", "baseline_median", "pct_change"] as const),
+  };
 }

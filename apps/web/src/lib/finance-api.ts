@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export interface FinanceCategory {
   id: string;
@@ -130,7 +131,7 @@ export async function deleteCategory(id: string): Promise<void> {
 
 export async function listTransactions(filters: TransactionFilters): Promise<TransactionList> {
   const res = await apiClient.get<TransactionList>("/finance/transactions", { params: filters });
-  return res.data;
+  return { ...res.data, items: coerceNumbersInList(res.data.items ?? [], ["amount"] as const) };
 }
 
 export async function createTransaction(input: CreateTransactionInput): Promise<FinanceTransaction> {
@@ -157,5 +158,10 @@ export async function deleteTransaction(
 
 export async function getFinanceSummary(month: string): Promise<FinanceSummary> {
   const res = await apiClient.get<FinanceSummary>("/finance/summary", { params: { month } });
-  return res.data;
+  const data = coerceNumbers(res.data, ["income", "expense", "net", "income_prev_pct", "expense_prev_pct"] as const);
+  return {
+    ...data,
+    by_category: coerceNumbersInList(data.by_category ?? [], ["value", "pct"] as const),
+    monthly_series: coerceNumbersInList(data.monthly_series ?? [], ["income", "expense"] as const),
+  };
 }
