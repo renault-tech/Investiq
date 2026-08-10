@@ -12,8 +12,8 @@ import {
 import { PerformancePoint } from "@/lib/portfolio-api";
 import { formatBRL, formatBRLCompact } from "./chartTheme";
 
-const VALUE_COLOR = "#2563EB";
-const INVESTED_COLOR = "#64748B"; // slate-500 — referência neutra
+const VALUE_COLOR = "var(--accent)";
+const INVESTED_COLOR = "var(--text-muted)";
 
 interface PortfolioEvolutionChartProps {
   data: PerformancePoint[];
@@ -37,18 +37,18 @@ function EvolutionTooltip({
   const value = payload.find((p) => p.dataKey === "total_value")?.value;
   const invested = payload.find((p) => p.dataKey === "total_invested")?.value;
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 shadow-sm text-xs space-y-0.5">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-[var(--shadow)] text-xs space-y-0.5">
       <p className="font-semibold text-[var(--text-primary)]">{label ? formatDateShort(label) : ""}</p>
       {value !== undefined && (
         <p className="text-[var(--text-secondary)]">
           <span className="inline-block w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: VALUE_COLOR }} />
-          Valor: <span className="font-mono text-[var(--text-primary)]">{formatBRL(value)}</span>
+          Valor: <span className="tabular-nums text-[var(--text-primary)]">{formatBRL(value)}</span>
         </p>
       )}
       {invested !== undefined && (
         <p className="text-[var(--text-secondary)]">
           <span className="inline-block w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: INVESTED_COLOR }} />
-          Aportado: <span className="font-mono text-[var(--text-primary)]">{formatBRL(invested)}</span>
+          Aportado: <span className="tabular-nums text-[var(--text-primary)]">{formatBRL(invested)}</span>
         </p>
       )}
     </div>
@@ -73,7 +73,7 @@ export function PortfolioEvolutionChart({ data }: PortfolioEvolutionChartProps) 
                 <stop offset="100%" stopColor={VALUE_COLOR} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="var(--grid-line)" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={formatDateShort}

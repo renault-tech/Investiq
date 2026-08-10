@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wallet } from "lucide-react";
 import { RebalanceTag } from "./RebalanceTag";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { formatBRLExact } from "@/components/charts/chartTheme";
 import type { PositionSummary } from "@/lib/portfolio-api";
 
 interface PositionsTableProps {
@@ -12,59 +13,42 @@ interface PositionsTableProps {
 
 function fmtBRL(v: number | string | null): string {
   if (v == null) return "—";
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  }).format(Number(v));
+  return formatBRLExact(Number(v));
 }
 
 function fmtPct(v: number | string | null): string {
-  if (v == null) return "0.00%";
+  if (v == null) return "0,00%";
   const num = Number(v);
   const sign = num >= 0 ? "+" : "";
-  return `${sign}${num.toFixed(2)}%`;
+  return `${sign}${num.toFixed(2).replace(".", ",")}%`;
 }
 
-export function PositionsTable({
-  positions,
-  isLoading,
-  onAddTransaction,
-}: PositionsTableProps) {
+const COLS = ["Ativo", "Qtd", "PM", "Atual", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações"];
+
+export function PositionsTable({ positions, isLoading, onAddTransaction }: PositionsTableProps) {
   if (isLoading) {
     return (
-      <div className="flex-1 p-4 space-y-2">
+      <div className="space-y-2">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div key={i} className="h-9 bg-[var(--surface-2)] rounded-lg animate-pulse" />
         ))}
       </div>
     );
   }
 
   if (positions.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <EmptyState
-          icon={Wallet}
-          title="Nenhuma posição neste portfólio"
-          description='Use "+ Ativo" para adicionar sua primeira posição.'
-        />
-      </div>
-    );
+    return <EmptyState icon={Wallet} title="Nenhuma posição neste portfólio" description='Use "+ Ativo" para adicionar sua primeira posição.' />;
   }
 
   return (
-    <div className="flex-1 overflow-auto">
-      <table className="w-full text-[10px] border-collapse">
+    <div className="overflow-x-auto">
+      <table className="w-full text-[13px] border-collapse">
         <thead>
           <tr className="border-b border-[var(--border)]">
-            {[
-              "Ativo", "Qtd", "PM", "Atual", "Valor",
-              "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações",
-            ].map((h) => (
+            {COLS.map((h) => (
               <th
                 key={h}
-                className={`px-2 py-2 text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-wider whitespace-nowrap ${
+                className={`px-2.5 py-2.5 text-[11px] font-medium text-[var(--text-muted)] tracking-[.06em] uppercase whitespace-nowrap ${
                   h === "Ativo" ? "text-left" : "text-right"
                 }`}
               >
@@ -74,72 +58,58 @@ export function PositionsTable({
           </tr>
         </thead>
         <tbody>
-          {positions.map((pos) => {
+          {positions.map((pos, i) => {
             const pnlPositive = pos.pnl_absolute >= 0;
-            const pnlColor = pnlPositive ? "text-[var(--accent)]" : "text-[var(--danger)]";
+            const pnlColor = pnlPositive ? "var(--accent)" : "var(--danger)";
             return (
               <tr
                 key={pos.position_id}
-                className={`border-b border-[var(--border)] transition-colors ${
-                  pos.quantity === 0 ? "opacity-60 bg-black/10 dark:bg-white/5 hover:opacity-100" : "hover:bg-[var(--surface)]/50"
-                }`}
+                className={`border-b border-[var(--border)] transition-colors hover:bg-[var(--surface-2)] ${pos.quantity === 0 ? "opacity-60" : ""}`}
               >
-                <td className="px-2 py-1.5 text-left flex items-center gap-2">
-                  <div>
-                    <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-primary)]">
-                      <Link
-                        href={`/investments/${pos.ticker}`}
-                        className="hover:text-[var(--accent)] hover:underline underline-offset-2"
-                      >
-                        {pos.ticker}
-                      </Link>
-                      {pos.quantity === 0 && (
-                        <span className="px-1 py-0.5 rounded text-[8px] bg-blue-100 dark:bg-blue-500/20 text-[var(--navy)] dark:text-blue-400 font-normal tracking-wide">
-                          MONITORANDO
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-[9px] text-[var(--text-muted)]">
-                      {pos.asset_type}
-                    </span>
+                <td className="px-2.5 py-3 text-left">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="w-8 h-8 rounded-[10px] flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-[var(--text-secondary)]"
+                      style={{ background: "var(--surface-3)" }}
+                    >
+                      {pos.ticker.slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
+                        <Link href={`/investments/${pos.ticker}`} className="hover:text-[var(--accent)] hover:underline underline-offset-2">
+                          {pos.ticker}
+                        </Link>
+                        {pos.quantity === 0 && (
+                          <span
+                            className="px-1.5 py-0.5 rounded text-[9px] font-normal tracking-wide"
+                            style={{ background: "var(--glow)", color: "var(--accent-2)" }}
+                          >
+                            MONITORANDO
+                          </span>
+                        )}
+                      </span>
+                      <span className="block text-[11px] text-[var(--text-muted)]">{pos.asset_type}</span>
+                    </div>
                   </div>
                 </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {Number(pos.quantity).toFixed(4)}
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{Number(pos.quantity).toFixed(4)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{fmtBRL(pos.avg_cost)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{fmtBRL(pos.current_price)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{fmtBRL(pos.market_value_brl)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtBRL(pos.pnl_absolute)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtPct(pos.pnl_percent)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{(Number(pos.weight) * 100).toFixed(1)}%</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
+                  {pos.target_weight != null ? `${(Number(pos.target_weight) * 100).toFixed(1)}%` : "—"}
                 </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {fmtBRL(pos.avg_cost)}
+                <td className="px-2.5 py-3 text-right">
+                  <RebalanceTag action={pos.rebalance_action} deltaUnits={pos.rebalance_delta_units} />
                 </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {fmtBRL(pos.current_price)}
-                </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-secondary)]">
-                  {fmtBRL(pos.market_value_brl)}
-                </td>
-                <td className={`px-2 py-1.5 text-right ${pnlColor}`}>
-                  {fmtBRL(pos.pnl_absolute)}
-                </td>
-                <td className={`px-2 py-1.5 text-right ${pnlColor}`}>
-                  {fmtPct(pos.pnl_percent)}
-                </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {(Number(pos.weight) * 100).toFixed(1)}%
-                </td>
-                <td className="px-2 py-1.5 text-right text-[var(--text-muted)]">
-                  {pos.target_weight != null
-                    ? `${(Number(pos.target_weight) * 100).toFixed(1)}%`
-                    : "—"}
-                </td>
-                <td className="px-2 py-1.5 text-right">
-                  <RebalanceTag
-                    action={pos.rebalance_action}
-                    deltaUnits={pos.rebalance_delta_units}
-                  />
-                </td>
-                <td className="px-2 py-1.5 text-right">
+                <td className="px-2.5 py-3 text-right whitespace-nowrap">
                   <button
                     onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
-                    className="text-[9px] text-[var(--accent)] border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                    style={{ color: "var(--accent)", background: "var(--glow)" }}
                   >
                     Transação
                   </button>

@@ -64,11 +64,12 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
           <button
             key={portfolio.id}
             onClick={() => onChange(portfolio.id)}
-            className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full shrink-0 transition-all ${
+            className="group relative flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-medium rounded-[11px] shrink-0 transition-colors border"
+            style={
               portfolio.id === activeId
-                ? "bg-[var(--navy)] text-white shadow-sm"
-                : "bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-[var(--text-primary)]"
-            }`}
+                ? { background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }
+                : { background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-secondary)" }
+            }
           >
             <span>{portfolio.name}</span>
 

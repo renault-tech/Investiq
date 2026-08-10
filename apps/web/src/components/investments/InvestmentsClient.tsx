@@ -225,7 +225,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </div>
               <div className="mt-2">
                 <ChartCard
-                  title=""
+                  title="" bare
                   isLoading={isPerformanceLoading}
                   isError={isPerformanceError}
                   onRetry={refetchPerformance}
@@ -259,7 +259,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </div>
               <div className="mt-3">
                 <ChartCard
-                  title=""
+                  title="" bare
                   isLoading={isSummaryLoading}
                   isError={isSummaryError}
                   onRetry={refetchSummary}
@@ -285,7 +285,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
               <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Rentabilidade vs. CDI e Ibovespa</div>
               <ChartCard
-                title=""
+                title="" bare
                 isLoading={isBenchmarkLoading}
                 isError={isBenchmarkError}
                 onRetry={refetchBenchmark}

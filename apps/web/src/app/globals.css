@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* Sem isso, todo utilitário dark: (inclusive o herdado do app antes deste
+   redesign) segue prefers-color-scheme do SO em vez da classe .dark que
+   next-themes gerencia via attribute="class" — o toggle de tema visualmente
+   troca as CSS vars mas deixa esses utilitários presos no esquema do SO. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Design system — handoff "InvestIQ Wealth OS" (2026-08-10). Variable names
    kept from before the redesign (--background, --surface, --accent, ...) so
    every existing component that already references them via var(--x) picks
@@ -15,7 +21,11 @@
   --border:        rgba(9,12,20,.08);
   --border-strong: rgba(9,12,20,.16);
 
-  --navy:          #0A192F;
+  /* --navy era a cor de ação primária pré-redesign (usada com text-white
+     em ~28 componentes: botões ativos, ícones de app, títulos de destaque).
+     Vira verde-escuro da mesma família do accent — mantém contraste com
+     texto branco (~5.8:1) sem precisar editar cada um desses arquivos. */
+  --navy:          #0E6E53;
   --accent:        #0FA97C;
   --accent-2:      #5A6BF0;
   --danger:        #E1495C;
@@ -43,7 +53,7 @@
   --border:        rgba(255,255,255,.075);
   --border-strong: rgba(255,255,255,.14);
 
-  --navy:          #1E3A5F;
+  --navy:          #12876A;
   --accent:        #37D6A6;
   --accent-2:      #7C8CFF;
   --danger:        #FF6B7A;

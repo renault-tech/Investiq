@@ -12,11 +12,11 @@ import {
   YAxis,
 } from "recharts";
 import { ForecastMonth } from "@/lib/forecast-api";
-import { CATEGORICAL, formatBRL, formatBRLCompact } from "@/components/charts/chartTheme";
+import { formatBRL, formatBRLCompact } from "@/components/charts/chartTheme";
 
-const INCOME_COLOR = "#059669";
-const EXPENSE_COLOR = "#EF4444";
-const BALANCE_COLOR = CATEGORICAL[0];
+const INCOME_COLOR = "var(--accent)";
+const EXPENSE_COLOR = "var(--danger)";
+const BALANCE_COLOR = "var(--accent-2)";
 
 function formatMonth(month: string): string {
   const [year, mon] = month.split("-");

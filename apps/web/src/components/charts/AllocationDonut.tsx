@@ -45,9 +45,9 @@ function DonutTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   if (!active || !payload?.length) return null;
   const slice = payload[0].payload;
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 shadow-sm text-xs">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-[var(--shadow)] text-xs">
       <p className="font-semibold text-[var(--text-primary)]">{slice.name}</p>
-      <p className="text-[var(--text-secondary)] font-mono">
+      <p className="text-[var(--text-secondary)] tabular-nums">
         {formatBRL(slice.value)} · {formatPct(slice.weight)}
       </p>
     </div>
@@ -66,11 +66,11 @@ export function AllocationDonut({ allocation }: AllocationDonutProps) {
               data={slices}
               dataKey="value"
               nameKey="name"
-              innerRadius="62%"
-              outerRadius="90%"
-              paddingAngle={1}
-              stroke="var(--surface)"
-              strokeWidth={2}
+              innerRadius="68%"
+              outerRadius="100%"
+              paddingAngle={2}
+              cornerRadius={6}
+              stroke="none"
               isAnimationActive={false}
             >
               {slices.map((slice) => (
@@ -81,12 +81,12 @@ export function AllocationDonut({ allocation }: AllocationDonutProps) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="shrink-0 space-y-1.5 pr-1 max-h-full overflow-y-auto">
+      <ul className="shrink-0 space-y-2.5 pr-1 max-h-full overflow-y-auto">
         {slices.map((slice) => (
-          <li key={slice.name} className="flex items-center gap-2 text-xs">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: slice.color }} />
+          <li key={slice.name} className="flex items-center gap-2 text-[12.5px]">
+            <span className="w-2 h-2 rounded-[3px] shrink-0" style={{ backgroundColor: slice.color }} />
             <span className="text-[var(--text-secondary)]">{slice.name}</span>
-            <span className="ml-auto pl-3 font-mono text-[var(--text-primary)]">{formatPct(slice.weight)}</span>
+            <span className="ml-auto pl-3 font-semibold tabular-nums text-[var(--text-primary)]">{formatPct(slice.weight)}</span>
           </li>
         ))}
       </ul>

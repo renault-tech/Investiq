@@ -11,11 +11,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { BenchmarkPoint } from "@/lib/portfolio-api";
-import { CATEGORICAL } from "./chartTheme";
 
-const PORTFOLIO_COLOR = CATEGORICAL[0]; // azul
-const CDI_COLOR = CATEGORICAL[1]; // esmeralda
-const IBOV_COLOR = CATEGORICAL[3]; // âmbar
+const PORTFOLIO_COLOR = "var(--accent)";
+const CDI_COLOR = "var(--accent-2)";
+const IBOV_COLOR = "var(--warning)";
 
 interface BenchmarkChartProps {
   data: BenchmarkPoint[];
@@ -48,7 +47,7 @@ function BenchmarkTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 shadow-sm text-xs space-y-0.5">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-[var(--shadow)] text-xs space-y-0.5">
       <p className="font-semibold text-[var(--text-primary)]">{label ? formatDateShort(label) : ""}</p>
       {SERIES.map((s) => {
         const point = payload.find((p) => p.dataKey === s.key);
@@ -56,7 +55,7 @@ function BenchmarkTooltip({
         return (
           <p key={s.key} className="text-[var(--text-secondary)]">
             <span className="inline-block w-2 h-2 rounded-sm mr-1.5" style={{ backgroundColor: s.color }} />
-            {s.label}: <span className="font-mono text-[var(--text-primary)]">{formatPctValue(point.value)}</span>
+            {s.label}: <span className="tabular-nums text-[var(--text-primary)]">{formatPctValue(point.value)}</span>
           </p>
         );
       })}
@@ -77,7 +76,7 @@ export function BenchmarkChart({ data }: BenchmarkChartProps) {
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="var(--grid-line)" vertical={false} />
             <XAxis
               dataKey="date"
               tickFormatter={formatDateShort}
