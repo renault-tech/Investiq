@@ -4,14 +4,32 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.finance import service
+from src.finance import import_service
+from src.finance import forecast
+from src.finance import analytics
+from src.finance.ofx_export import build_ofx_export
+from src.ai.factory import get_llm_provider
+from src.ai.base import LLMProviderError
+from src.settings import service as settings_service
+from src.settings.service import get_decrypted_api_keys
 from src.shared.csv_export import build_csv_response
+from src.shared.exceptions import ValidationError
+from src.shared.limiter import limiter
+
+_SOURCE_LABELS = {
+    "manual": "Manual",
+    "import_ofx": "OFX",
+    "import_csv": "CSV",
+    "card_invoice": "Fatura",
+    "installment": "Parcelamento",
+}
 from src.finance.schemas import (
     CategoryCreate,
     CategoryUpdate,
@@ -28,6 +46,15 @@ from src.finance.schemas import (
     GoalContributeRequest,
     GoalContributionResponse,
     GoalResponse,
+    AccountCreate,
+    AccountUpdate,
+    AccountResponse,
+    ImportBatchResponse,
+    ImportRowUpdate,
+    ImportRowResponse,
+    ImportConfirmResponse,
+    ForecastResponse,
+    AnalyticsResponse,
 )
 
 router = APIRouter(prefix="/finance", tags=["finance"])
@@ -92,6 +119,8 @@ async def list_transactions(
     transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
     search: Optional[str] = Query(None, max_length=100),
     tag: Optional[str] = Query(None, max_length=50),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -102,7 +131,8 @@ async def list_transactions(
         current_user.id, db,
         date_from=date_from, date_to=date_to,
         category_id=category_id, transaction_type=transaction_type,
-        search=search, tag=tag, page=page, per_page=per_page,
+        search=search, tag=tag, account_id=account_id, holder=holder,
+        page=page, per_page=per_page,
     )
 
 
@@ -129,11 +159,41 @@ async def export_transactions(
             item["description"] or "",
             item["category_name"] or "",
             item["amount"],
+            item["currency"],
+            item["bank_account_name"] or "",
+            _SOURCE_LABELS.get(item["source"], item["source"]),
+            f"{item['installment_no']}/{item['installment_total']}" if item["installment_total"] else "",
         ]
         for item in listing["items"]
     ]
     return build_csv_response(
-        "transacoes.csv", ["Data", "Tipo", "Descrição", "Categoria", "Valor"], rows
+        "transacoes.csv",
+        ["Data", "Tipo", "Descrição", "Categoria", "Valor", "Moeda", "Conta", "Origem", "Parcela"],
+        rows,
+    )
+
+
+@router.get("/transactions/export.ofx")
+async def export_transactions_ofx(
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    category_id: Optional[uuid.UUID] = None,
+    transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Exportação OFX 2.x — sem dependência nova, é só XML montado pela stdlib."""
+    listing = await service.list_transactions(
+        current_user.id, db,
+        date_from=date_from, date_to=date_to,
+        category_id=category_id, transaction_type=transaction_type,
+        per_page=100_000,
+    )
+    content = build_ofx_export(listing["items"])
+    return Response(
+        content=content,
+        media_type="application/x-ofx",
+        headers={"Content-Disposition": 'attachment; filename="transacoes.ofx"'},
     )
 
 
@@ -161,10 +221,154 @@ async def update_transaction(
 @router.delete("/transactions/{txn_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
     txn_id: uuid.UUID,
+    scope: str = Query("one", pattern="^(one|future|all)$",
+                       description="Parcelamentos: só esta, esta e as futuras, ou a série inteira"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.delete_transaction(txn_id, current_user.id, db)
+    await service.delete_transaction(txn_id, current_user.id, db, scope=scope)
+
+
+# ---------------------------------------------------------------------------
+# Accounts
+# ---------------------------------------------------------------------------
+
+@router.get("/accounts", response_model=list[AccountResponse])
+async def list_accounts(
+    include_inactive: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Contas do usuário com saldo derivado das transações até agora."""
+    return await service.list_accounts(current_user.id, db, include_inactive=include_inactive)
+
+
+@router.post("/accounts", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_account(
+    body: AccountCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.create_account(current_user.id, body.model_dump(), db)
+
+
+@router.patch("/accounts/{account_id}", response_model=AccountResponse)
+async def update_account(
+    account_id: uuid.UUID,
+    body: AccountUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.update_account(
+        account_id, current_user.id, body.model_dump(exclude_unset=True), db
+    )
+
+
+@router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_account(
+    account_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Arquiva (is_active=False) — as transações históricas continuam apontando para ela."""
+    await service.archive_account(account_id, current_user.id, db)
+
+
+# ---------------------------------------------------------------------------
+# Statement import (OFX/CSV)
+# ---------------------------------------------------------------------------
+
+@router.post("/import", response_model=ImportBatchResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
+async def upload_statement(
+    request: Request,
+    file: UploadFile = File(...),
+    bank_account_id: Optional[uuid.UUID] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload de extrato OFX/CSV → dedupe contra o histórico → lote em 'pending'
+    aguardando revisão. Não grava nenhuma transação ainda."""
+    content = await file.read()
+    return await import_service.create_import_batch_from_content(
+        current_user.id, db,
+        file_name=file.filename or "extrato",
+        content=content,
+        bank_account_id=bank_account_id,
+    )
+
+
+@router.get("/import/{batch_id}", response_model=ImportBatchResponse)
+async def get_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await import_service.get_import_batch(batch_id, current_user.id, db)
+
+
+@router.patch("/import/rows/{row_id}", response_model=ImportRowResponse)
+async def update_import_row(
+    row_id: uuid.UUID,
+    body: ImportRowUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ajustar categoria ou incluir/excluir uma linha antes de confirmar."""
+    return await import_service.update_import_row(
+        row_id, current_user.id, body.model_dump(exclude_unset=True), db
+    )
+
+
+@router.post("/import/{batch_id}/confirm", response_model=ImportConfirmResponse)
+async def confirm_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Grava uma transação por linha selecionada. Idempotente na prática: um
+    lote confirmado não pode ser confirmado de novo (409)."""
+    return await import_service.confirm_import_batch(batch_id, current_user.id, db)
+
+
+@router.delete("/import/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def discard_import_batch(
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await import_service.discard_import_batch(batch_id, current_user.id, db)
+
+
+@router.post("/import/{batch_id}/categorize-ai", response_model=ImportBatchResponse)
+@limiter.limit("10/hour")
+async def categorize_import_batch_with_ai(
+    request: Request,
+    batch_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sugere categoria via IA só para as linhas que a regra determinística não
+    resolveu. Gasta o crédito do próprio usuário — por isso é um botão, nunca
+    automático, e rate limited (10/hora)."""
+    user_settings = await settings_service.get_or_create(current_user.id, db)
+    await db.commit()
+    keys = get_decrypted_api_keys(user_settings)
+    try:
+        provider = get_llm_provider(
+            preferred=user_settings.preferred_llm,
+            claude_api_key=keys.get("claude_api_key"),
+            openai_api_key=keys.get("openai_api_key"),
+            gemini_api_key=keys.get("gemini_api_key"),
+        )
+    except LLMProviderError as exc:
+        raise ValidationError(
+            "Configure uma chave de IA em Configurações para sugerir categorias"
+        ) from exc
+
+    return await import_service.suggest_categories_ai(
+        batch_id, current_user.id, db, provider=provider, model=user_settings.llm_model,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +384,38 @@ async def get_summary(
     if not _MONTH_RE.match(month):
         raise HTTPException(status_code=422, detail="month deve estar no formato YYYY-MM")
     return await service.get_summary(current_user.id, month, db)
+
+
+# ---------------------------------------------------------------------------
+# Cash-flow forecast
+# ---------------------------------------------------------------------------
+
+@router.get("/forecast", response_model=ForecastResponse)
+async def get_forecast(
+    months: int = Query(6, ge=1, le=24),
+    account_id: Optional[uuid.UUID] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Projeção de saldo mês a mês, separando o que já é conhecido (recorrência,
+    parcela futura, fatura de cartão em aberto) do que é estimativa (mediana
+    dos últimos 6 meses por categoria sem essa cobertura)."""
+    return await forecast.get_forecast(current_user.id, db, months=months, account_id=account_id)
+
+
+# ---------------------------------------------------------------------------
+# Advanced analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/analytics", response_model=AnalyticsResponse)
+async def get_analytics(
+    months: int = Query(6, ge=3, le=24),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Burn rate, taxa de poupança, fôlego e tendência por categoria — tudo
+    derivado das mesmas transações que resumo e projeção já consultam."""
+    return await analytics.get_analytics(current_user.id, db, months=months)
 
 
 # ---------------------------------------------------------------------------

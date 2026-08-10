@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.portfolio.models import (
-    Portfolio, PortfolioPosition, Asset, InvestmentTransaction, BankAccount,
-    PortfolioSnapshot, FxRate,
+    Portfolio, PortfolioPosition, Asset, InvestmentTransaction,
+    PortfolioSnapshot,
 )
 from src.portfolio.calculations import (
     calculate_position_pnl,
@@ -28,6 +28,7 @@ from src.market_data.base import default_currency_for_ticker
 from src.market_data.bcb import get_cdi_daily_rates
 from src.shared.decimal_utils import multiply, pct_change, round_financial
 from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
+from src.shared.fx import get_fx_rates_to_brl as _get_fx_rates_to_brl
 
 logger = logging.getLogger(__name__)
 
@@ -101,33 +102,6 @@ async def delete_portfolio(
         raise NotFoundError("Portfolio not found")
     await db.delete(portfolio)
     await db.commit()
-
-
-async def _get_fx_rates_to_brl(currencies: set[str], db: AsyncSession) -> dict[str, Decimal]:
-    """Latest known rate to BRL for each currency (BRL itself maps to 1).
-
-    Reads the fx_rates table populated daily by workers/fx_updater.py.
-    Missing/stale rates degrade to 1:1 (logged) rather than breaking the
-    summary — the same posture as a missing live quote elsewhere in this file.
-    """
-    rates = {"BRL": _ONE}
-    needed = currencies - {"BRL"}
-    if not needed:
-        return rates
-
-    result = await db.execute(
-        select(FxRate)
-        .where(FxRate.from_currency.in_(needed), FxRate.to_currency == "BRL")
-        .order_by(FxRate.date.desc())
-    )
-    for row in result.scalars().all():
-        rates.setdefault(row.from_currency, row.rate)  # first hit per currency = most recent
-
-    for currency in needed - rates.keys():
-        logger.warning("No fx_rates row for %s->BRL; using 1:1 as a fallback", currency)
-        rates[currency] = _ONE
-
-    return rates
 
 
 async def get_portfolio_summary(

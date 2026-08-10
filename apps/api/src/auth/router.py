@@ -57,7 +57,7 @@ async def login(
         REFRESH_COOKIE,
         refresh_token,
         httponly=True,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
         max_age=COOKIE_MAX_AGE,
         secure=settings.is_https_deploy,
     )
@@ -83,7 +83,7 @@ async def refresh(
         REFRESH_COOKIE,
         new_refresh,
         httponly=True,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
         max_age=COOKIE_MAX_AGE,
         secure=settings.is_https_deploy,
     )
@@ -97,7 +97,7 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ):
     await service.logout_user(refresh_token, db)
-    response.delete_cookie(REFRESH_COOKIE)
+    response.delete_cookie(REFRESH_COOKIE, secure=settings.is_https_deploy, samesite=settings.cookie_samesite)
     return {"message": "Logged out"}
 
 

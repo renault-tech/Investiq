@@ -45,19 +45,8 @@ class Portfolio(Base):
     analyses = relationship("PortfolioAnalysis", back_populates="portfolio", cascade="all, delete-orphan")
 
 
-class BankAccount(Base):
-    __tablename__ = "bank_accounts"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    institution = Column(String(100), nullable=True)
-    account_type = Column(String(20), nullable=False, default="checking", server_default="checking")
-    balance = Column(Numeric(18, 8), nullable=False, default=Decimal("0"), server_default=text("0"))
-    currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
-    is_active = Column(Boolean(), nullable=False, default=True, server_default=text("TRUE"))
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+# BankAccount vive em src/finance/account_models.py desde a migração 0011 —
+# a tabela nasceu aqui (0002) mas é um conceito de finanças, não de portfólio.
 
 
 class PortfolioPosition(Base):

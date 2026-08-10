@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Plus, Trash2, Wallet } from "lucide-react";
 import { useBudgets, useUpsertBudget, useDeleteBudget } from "@/hooks/useBudgets";
 import { FinanceCategory } from "@/lib/finance-api";
-import { formatBRL } from "@/components/charts/chartTheme";
+import { formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { Input, Select } from "@/components/ui/Input";
 
 interface BudgetsSectionProps {
   categories: FinanceCategory[];
@@ -59,37 +61,28 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
 
       {showForm && (
         <form onSubmit={handleCreate} className="flex items-end gap-2 mb-4 pb-4 border-b border-[var(--border)]">
-          <div className="flex-1">
-            <label className="block text-[10px] text-[var(--text-muted)] mb-1">Categoria</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)]"
-            >
-              <option value="">Selecione</option>
-              {availableCategories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] text-[var(--text-muted)] mb-1">Valor mensal (R$)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
-              className="w-28 px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)] font-mono"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={upsertMutation.isPending}
-            className="px-3 py-1.5 text-xs bg-[var(--navy)] text-white rounded-md hover:opacity-90 disabled:opacity-50"
+          <Select
+            label="Categoria"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="flex-1"
           >
+            <option value="">Selecione</option>
+            {availableCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+          <Input
+            label="Valor mensal (R$)"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+            className="w-28 font-mono"
+          />
+          <Button type="submit" size="sm" loading={upsertMutation.isPending}>
             Salvar
-          </button>
+          </Button>
         </form>
       )}
 
@@ -114,7 +107,7 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
                     {budget.category_name}
                   </span>
                   <span className="flex items-center gap-2 font-mono text-[var(--text-secondary)]">
-                    {formatBRL(Number(budget.spent))} / {formatBRL(Number(budget.amount))}
+                    {formatBRLExact(Number(budget.spent))} / {formatBRLExact(Number(budget.amount))}
                     <button
                       onClick={() => deleteMutation.mutate(budget.category_id)}
                       className="text-[var(--text-muted)] hover:text-[var(--danger)]"

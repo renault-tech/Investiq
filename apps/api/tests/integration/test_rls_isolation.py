@@ -1,5 +1,11 @@
 """Integration: cross-user data isolation.
 
+bank_accounts and finance_category_rules were both added after the note
+below was written (Bloco 1 and Bloco 5 of the personal-finance roadmap) and
+follow the same posture: RLS policies exist in the migrations but isolation
+is enforced at the application layer, verified here the same way as every
+other finance table.
+
 NOTE on RLS: migrations 0002-0006 enable Postgres Row-Level Security with
 policies keyed on current_setting('app.current_user_id'), but no code in this
 codebase ever executes `SET app.current_user_id` on the session — so those
@@ -13,6 +19,8 @@ what actually protects user data right now. Wiring the DB session to set
 app.current_user_id per-request (as defense in depth) is a follow-up
 hardening task, not yet implemented.
 """
+import io
+
 import pytest
 
 from .conftest import register_and_login
@@ -92,3 +100,59 @@ async def test_finance_transaction_isolated_between_users(client):
 
     b_list = await client.get("/finance/transactions", headers=b["headers"])
     assert b_list.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_bank_account_isolated_between_users(client):
+    a = await register_and_login(client)
+    b = await register_and_login(client)
+
+    account = await client.post("/finance/accounts", json={"name": "Nubank"}, headers=a["headers"])
+    assert account.status_code == 201
+    account_id = account.json()["id"]
+
+    b_list = await client.get("/finance/accounts", headers=b["headers"])
+    assert b_list.json() == []
+
+    b_update = await client.patch(
+        f"/finance/accounts/{account_id}", json={"name": "Hijacked"}, headers=b["headers"]
+    )
+    assert b_update.status_code == 404
+
+    b_delete = await client.delete(f"/finance/accounts/{account_id}", headers=b["headers"])
+    assert b_delete.status_code == 404
+
+    still_there = await client.get("/finance/accounts", headers=a["headers"])
+    assert still_there.json()[0]["name"] == "Nubank"
+
+
+@pytest.mark.asyncio
+async def test_learned_category_rule_does_not_leak_to_another_user(client):
+    """A corrige/lança "COMPRA CARTAO IFOOD" com uma categoria — isso grava
+    uma regra aprendida (finance_category_rules) para a chave "IFOOD". B
+    importa um extrato com a mesma descrição e não pode vir pré-categorizado
+    com a regra de A: as regras são por usuário, como qualquer outra tabela
+    de finanças."""
+    a = await register_and_login(client)
+    b = await register_and_login(client)
+
+    a_categories = (await client.get("/finance/categories", headers=a["headers"])).json()
+    alimentacao = next(c for c in a_categories if c["name"] == "Alimentação")
+
+    learn = await client.post(
+        "/finance/transactions",
+        headers=a["headers"],
+        json={
+            "transaction_type": "expense", "amount": 45.90,
+            "description": "COMPRA CARTAO IFOOD", "category_id": alimentacao["id"],
+            "transaction_date": "2026-06-15T12:00:00Z",
+        },
+    )
+    assert learn.status_code == 201
+
+    csv_content = "Data;Descrição;Valor\n20/06/2026;COMPRA CARTAO IFOOD;-38,00\n"
+    files = {"file": ("extrato.csv", io.BytesIO(csv_content.encode()), "text/csv")}
+    upload = await client.post("/finance/import", headers=b["headers"], files=files)
+    assert upload.status_code == 201, upload.text
+    row = upload.json()["rows"][0]
+    assert row["category_id"] is None

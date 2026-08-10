@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Download } from "lucide-react";
 import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/portfolio-api";
@@ -11,11 +12,9 @@ import { usePortfolioBenchmark } from "@/hooks/usePortfolioBenchmark";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { LeftPanel } from "./LeftPanel";
 import { PositionsTable } from "./PositionsTable";
-import { IncomeTab } from "./IncomeTab";
 import { ChartCard } from "@/components/charts/ChartCard";
-import { AllocationDonut } from "@/components/charts/AllocationDonut";
-import { PortfolioEvolutionChart, PERIODS } from "@/components/charts/PortfolioEvolutionChart";
-import { BenchmarkChart } from "@/components/charts/BenchmarkChart";
+import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
+import { PERIODS } from "@/components/charts/chartTheme";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,6 +22,29 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
+
+const AllocationDonut = dynamic(
+  () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
+const PortfolioEvolutionChart = dynamic(
+  () => import("@/components/charts/PortfolioEvolutionChart").then((m) => m.PortfolioEvolutionChart),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
+const BenchmarkChart = dynamic(
+  () => import("@/components/charts/BenchmarkChart").then((m) => m.BenchmarkChart),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
+// A aba inteira (não só o gráfico) — só monta quando o usuário clica em
+// "Proventos", então nem o seu recharts nem o resto do módulo precisam
+// entrar no carregamento inicial de "Posições", a aba padrão.
+const IncomeTab = dynamic(() => import("./IncomeTab").then((m) => m.IncomeTab), {
+  ssr: false,
+  // Não usa ChartSkeleton aqui: essa aba inteira (não só um gráfico dentro
+  // de um ChartCard já position:relative) é o que está sendo carregado, e
+  // o container em volta não tem position:relative garantido.
+  loading: () => <div className="h-96 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />,
+});
 
 interface Props {
   initialPortfolios: Portfolio[];

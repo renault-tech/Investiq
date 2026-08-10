@@ -10,25 +10,30 @@ import json
 import uuid
 import logging
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Optional
 
+from dateutil.relativedelta import relativedelta
 from dateutil.rrule import rrulestr
-from sqlalchemy import select, or_, func as sa_func
+from sqlalchemy import select, or_, and_ as sa_and, case as sa_case, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from src.finance import categorizer
 from src.finance.models import FinanceCategory, FinancialTransaction
+from src.finance.account_models import BankAccount
 from src.finance.budget_models import FinanceBudget
 from src.finance.goal_models import FinanceGoal, FinanceGoalContribution
 from src.shared.exceptions import NotFoundError, ConflictError, ValidationError
+from src.shared.fx import get_fx_rates_to_brl
 
 logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
 _ONE = Decimal("1")
+_CENT = Decimal("0.01")
 
 DEFAULT_CATEGORIES: list[tuple[str, str, str, str]] = [
     # (name, type, color, icon)
@@ -72,6 +77,102 @@ async def list_categories(user_id: uuid.UUID, db: AsyncSession) -> list[FinanceC
         .order_by(FinanceCategory.category_type, FinanceCategory.name)
     )
     return list(result.scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Accounts
+#
+# O saldo nunca é guardado: o módulo de cartões escreve transações por fora
+# deste serviço e a importação de extrato grava em lote, então qualquer total
+# mantido à mão divergiria com o tempo. Deriva-se sempre, numa query só.
+# ---------------------------------------------------------------------------
+
+async def _account_balances(user_id: uuid.UUID, db: AsyncSession) -> dict[uuid.UUID, Decimal]:
+    """Saldo derivado de todas as contas do usuário, em uma única query.
+
+    Só conta lançamentos até agora: parcelas futuras já materializadas não
+    podem inflar o saldo de hoje. Ocorrências recorrentes virtuais não são
+    linhas, então ficam naturalmente de fora — que é o comportamento certo."""
+    txn = FinancialTransaction
+    delta = sa_case(
+        (sa_and(txn.bank_account_id == BankAccount.id, txn.transaction_type == "income"), txn.amount_brl),
+        (sa_and(txn.bank_account_id == BankAccount.id, txn.transaction_type == "expense"), -txn.amount_brl),
+        (sa_and(txn.bank_account_id == BankAccount.id, txn.transaction_type == "transfer"), -txn.amount_brl),
+        (sa_and(txn.to_bank_account_id == BankAccount.id, txn.transaction_type == "transfer"), txn.amount_brl),
+        else_=_ZERO,
+    )
+    result = await db.execute(
+        select(BankAccount.id, BankAccount.opening_balance + sa_func.coalesce(sa_func.sum(delta), _ZERO))
+        .outerjoin(
+            txn,
+            sa_and(
+                or_(txn.bank_account_id == BankAccount.id, txn.to_bank_account_id == BankAccount.id),
+                txn.deleted_at.is_(None),
+                txn.transaction_date <= sa_func.now(),
+            ),
+        )
+        .where(BankAccount.user_id == user_id)
+        .group_by(BankAccount.id, BankAccount.opening_balance)
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+def _account_to_dict(account: BankAccount, balance: Decimal) -> dict:
+    return {
+        "id": account.id,
+        "name": account.name,
+        "account_type": account.account_type,
+        "institution": account.institution,
+        "holder": account.holder,
+        "opening_balance": account.opening_balance,
+        "balance": balance,
+        "currency": account.currency,
+        "color": account.color,
+        "icon": account.icon,
+        "include_in_total": account.include_in_total,
+        "portfolio_id": account.portfolio_id,
+        "is_active": account.is_active,
+    }
+
+
+async def list_accounts(user_id: uuid.UUID, db: AsyncSession, *, include_inactive: bool = False) -> list[dict]:
+    query = select(BankAccount).where(BankAccount.user_id == user_id)
+    if not include_inactive:
+        query = query.where(BankAccount.is_active.is_(True))
+    accounts = list((await db.execute(query.order_by(BankAccount.name))).scalars().all())
+    balances = await _account_balances(user_id, db)
+    return [_account_to_dict(a, balances.get(a.id, a.opening_balance)) for a in accounts]
+
+
+async def create_account(user_id: uuid.UUID, data: dict, db: AsyncSession) -> dict:
+    existing = await db.execute(
+        select(BankAccount).where(BankAccount.user_id == user_id, BankAccount.name == data["name"])
+    )
+    if existing.scalar_one_or_none():
+        raise ConflictError(f"Já existe uma conta chamada '{data['name']}'")
+    account = BankAccount(user_id=user_id, **data)
+    db.add(account)
+    await db.commit()
+    await db.refresh(account)
+    return _account_to_dict(account, account.opening_balance)
+
+
+async def update_account(account_id: uuid.UUID, user_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
+    account = await _validate_account(account_id, user_id, db)
+    for field, value in updates.items():
+        if value is not None:
+            setattr(account, field, value)
+    await db.commit()
+    await db.refresh(account)
+    balances = await _account_balances(user_id, db)
+    return _account_to_dict(account, balances.get(account.id, account.opening_balance))
+
+
+async def archive_account(account_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> None:
+    """Arquiva em vez de apagar — as transações históricas apontam para ela."""
+    account = await _validate_account(account_id, user_id, db)
+    account.is_active = False
+    await db.commit()
 
 
 async def create_category(
@@ -146,18 +247,40 @@ def _txn_to_dict(txn: FinancialTransaction, *, virtual_date: Optional[datetime] 
         "id": f"{txn.id}:{virtual_date.date().isoformat()}" if virtual_date else str(txn.id),
         "transaction_type": txn.transaction_type,
         "amount": txn.amount,
+        "amount_brl": txn.amount_brl,
         "currency": txn.currency,
         "description": txn.description,
         "notes": txn.notes,
         "category_id": txn.category_id,
         "category_name": txn.category.name if txn.category else None,
         "category_color": txn.category.color if txn.category else None,
+        "bank_account_id": txn.bank_account_id,
+        "bank_account_name": txn.bank_account.name if txn.bank_account else None,
+        "to_bank_account_id": txn.to_bank_account_id,
+        "to_bank_account_name": txn.to_bank_account.name if txn.to_bank_account else None,
         "transaction_date": virtual_date or txn.transaction_date,
         "is_recurring": txn.is_recurring,
         "recurrence_rule": txn.recurrence_rule,
+        "installment_no": txn.installment_no,
+        "installment_total": txn.installment_total,
+        "source": txn.source,
         "is_virtual": virtual_date is not None,
         "tags": _parse_tags(txn.tags),
     }
+
+
+def _txn_relations() -> tuple:
+    """Eager-load de categoria e das duas contas.
+
+    É função, não constante de módulo: `selectinload(Model.attr)` resolve o
+    mapper na hora em que é avaliado, e no import de `service` nem todos os
+    models do app foram importados ainda — o que quebrava a configuração dos
+    mappers antes de qualquer query rodar."""
+    return (
+        selectinload(FinancialTransaction.category),
+        selectinload(FinancialTransaction.bank_account),
+        selectinload(FinancialTransaction.to_bank_account),
+    )
 
 
 def expand_recurring(
@@ -201,13 +324,15 @@ async def list_transactions(
     transaction_type: Optional[str] = None,
     search: Optional[str] = None,
     tag: Optional[str] = None,
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = None,
     page: int = 1,
     per_page: int = 50,
 ) -> dict:
     """Filtered listing; expands recurring templates virtually inside the window."""
     query = (
         select(FinancialTransaction)
-        .options(selectinload(FinancialTransaction.category))
+        .options(*_txn_relations())
         .where(
             FinancialTransaction.user_id == user_id,
             FinancialTransaction.deleted_at.is_(None),
@@ -215,6 +340,24 @@ async def list_transactions(
     )
     if category_id:
         query = query.where(FinancialTransaction.category_id == category_id)
+    if account_id:
+        # Uma transferência aparece no extrato das duas contas envolvidas.
+        query = query.where(
+            or_(
+                FinancialTransaction.bank_account_id == account_id,
+                FinancialTransaction.to_bank_account_id == account_id,
+            )
+        )
+    if holder:
+        holder_accounts = select(BankAccount.id).where(
+            BankAccount.user_id == user_id, BankAccount.holder == holder
+        )
+        query = query.where(
+            or_(
+                FinancialTransaction.bank_account_id.in_(holder_accounts),
+                FinancialTransaction.to_bank_account_id.in_(holder_accounts),
+            )
+        )
     if transaction_type:
         query = query.where(FinancialTransaction.transaction_type == transaction_type)
     if search:
@@ -264,36 +407,118 @@ async def list_transactions(
     }
 
 
+def _split_installments(total: Decimal, count: int) -> list[Decimal]:
+    """Divide um total em `count` parcelas que somam exatamente o total.
+
+    Arredonda cada parcela para baixo e joga o resto dos centavos na última —
+    R$ 100 em 3x vira 33,33 / 33,33 / 33,34, não três vezes 33,33 (que
+    perderia um centavo) nem três vezes 33,34 (que criaria dois)."""
+    per = (total / count).quantize(_CENT, rounding=ROUND_DOWN)
+    parts = [per] * (count - 1)
+    parts.append(total - per * (count - 1))
+    return parts
+
+
+async def _validate_account(account_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> BankAccount:
+    result = await db.execute(
+        select(BankAccount).where(BankAccount.id == account_id, BankAccount.user_id == user_id)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise NotFoundError("Conta não encontrada")
+    return account
+
+
 async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -> dict:
+    txn_type = data["transaction_type"]
     if data.get("category_id"):
         await _get_category(data["category_id"], user_id, db)
-    txn = FinancialTransaction(
-        user_id=user_id,
-        transaction_type=data["transaction_type"],
-        amount=data["amount"],
-        description=data.get("description"),
-        notes=data.get("notes"),
-        category_id=data.get("category_id"),
-        bank_account_id=data.get("bank_account_id"),
-        transaction_date=data["transaction_date"],
-        is_recurring=bool(data.get("recurrence_rule")),
-        recurrence_rule=data.get("recurrence_rule"),
-        tags=json.dumps(data.get("tags") or []),
-    )
-    db.add(txn)
+    if data.get("bank_account_id"):
+        await _validate_account(data["bank_account_id"], user_id, db)
+
+    to_account_id = data.get("to_bank_account_id")
+    if txn_type == "transfer":
+        if not to_account_id or not data.get("bank_account_id"):
+            raise ValidationError("Transferência exige conta de origem e de destino")
+        if to_account_id == data["bank_account_id"]:
+            raise ValidationError("A conta de destino precisa ser diferente da de origem")
+        await _validate_account(to_account_id, user_id, db)
+    else:
+        to_account_id = None
+
+    count = int(data.get("installments") or 1)
+    if count > 1 and data.get("recurrence_rule"):
+        raise ValidationError("Uma transação parcelada não pode também ser recorrente")
+
+    currency = data.get("currency") or "BRL"
+    if data.get("fx_rate"):
+        rate = Decimal(data["fx_rate"])
+    elif currency != "BRL":
+        # Sem UI de moeda estrangeira ainda — mas quando currency vier de
+        # importação/API, trava a cotação real do dia em vez de assumir 1:1,
+        # que mentiria no histórico assim que uma moeda estrangeira aparecer.
+        rates = await get_fx_rates_to_brl({currency}, db)
+        rate = rates.get(currency, _ONE)
+    else:
+        rate = _ONE
+    amounts = _split_installments(data["amount"], count) if count > 1 else [data["amount"]]
+    group_id = uuid.uuid4() if count > 1 else None
+    base_date = data["transaction_date"]
+    source = data.get("source") or ("installment" if count > 1 else "manual")
+
+    created: list[FinancialTransaction] = []
+    for index, part in enumerate(amounts):
+        txn = FinancialTransaction(
+            user_id=user_id,
+            transaction_type=txn_type,
+            amount=part,
+            currency=currency,
+            fx_rate=rate,
+            amount_brl=part * rate,
+            description=data.get("description"),
+            notes=data.get("notes"),
+            category_id=data.get("category_id") if txn_type != "transfer" else None,
+            bank_account_id=data.get("bank_account_id"),
+            to_bank_account_id=to_account_id,
+            transaction_date=base_date + relativedelta(months=index),
+            # Parcelas nunca são recorrentes: é o que as mantém fora de
+            # expand_recurring e elimina qualquer contagem em dobro.
+            is_recurring=bool(data.get("recurrence_rule")) and count == 1,
+            recurrence_rule=data.get("recurrence_rule") if count == 1 else None,
+            installment_group_id=group_id,
+            installment_no=index + 1 if count > 1 else None,
+            installment_total=count if count > 1 else None,
+            source=source,
+            external_id=data.get("external_id"),
+            tags=json.dumps(data.get("tags") or []),
+        )
+        db.add(txn)
+        created.append(txn)
+
     await db.commit()
-    await db.refresh(txn, attribute_names=["category"])
+    first = created[0]
+    await db.refresh(first, attribute_names=["category", "bank_account", "to_bank_account"])
 
-    if txn.transaction_type == "expense" and txn.category_id:
-        await _notify_if_budget_just_exceeded(user_id, txn.category_id, txn.amount, txn.transaction_date, db)
+    if first.transaction_type == "expense" and first.category_id:
+        await _notify_if_budget_just_exceeded(
+            user_id, first.category_id, first.amount_brl, first.transaction_date, db
+        )
 
-    return _txn_to_dict(txn)
+    # Digitar uma transação com descrição e categoria é o sinal de treino mais
+    # direto que existe — a próxima vez que a mesma loja aparecer, já vem
+    # categorizada. Só para lançamento manual: import/fatura já carregam sua
+    # própria origem de sugestão e reaprender delas em massa seria ruído.
+    if source == "manual" and first.category_id and first.description:
+        await categorizer.learn_from_correction(user_id, first.description, first.category_id, db)
+        await db.commit()
+
+    return _txn_to_dict(first)
 
 
 async def _get_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> FinancialTransaction:
     result = await db.execute(
         select(FinancialTransaction)
-        .options(selectinload(FinancialTransaction.category))
+        .options(*_txn_relations())
         .where(
             FinancialTransaction.id == txn_id,
             FinancialTransaction.user_id == user_id,
@@ -308,8 +533,12 @@ async def _get_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSessi
 
 async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
     txn = await _get_transaction(txn_id, user_id, db)
+    old_category_id = txn.category_id
     if updates.get("category_id"):
         await _get_category(updates["category_id"], user_id, db)
+    for field in ("bank_account_id", "to_bank_account_id"):
+        if updates.get(field):
+            await _validate_account(updates[field], user_id, db)
     for field, value in updates.items():
         if value is None:
             continue
@@ -320,16 +549,53 @@ async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dic
             txn.is_recurring = True
         else:
             setattr(txn, field, value)
+    # amount_brl é o que toda agregação soma; deixá-lo defasado após uma
+    # edição de valor faria os totais divergirem do extrato em silêncio.
+    txn.amount_brl = txn.amount * (txn.fx_rate or _ONE)
     await db.commit()
-    await db.refresh(txn, attribute_names=["category"])
+    await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
+
+    # Trocar a categoria é uma correção deliberada — o sinal de treino mais
+    # forte que existe, inclusive sobre uma sugestão de IA aceita antes.
+    new_category_id = updates.get("category_id")
+    if new_category_id and new_category_id != old_category_id and txn.description:
+        await categorizer.learn_from_correction(user_id, txn.description, new_category_id, db)
+        await db.commit()
+
     return _txn_to_dict(txn)
 
 
-async def delete_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> None:
-    """Soft-delete (sets deleted_at; recurring template deletion ends the series)."""
+async def delete_transaction(
+    txn_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    scope: str = "one",
+) -> int:
+    """Soft-delete. `scope` só importa para parcelamentos:
+    one = só esta parcela · future = esta e as seguintes · all = a série inteira.
+    Apagar o template de uma recorrência encerra a série, como antes."""
     txn = await _get_transaction(txn_id, user_id, db)
-    txn.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+
+    if scope == "one" or not txn.installment_group_id:
+        txn.deleted_at = now
+        await db.commit()
+        return 1
+
+    query = select(FinancialTransaction).where(
+        FinancialTransaction.user_id == user_id,
+        FinancialTransaction.installment_group_id == txn.installment_group_id,
+        FinancialTransaction.deleted_at.is_(None),
+    )
+    if scope == "future":
+        query = query.where(FinancialTransaction.transaction_date >= txn.transaction_date)
+
+    rows = list((await db.execute(query)).scalars().all())
+    for row in rows:
+        row.deleted_at = now
     await db.commit()
+    return len(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -357,15 +623,15 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
         return f"{dt.year:04d}-{dt.month:02d}"
 
     current = [i for i in items if start <= i["transaction_date"] <= end]
-    income = sum((i["amount"] for i in current if i["transaction_type"] == "income"), _ZERO)
-    expense = sum((i["amount"] for i in current if i["transaction_type"] == "expense"), _ZERO)
+    income = sum((i["amount_brl"] for i in current if i["transaction_type"] == "income"), _ZERO)
+    expense = sum((i["amount_brl"] for i in current if i["transaction_type"] == "expense"), _ZERO)
 
     # previous month for variation
     prev_month_end = start - timedelta(microseconds=1)
     prev_start = prev_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     prev = [i for i in items if prev_start <= i["transaction_date"] <= prev_month_end]
-    prev_income = sum((i["amount"] for i in prev if i["transaction_type"] == "income"), _ZERO)
-    prev_expense = sum((i["amount"] for i in prev if i["transaction_type"] == "expense"), _ZERO)
+    prev_income = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "income"), _ZERO)
+    prev_expense = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "expense"), _ZERO)
 
     def variation(current_val: Decimal, prev_val: Decimal) -> Optional[Decimal]:
         if prev_val == _ZERO:
@@ -385,7 +651,7 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
                 "category_color": item["category_color"],
                 "value": _ZERO,
             }
-        by_cat[key]["value"] += item["amount"]
+        by_cat[key]["value"] += item["amount_brl"]
     by_category = sorted(by_cat.values(), key=lambda c: c["value"], reverse=True)
     for cat in by_category:
         cat["pct"] = cat["value"] / expense if expense > _ZERO else _ZERO
@@ -401,9 +667,9 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
         if bucket is None:
             continue
         if item["transaction_type"] == "income":
-            bucket["income"] += item["amount"]
+            bucket["income"] += item["amount_brl"]
         elif item["transaction_type"] == "expense":
-            bucket["expense"] += item["amount"]
+            bucket["expense"] += item["amount_brl"]
 
     return {
         "month": month,
@@ -422,18 +688,16 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _month_spend_for_category(user_id: uuid.UUID, category_id: uuid.UUID, on_date: datetime, db: AsyncSession) -> Decimal:
+    """Gasto do mês na categoria, em BRL — via `list_transactions` (não SQL
+    puro) para enxergar ocorrências recorrentes virtuais, do mesmo jeito que
+    `get_summary` já faz. Antes disso divergiam: o orçamento não via uma
+    despesa recorrente que ainda não virou linha, e `get_summary` via."""
     start, end = _month_bounds(f"{on_date.year:04d}-{on_date.month:02d}")
-    result = await db.execute(
-        select(sa_func.coalesce(sa_func.sum(FinancialTransaction.amount), _ZERO)).where(
-            FinancialTransaction.user_id == user_id,
-            FinancialTransaction.category_id == category_id,
-            FinancialTransaction.transaction_type == "expense",
-            FinancialTransaction.deleted_at.is_(None),
-            FinancialTransaction.transaction_date >= start,
-            FinancialTransaction.transaction_date <= end,
-        )
+    listing = await list_transactions(
+        user_id, db, date_from=start, date_to=end,
+        category_id=category_id, transaction_type="expense", per_page=100_000,
     )
-    return result.scalar() or _ZERO
+    return sum((item["amount_brl"] for item in listing["items"]), _ZERO)
 
 
 async def _notify_if_budget_just_exceeded(
@@ -468,10 +732,24 @@ async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
         .where(FinanceBudget.user_id == user_id)
         .order_by(FinanceCategory.name)
     )
+    rows = result.all()
     now = datetime.now(timezone.utc)
+    start, end = _month_bounds(f"{now.year:04d}-{now.month:02d}")
+    # Uma única listagem do mês para todos os orçamentos, em vez de uma
+    # query por orçamento — e reaproveita expand_recurring, então enxerga
+    # despesas recorrentes que ainda não viraram linha, como get_summary.
+    listing = await list_transactions(
+        user_id, db, date_from=start, date_to=end, transaction_type="expense", per_page=100_000,
+    )
+    spend_by_category: dict[uuid.UUID, Decimal] = {}
+    for item in listing["items"]:
+        if item["category_id"] is None:
+            continue
+        spend_by_category[item["category_id"]] = spend_by_category.get(item["category_id"], _ZERO) + item["amount_brl"]
+
     budgets = []
-    for budget, category in result.all():
-        spent = await _month_spend_for_category(user_id, category.id, now, db)
+    for budget, category in rows:
+        spent = spend_by_category.get(category.id, _ZERO)
         budgets.append({
             "id": budget.id,
             "category_id": category.id,

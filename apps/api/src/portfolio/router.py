@@ -23,8 +23,6 @@ from src.portfolio.schemas import (
     PortfolioIncomeResponse,
     TransactionCreate,
     TransactionResponse,
-    BankAccountCreate,
-    BankAccountResponse,
     AddPositionRequest,
     PositionResponse,
 )

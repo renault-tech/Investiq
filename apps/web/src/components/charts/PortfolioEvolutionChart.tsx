@@ -9,19 +9,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { PerformancePoint, PerformancePeriod } from "@/lib/portfolio-api";
+import { PerformancePoint } from "@/lib/portfolio-api";
 import { formatBRL, formatBRLCompact } from "./chartTheme";
 
 const VALUE_COLOR = "#2563EB";
 const INVESTED_COLOR = "#64748B"; // slate-500 — referência neutra
-
-export const PERIODS: { value: PerformancePeriod; label: string }[] = [
-  { value: "1m", label: "1m" },
-  { value: "3m", label: "3m" },
-  { value: "6m", label: "6m" },
-  { value: "1y", label: "1a" },
-  { value: "max", label: "máx" },
-];
 
 interface PortfolioEvolutionChartProps {
   data: PerformancePoint[];

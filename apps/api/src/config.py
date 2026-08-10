@@ -52,5 +52,19 @@ class Settings(BaseSettings):
         """
         return bool(os.environ.get("VERCEL")) or self.ENVIRONMENT == "production"
 
+    @property
+    def cookie_samesite(self) -> str:
+        """web (apps/web) and api (apps/api) deploy as two separate Vercel
+        projects on two separate *.vercel.app subdomains — different sites
+        for cookie purposes, even under the same custom domain's apex. A
+        SameSite=Lax refresh_token cookie is dropped by the browser on the
+        cross-site XHR/fetch axios makes to /auth/refresh (Lax only allows
+        cross-site cookies on top-level GET navigation), so every page
+        reload silently fails to restore the session and bounces to
+        /login. SameSite=None (which requires Secure, already true here)
+        fixes it in production; local/Docker dev stays same-site "lax".
+        """
+        return "none" if self.is_https_deploy else "lax"
+
 
 settings = Settings()

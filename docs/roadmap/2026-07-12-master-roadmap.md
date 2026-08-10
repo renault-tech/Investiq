@@ -54,6 +54,7 @@ Plataforma completa de **gestão de investimentos** (carteiras B3/globais, renda
 | **5** | Design system em 100% do app, landing page, settings UI, polish mobile | [`fase-5-design-system-landing-settings.md`](fase-5-design-system-landing-settings.md) | 2 sessões |
 | **6** | Qualidade/infra: testes de integração, vitest, Dockerfiles, CI completo, seed demo | [`fase-6-qualidade-infra.md`](fase-6-qualidade-infra.md) | 2 sessões |
 | **7** | Extras: alertas + notificações, proventos, orçamentos, export CSV | [`fase-7-extras-alto-nivel.md`](fase-7-extras-alto-nivel.md) | 2 sessões |
+| **8** | Finanças avançadas: contas por titular, transferências, parcelamentos, importação OFX/CSV, categorização que aprende, projeção de fluxo de caixa, análises | [`fase-8-financas-avancadas.md`](fase-8-financas-avancadas.md) | 3–4 sessões |
 | **Opcional** | Profit DDE Bridge (cotações em tempo real da B3) — após Fase 2 | [`../specs/2026-07-12-profit-dde-integration.md`](../specs/2026-07-12-profit-dde-integration.md) | 1–2 sessões |
 
 ### Grafo de dependências
@@ -66,7 +67,8 @@ Fase 0 ──► Fase 1 ──► Fase 2 ──► [Profit DDE Bridge — opcion
               │
 Fase 5 ◄──────┘   (depende de 0–2; pode rodar em paralelo a 3/4)
 Fase 6            (após 4; o CI mínimo já vem da Fase 0)
-Fase 7            (última; depende de 1, 3 e 6)
+Fase 7            (depende de 1, 3 e 6)
+Fase 8            (última; depende de 3 e 7 — orçamento)
 ```
 
 Dentro de cada fase, as tarefas numeradas são commits/PRs naturais.

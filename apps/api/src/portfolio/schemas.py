@@ -193,26 +193,5 @@ class PositionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---------------------------------------------------------------------------
-# Bank Account
-# ---------------------------------------------------------------------------
-
-class BankAccountCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    institution: Optional[str] = None
-    account_type: str = Field(default="checking", pattern="^(checking|savings|investment|broker)$")
-    balance: Decimal = Field(default=Decimal("0"), ge=0)
-    currency: str = Field(default="BRL", max_length=10)
-
-
-class BankAccountResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-    institution: Optional[str]
-    account_type: str
-    balance: Decimal
-    currency: str
-    is_active: bool
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
+# Os schemas de conta bancária vivem em src/finance/schemas.py desde a
+# migração 0011 — conta é um conceito de finanças, não de portfólio.

@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from src.cards.models import CreditCard, CardInvoice, InvoiceItem
 from src.cards.parser import parse_invoice_file, InvoiceParseError
 from src.cards.ai_extractor import extract_invoice_items, InvoiceExtractionError
+from src.finance import categorizer
 from src.finance.models import FinanceCategory, FinancialTransaction
 from src.finance.service import ensure_default_categories
 from src.shared.exceptions import NotFoundError, ConflictError, ValidationError
@@ -138,7 +139,15 @@ async def process_invoice_upload(
 
     total = Decimal("0")
     for item in extraction.items:
-        suggested = category_by_name.get((item.suggested_category or "").casefold())
+        # Uma regra aprendida do próprio usuário (ele já categorizou esse
+        # mesmo estabelecimento antes) é um sinal mais forte do que um
+        # palpite fresco da IA — sobrescreve quando existir.
+        learned_id = await categorizer.suggest_category(user_id, item.description, db)
+        if learned_id:
+            suggested_id = learned_id
+        else:
+            suggested = category_by_name.get((item.suggested_category or "").casefold())
+            suggested_id = suggested.id if suggested else None
         db.add(InvoiceItem(
             user_id=user_id,
             invoice_id=invoice.id,
@@ -147,8 +156,8 @@ async def process_invoice_upload(
             purchase_date=item.date,
             installment_no=item.installment_no,
             installment_total=item.installment_total,
-            suggested_category_id=suggested.id if suggested else None,
-            category_id=suggested.id if suggested else None,
+            suggested_category_id=suggested_id,
+            category_id=suggested_id,
         ))
         total += abs(item.amount)
 
@@ -211,6 +220,13 @@ async def update_invoice_item(
         setattr(item, field, value)
     await db.commit()
     await db.refresh(item)
+
+    # Trocar a categoria de um item de fatura à mão é a mesma correção
+    # deliberada que trocar a de uma transação — mesmo motor de aprendizado.
+    if updates.get("category_id") and item.description:
+        await categorizer.learn_from_correction(user_id, item.description, item.category_id, db)
+        await db.commit()
+
     return item
 
 
@@ -233,12 +249,22 @@ async def confirm_invoice(invoice_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSe
             category_id=item.category_id or item.suggested_category_id,
             transaction_type="expense",
             amount=item.amount,
+            # amount_brl é o que toda agregação de finanças soma; a fatura é
+            # sempre em BRL, então a taxa é 1 — mas a coluna precisa vir
+            # preenchida, senão o lançamento nasce fora dos totais.
+            amount_brl=item.amount,
             description=f"[{card.name}] {item.description}"[:255],
             transaction_date=datetime.combine(
                 item.purchase_date or invoice.due_date or invoice.reference_month,
                 time(12, 0),
                 tzinfo=timezone.utc,
             ),
+            # A fatura já traz a parcela que vence neste mês. Os campos são
+            # rótulo — materializar as futuras aqui contaria em dobro quando a
+            # próxima fatura chegasse.
+            installment_no=item.installment_no,
+            installment_total=item.installment_total,
+            source="card_invoice",
             tags=json.dumps(["cartão"]),
         )
         db.add(txn)

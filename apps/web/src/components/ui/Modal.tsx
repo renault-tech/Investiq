@@ -8,10 +8,10 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  maxWidth?: "sm" | "md" | "lg";
+  maxWidth?: "sm" | "md" | "lg" | "xl";
 }
 
-const MAX_WIDTH_CLASSES = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg" };
+const MAX_WIDTH_CLASSES = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-xl" };
 
 /** Overlay + card consolidado — ESC fecha, click fora fecha, scroll interno, foco preso ao título. */
 export function Modal({ title, onClose, children, footer, maxWidth = "md" }: ModalProps) {

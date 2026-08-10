@@ -1,3 +1,17 @@
+import type { PerformancePeriod } from "@/lib/portfolio-api";
+
+// Vive aqui (não em PortfolioEvolutionChart.tsx) de propósito: esse arquivo
+// não importa recharts, então um seletor de período pode importar só a
+// lista de opções sem arrastar o chunk do gráfico junto — o componente em
+// si é carregado sob demanda via next/dynamic.
+export const PERIODS: { value: PerformancePeriod; label: string }[] = [
+  { value: "1m", label: "1m" },
+  { value: "3m", label: "3m" },
+  { value: "6m", label: "6m" },
+  { value: "1y", label: "1a" },
+  { value: "max", label: "máx" },
+];
+
 // Paleta categórica fixa (validada p/ CVD e contraste em light #FFF e dark #0F172A).
 // Ordem fixa — nunca ciclar: a fatia N usa sempre CATEGORICAL[N].
 export const CATEGORICAL = [
@@ -28,11 +42,24 @@ export function assetTypeLabel(type: string): string {
   return ASSET_TYPE_LABELS[type] ?? type;
 }
 
+/** Arredonda para reais inteiros acima de mil — desejável em eixo de gráfico,
+ * onde os centavos são ruído. Para extrato, saldo e qualquer número que o
+ * usuário vá conferir contra o banco, use formatBRLExact. */
 export function formatBRL(value: number): string {
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
     maximumFractionDigits: value >= 1000 ? 0 : 2,
+  });
+}
+
+/** Sempre com centavos. R$ 1.234,50 não pode virar "R$ 1.235" num livro-caixa. */
+export function formatBRLExact(value: number): string {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
