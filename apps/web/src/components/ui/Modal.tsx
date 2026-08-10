@@ -35,7 +35,7 @@ export function Modal({ title, onClose, children, footer, maxWidth = "md" }: Mod
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className={`bg-[var(--surface)] border border-[var(--border)] rounded-lg w-full ${MAX_WIDTH_CLASSES[maxWidth]} max-h-[90vh] overflow-y-auto outline-none`}
+        className={`bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow)] w-full ${MAX_WIDTH_CLASSES[maxWidth]} max-h-[90vh] overflow-y-auto outline-none`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
