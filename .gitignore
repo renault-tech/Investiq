@@ -7,6 +7,7 @@ __pycache__/
 dist/
 .turbo/
 .venv/
+venv/
 *.egg-info/
 
 .env.*
