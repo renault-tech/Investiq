@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Sparkles, Upload, FileText } from "lucide-react";
+import { Sparkles, Upload, FileText } from "lucide-react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useFinance";
 import {
@@ -58,12 +57,6 @@ export function ImportClient() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto w-full space-y-4">
-      <Link
-        href="/finances"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft size={15} /> Finanças
-      </Link>
       <h1 className="text-xl font-semibold text-[var(--text-primary)]">Importar extrato</h1>
       <p className="text-sm text-[var(--text-secondary)]">
         Envie um arquivo OFX ou CSV do seu banco. Lançamentos parecidos com os que já existem vêm

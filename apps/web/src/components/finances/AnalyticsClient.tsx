@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Flame, PiggyBank, Timer } from "lucide-react";
+import { Flame, PiggyBank, Timer } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -44,12 +43,6 @@ export function AnalyticsClient() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto w-full space-y-4">
-      <Link
-        href="/finances"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft size={15} /> Finanças
-      </Link>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Análise financeira</h1>
         <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
