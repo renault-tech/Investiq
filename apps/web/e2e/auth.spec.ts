@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { registerAndLogin, uniqueEmail } from "./helpers";
 
-test("register redirects to /investments and shows the onboarding checklist", async ({ page }) => {
+test("register redirects to /overview and shows the onboarding checklist", async ({ page }) => {
   await registerAndLogin(page, { fullName: "Playwright Test" });
 
   await expect(page.getByRole("heading", { name: "Primeiros passos" })).toBeVisible();
+
+  await page.goto("/investments");
   await expect(page.getByText("Nenhum portfólio encontrado.")).toBeVisible();
 });
 
@@ -16,13 +18,13 @@ test("logging out and back in with the same credentials works", async ({ page })
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Criar conta" }).click();
-  await expect(page).toHaveURL(/\/investments/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/investments/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });
 });
 
 test("wrong password shows an error and stays on the login page", async ({ page }) => {
@@ -31,7 +33,7 @@ test("wrong password shows an error and stays on the login page", async ({ page 
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Senha").fill("SenhaCorreta123!");
   await page.getByRole("button", { name: "Criar conta" }).click();
-  await expect(page).toHaveURL(/\/investments/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);

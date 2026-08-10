@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useTheme } from "next-themes";
-import { Check, KeyRound, Moon, Sun } from "lucide-react";
+import { Check, KeyRound, Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
 import { ApiKeysUpdate } from "@/lib/settings-api";
 import { useUserStore } from "@/store/useUserStore";
+import { useUIStore } from "@/store/useUIStore";
 import { SessionsSection } from "./SessionsSection";
 
 const LLM_OPTIONS = [
@@ -74,6 +75,7 @@ export function SettingsClient() {
   const keysMutation = useUpdateApiKeys();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
+  const { fontScale, setFontScale } = useUIStore();
 
   if (isLoading || !settings) {
     return (
@@ -117,6 +119,28 @@ export function SettingsClient() {
               <Icon size={15} /> {label}
             </button>
           ))}
+        </div>
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[var(--border)]">
+          <span className="text-xs text-[var(--text-secondary)]">Tamanho da fonte</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setFontScale(fontScale - 0.05)}
+              aria-label="Diminuir fonte"
+              className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <span className="text-xs text-[var(--text-muted)] w-10 text-center tabular-nums">
+              {Math.round(fontScale * 100)}%
+            </span>
+            <button
+              onClick={() => setFontScale(fontScale + 0.05)}
+              aria-label="Aumentar fonte"
+              className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              <ZoomIn size={14} />
+            </button>
+          </div>
         </div>
       </Section>
 

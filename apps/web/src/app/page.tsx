@@ -45,7 +45,7 @@ const FEATURES = [
 export default async function Home() {
   const cookieStore = await cookies();
   if (cookieStore.get("refresh_token")) {
-    redirect("/investments");
+    redirect("/overview");
   }
 
   return (

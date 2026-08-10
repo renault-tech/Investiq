@@ -110,7 +110,7 @@ async def forgot_password(
 ):
     raw_token = await service.create_password_reset_token(body.email, db)
     if raw_token:
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+        reset_url = f"{settings.cors_origin}/reset-password?token={raw_token}"
         send_password_reset_email(body.email, reset_url)
     return {"message": "If the email exists, a reset link has been sent"}
 

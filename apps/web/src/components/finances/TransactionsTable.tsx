@@ -17,9 +17,13 @@ interface TransactionsTableProps {
   isLoading: boolean;
   onEdit: (txn: FinanceTransaction) => void;
   onDelete: (txn: FinanceTransaction) => void;
+  /** Drill-down opcional: quando presente, a linha vira clicável (fora dos
+   * botões de ação) e destaca a transação selecionada. */
+  onRowClick?: (txn: FinanceTransaction) => void;
+  selectedId?: string | null;
 }
 
-export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }: TransactionsTableProps) {
+export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, onRowClick, selectedId }: TransactionsTableProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -59,9 +63,10 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
             return (
               <tr
                 key={txn.id}
-                className={`border-b border-[var(--border)] hover:bg-slate-50 dark:hover:bg-slate-900/50 ${
+                onClick={onRowClick ? () => onRowClick(txn) : undefined}
+                className={`border-b border-[var(--border)] hover:bg-[var(--surface-2)] ${
                   txn.is_virtual ? "opacity-60" : ""
-                }`}
+                } ${onRowClick ? "cursor-pointer" : ""} ${selectedId === txn.id ? "bg-[var(--surface-2)]" : ""}`}
               >
                 <td className="px-2 py-2 whitespace-nowrap text-[var(--text-secondary)] font-mono text-xs">
                   {new Date(txn.transaction_date).toLocaleDateString("pt-BR")}
@@ -136,14 +141,14 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete }:
                   {!txn.is_virtual && (
                     <>
                       <button
-                        onClick={() => onEdit(txn)}
+                        onClick={(e) => { e.stopPropagation(); onEdit(txn); }}
                         className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                         aria-label={`Editar ${txn.description ?? "transação"}`}
                       >
                         <Pencil size={14} />
                       </button>
                       <button
-                        onClick={() => onDelete(txn)}
+                        onClick={(e) => { e.stopPropagation(); onDelete(txn); }}
                         className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)]"
                         aria-label={`Excluir ${txn.description ?? "transação"}`}
                       >

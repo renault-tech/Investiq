@@ -44,7 +44,7 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
   };
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] p-5 shadow-[var(--shadow)]">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
           <Wallet size={15} /> Orçamentos

@@ -21,8 +21,9 @@ test("onboarding checklist step flips to done after creating a portfolio", async
   await createPortfolio(page, "Carteira Onboarding");
   await expect(page.getByText("Carteira Onboarding")).toBeVisible({ timeout: 10_000 });
 
-  // "Criar uma carteira" step should now render struck-through (done) rather than as a link
-  await page.reload();
+  // "Criar uma carteira" step should now render struck-through (done) rather
+  // than as a link — the checklist itself only renders on /overview.
+  await page.goto("/overview");
   const doneStep = page.locator("li", { hasText: "Criar uma carteira" });
   await expect(doneStep.locator("span.line-through")).toBeVisible({ timeout: 10_000 });
 });

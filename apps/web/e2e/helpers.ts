@@ -17,7 +17,7 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Criar conta" }).click();
 
-  await expect(page).toHaveURL(/\/investments/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });
   return { email };
 }
 
@@ -29,6 +29,9 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
  * screen (i.e. right up until the mutation resolves).
  */
 export async function createPortfolio(page: Page, name: string): Promise<void> {
+  if (!page.url().includes("/investments")) {
+    await page.goto("/investments");
+  }
   await page.getByRole("button", { name: "+ Portfólio" }).click();
   const dialog = page.getByRole("dialog", { name: "Novo Portfólio" });
   await dialog.getByLabel("Nome *").fill(name);

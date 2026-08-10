@@ -13,7 +13,8 @@ import {
 } from "@/hooks/useCards";
 import { useCategories } from "@/hooks/useFinance";
 import { CardInvoice } from "@/lib/cards-api";
-import { formatBRL } from "@/components/charts/chartTheme";
+import { formatBRL, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CardModal } from "./CardModal";
 import { InvoiceUploadZone } from "./InvoiceUploadZone";
 import { InvoiceReviewTable } from "./InvoiceReviewTable";
@@ -25,9 +26,20 @@ const STATUS_LABEL: Record<CardInvoice["status"], { label: string; className: st
   failed: { label: "falhou", className: "text-[var(--danger)]" },
 };
 
+const CARD_GRADIENTS = [
+  "linear-gradient(140deg,#14161C,#2B303B)",
+  "linear-gradient(140deg,#0E6E53,#37D6A6)",
+  "linear-gradient(140deg,#1D2A6E,#5A6BF0)",
+  "linear-gradient(140deg,#6E1D3A,#D64C7C)",
+];
+
 function monthLabel(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
   return d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+}
+function monthShort(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  return d.toLocaleDateString("pt-BR", { month: "short" });
 }
 
 export function CardsClient() {
@@ -47,14 +59,21 @@ export function CardsClient() {
   const deleteInvoiceMutation = useDeleteInvoice(selectedCardId);
 
   const selectedCard = cards.find((c) => c.id === selectedCardId);
+  const billBars = invoices.slice().sort((a, b) => a.reference_month.localeCompare(b.reference_month)).slice(-8);
+  const billMax = Math.max(1, ...billBars.map((b) => Number(b.total_amount ?? 0)));
+  const topItems = (invoiceDetail?.items ?? [])
+    .slice()
+    .sort((a, b) => Number(b.amount) - Number(a.amount))
+    .slice(0, 5);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full space-y-4">
+    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Cartões</h1>
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">Cartões</h2>
         <button
           onClick={() => setShowCardModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90"
+          className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px]"
+          style={{ background: "var(--accent)", color: "#04120D" }}
         >
           <Plus size={15} /> Novo cartão
         </button>
@@ -62,38 +81,32 @@ export function CardsClient() {
 
       {/* Lista de cartões */}
       {cardsLoading ? (
-        <div className="h-28 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+        <div className="h-[196px] rounded-[22px] bg-[var(--surface-2)] animate-pulse" />
       ) : cards.length === 0 ? (
-        <div className="py-16 text-center text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded-lg">
-          <CreditCardIcon className="mx-auto mb-2" size={28} />
-          <p className="font-medium">Nenhum cartão cadastrado.</p>
-          <p className="text-sm mt-1">Cadastre um cartão para importar faturas com IA.</p>
-        </div>
+        <EmptyState icon={CreditCardIcon} title="Nenhum cartão cadastrado." description="Cadastre um cartão para importar faturas com IA." />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {cards.filter((c) => c.is_active).map((card) => (
+        <div className="flex flex-wrap gap-[18px]">
+          {cards.filter((c) => c.is_active).map((card, i) => (
             <button
               key={card.id}
               onClick={() => { setActiveCardId(card.id); setActiveInvoiceId(null); }}
-              className={`text-left rounded-lg border p-4 transition-colors ${
-                card.id === selectedCardId
-                  ? "border-[var(--navy)] bg-[var(--surface)] ring-1 ring-[var(--navy)]"
-                  : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong,var(--border))]"
-              }`}
+              style={{
+                background: CARD_GRADIENTS[i % CARD_GRADIENTS.length],
+                outline: card.id === selectedCardId ? "2px solid var(--accent)" : "none",
+                outlineOffset: "2px",
+              }}
+              className="text-left w-[320px] h-[196px] rounded-[22px] p-[22px] flex flex-col justify-between shadow-[var(--shadow)] transition-[outline] animate-rise-up"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm text-[var(--text-primary)]">{card.name}</span>
-                <span className="text-xs uppercase text-[var(--text-muted)]">{card.brand ?? ""}</span>
+              <div className="flex justify-between items-start">
+                <span className="text-[13px] font-semibold text-[#F2F4F7]">{card.name}</span>
+                <div className="w-[34px] h-[24px] rounded-[6px]" style={{ background: "linear-gradient(135deg,#D7C089,#9E874A)" }} />
               </div>
-              <p className="font-mono text-sm text-[var(--text-secondary)] mt-2">
-                •••• {card.last4 ?? "????"}
-              </p>
-              <div className="flex justify-between mt-2 text-xs text-[var(--text-muted)]">
-                <span>{card.credit_limit ? `Limite ${formatBRL(Number(card.credit_limit))}` : ""}</span>
-                <span>
-                  {card.closing_day ? `fecha dia ${card.closing_day}` : ""}
-                  {card.due_day ? ` · vence dia ${card.due_day}` : ""}
-                </span>
+              <div>
+                <div className="text-base tracking-[.14em] tabular-nums text-[#F2F4F7]">•••• •••• •••• {card.last4 ?? "----"}</div>
+                <div className="flex justify-between mt-3 text-[11.5px] text-[#F2F4F7] opacity-70">
+                  <span>{card.credit_limit ? `Limite ${formatBRL(Number(card.credit_limit))}` : (card.brand ?? "")}</span>
+                  <span>{card.due_day ? `vence dia ${card.due_day}` : ""}</span>
+                </div>
               </div>
             </button>
           ))}
@@ -102,6 +115,57 @@ export function CardsClient() {
 
       {selectedCard && (
         <>
+          <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+            <section className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Evolução da fatura</div>
+                <div className="text-[11.5px] text-[var(--text-secondary)]">{selectedCard.name}</div>
+              </div>
+              {billBars.length === 0 ? (
+                <EmptyState icon={Upload} title="Sem faturas ainda" description="Envie um PDF ou CSV abaixo." />
+              ) : (
+                <div className="flex items-end gap-3.5 h-[170px] mt-5.5">
+                  {billBars.map((b, i) => (
+                    <div key={b.id} className="flex-1 flex flex-col items-center gap-2">
+                      <div className="w-full h-[140px] flex items-end">
+                        <div
+                          className="w-full rounded-t-[8px] rounded-b-[4px] animate-grow-y"
+                          style={{
+                            height: `${(Number(b.total_amount ?? 0) / billMax) * 100}%`,
+                            background: i === billBars.length - 1 ? "var(--accent)" : "var(--surface-3)",
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-[var(--text-muted)]">{monthShort(b.reference_month)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="col-span-5 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
+              <div className="text-sm font-semibold text-[var(--text-primary)] mb-3.5">Maiores gastos do ciclo</div>
+              {topItems.length === 0 ? (
+                <p className="text-[12.5px] text-[var(--text-muted)]">Confirme uma fatura pra ver os maiores gastos aqui.</p>
+              ) : (
+                topItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 py-[11px] border-b border-[var(--border)]">
+                    <div className="w-8 h-8 rounded-[11px] bg-[var(--surface-3)] flex items-center justify-center text-xs font-semibold text-[var(--text-secondary)]">
+                      {item.description.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{item.description}</div>
+                      {item.installment_total && item.installment_total > 1 && (
+                        <div className="text-[11px] text-[var(--text-muted)]">{item.installment_no}/{item.installment_total}</div>
+                      )}
+                    </div>
+                    <b className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{formatBRLCompact(Number(item.amount))}</b>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+
           {/* Upload */}
           <InvoiceUploadZone
             onUpload={(file, referenceMonth) =>
@@ -111,8 +175,8 @@ export function CardsClient() {
           />
 
           {/* Faturas */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg">
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] shadow-[var(--shadow)]">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--border)]">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 Faturas — {selectedCard.name}
               </h3>
@@ -140,9 +204,8 @@ export function CardsClient() {
                   <li key={invoice.id}>
                     <button
                       onClick={() => setActiveInvoiceId(invoice.id === activeInvoiceId ? null : invoice.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-900/50 ${
-                        invoice.id === activeInvoiceId ? "bg-slate-50 dark:bg-slate-900/50" : ""
-                      }`}
+                      className="w-full flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-[var(--surface-2)]"
+                      style={{ background: invoice.id === activeInvoiceId ? "var(--surface-2)" : "transparent" }}
                     >
                       <span className="capitalize text-[var(--text-primary)] font-medium">
                         {monthLabel(invoice.reference_month)}
@@ -153,8 +216,8 @@ export function CardsClient() {
                       {invoice.error_message && (
                         <span className="text-xs text-[var(--text-muted)] truncate">{invoice.error_message}</span>
                       )}
-                      <span className="ml-auto font-mono text-[var(--text-secondary)]">
-                        {invoice.total_amount != null ? formatBRL(Number(invoice.total_amount)) : "—"}
+                      <span className="ml-auto tabular-nums text-[var(--text-secondary)]">
+                        {invoice.total_amount != null ? formatBRLExact(Number(invoice.total_amount)) : "—"}
                       </span>
                     </button>
                   </li>

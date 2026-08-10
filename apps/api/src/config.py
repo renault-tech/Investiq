@@ -66,5 +66,15 @@ class Settings(BaseSettings):
         """
         return "none" if self.is_https_deploy else "lax"
 
+    @property
+    def cors_origin(self) -> str:
+        """Trailing slash/whitespace in the Vercel env var UI silently
+        mismatches the browser's Origin header (which never has a trailing
+        slash), making CORSMiddleware reject every request with no
+        Access-Control-Allow-Origin header — indistinguishable from a
+        network failure in the browser console.
+        """
+        return self.FRONTEND_URL.strip().rstrip("/")
+
 
 settings = Settings()
