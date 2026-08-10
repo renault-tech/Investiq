@@ -8,7 +8,13 @@ from .conftest import register_and_login
 
 def _iso(days_from_now: int = 0) -> str:
     """Data ao meio-dia UTC, deslocada em dias — meio-dia evita que fuso
-    horário empurre o lançamento para o dia (ou mês) vizinho."""
+    horário empurre o lançamento para o dia (ou mês) vizinho. Para "agora"
+    (days_from_now=0), usa o instante real em vez de meio-dia fixo: fixar
+    meio-dia cairia no futuro em relação ao NOW() do banco quando o teste
+    roda de madrugada em UTC, e o saldo é derivado com
+    `transaction_date <= NOW()` — a transação ficaria de fora da soma."""
+    if days_from_now == 0:
+        return datetime.now(timezone.utc).isoformat()
     moment = datetime.now(timezone.utc) + timedelta(days=days_from_now)
     return moment.replace(hour=12, minute=0, second=0, microsecond=0).isoformat()
 

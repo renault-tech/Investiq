@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -14,6 +14,7 @@ from src.finance import service
 from src.finance import import_service
 from src.finance import forecast
 from src.finance import analytics
+from src.finance.ofx_export import build_ofx_export
 from src.ai.factory import get_llm_provider
 from src.ai.base import LLMProviderError
 from src.settings import service as settings_service
@@ -21,6 +22,14 @@ from src.settings.service import get_decrypted_api_keys
 from src.shared.csv_export import build_csv_response
 from src.shared.exceptions import ValidationError
 from src.shared.limiter import limiter
+
+_SOURCE_LABELS = {
+    "manual": "Manual",
+    "import_ofx": "OFX",
+    "import_csv": "CSV",
+    "card_invoice": "Fatura",
+    "installment": "Parcelamento",
+}
 from src.finance.schemas import (
     CategoryCreate,
     CategoryUpdate,
@@ -150,11 +159,41 @@ async def export_transactions(
             item["description"] or "",
             item["category_name"] or "",
             item["amount"],
+            item["currency"],
+            item["bank_account_name"] or "",
+            _SOURCE_LABELS.get(item["source"], item["source"]),
+            f"{item['installment_no']}/{item['installment_total']}" if item["installment_total"] else "",
         ]
         for item in listing["items"]
     ]
     return build_csv_response(
-        "transacoes.csv", ["Data", "Tipo", "Descrição", "Categoria", "Valor"], rows
+        "transacoes.csv",
+        ["Data", "Tipo", "Descrição", "Categoria", "Valor", "Moeda", "Conta", "Origem", "Parcela"],
+        rows,
+    )
+
+
+@router.get("/transactions/export.ofx")
+async def export_transactions_ofx(
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    category_id: Optional[uuid.UUID] = None,
+    transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Exportação OFX 2.x — sem dependência nova, é só XML montado pela stdlib."""
+    listing = await service.list_transactions(
+        current_user.id, db,
+        date_from=date_from, date_to=date_to,
+        category_id=category_id, transaction_type=transaction_type,
+        per_page=100_000,
+    )
+    content = build_ofx_export(listing["items"])
+    return Response(
+        content=content,
+        media_type="application/x-ofx",
+        headers={"Content-Disposition": 'attachment; filename="transacoes.ofx"'},
     )
 
 

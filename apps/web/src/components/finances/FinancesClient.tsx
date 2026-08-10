@@ -91,15 +91,15 @@ export function FinancesClient() {
     }
   };
 
-  const handleExport = async () => {
-    const res = await apiClient.get("/finance/transactions/export", {
+  const handleExport = async (format: "csv" | "ofx") => {
+    const res = await apiClient.get(`/finance/transactions/export${format === "ofx" ? ".ofx" : ""}`, {
       params: { date_from: bounds.from, date_to: bounds.to },
       responseType: "blob",
     });
     const url = window.URL.createObjectURL(res.data as Blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `transacoes-${month}.csv`;
+    link.download = `transacoes-${month}.${format}`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -244,10 +244,16 @@ export function FinancesClient() {
             aria-label="Buscar por descrição"
           />
           <button
-            onClick={handleExport}
+            onClick={() => handleExport("csv")}
             className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
           >
             <Download size={13} /> Exportar CSV
+          </button>
+          <button
+            onClick={() => handleExport("ofx")}
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+          >
+            <Download size={13} /> Exportar OFX
           </button>
         </div>
 

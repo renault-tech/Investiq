@@ -1,4 +1,3 @@
-import os
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
@@ -25,16 +24,16 @@ from src.notifications.router import router as notifications_router
 from src.onboarding.router import router as onboarding_router
 from src.workers.router import router as workers_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
+from src.cards.router import router as cards_router
+from src.reports.router import router as reports_router
 
-# cards (invoice PDF/AI parsing) and reports (PDF export) pull in pdfplumber
-# + fpdf2, whose fontTools/pypdfium2 chain alone is ~45MB and pushes the
-# Vercel serverless function past its 225MB bundle cap. Skip them on Vercel
-# (requirements.txt omits pdfplumber/fpdf2 accordingly); both stay fully
-# available in Docker/local, which installs from pyproject.toml instead.
-IS_VERCEL = bool(os.environ.get("VERCEL"))
-if not IS_VERCEL:
-    from src.cards.router import router as cards_router
-    from src.reports.router import router as reports_router
+# cards only needs pdfplumber for PDF invoice upload specifically, and that
+# import is lazy (src/cards/parser.py::_parse_pdf) — the router itself and
+# CSV invoice upload work fine without it. requirements.txt deliberately
+# omits pdfplumber (its fontTools/pypdfium2 chain is ~45MB, not worth paying
+# for every deploy just for PDF parsing); PDF upload fails with a clear
+# message on Vercel instead of the whole module disappearing. fpdf2 (reports)
+# is pure Python and small, so it ships unconditionally.
 
 
 @asynccontextmanager
@@ -74,9 +73,8 @@ app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(onboarding_router, prefix="/api/v1")
 app.include_router(workers_router, prefix="/api/v1")
-if not IS_VERCEL:
-    app.include_router(cards_router, prefix="/api/v1")
-    app.include_router(reports_router, prefix="/api/v1")
+app.include_router(cards_router, prefix="/api/v1")
+app.include_router(reports_router, prefix="/api/v1")
 
 
 @app.get("/health")
