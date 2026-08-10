@@ -7,7 +7,7 @@ test("register redirects to /overview and shows the onboarding checklist", async
   await expect(page.getByRole("heading", { name: "Primeiros passos" })).toBeVisible();
 
   await page.goto("/investments");
-  await expect(page.getByText("Nenhum portfólio encontrado.")).toBeVisible();
+  await expect(page.getByText("Nenhuma carteira encontrada.")).toBeVisible();
 });
 
 test("logging out and back in with the same credentials works", async ({ page }) => {
