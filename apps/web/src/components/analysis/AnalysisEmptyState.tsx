@@ -17,7 +17,7 @@ export function AnalysisEmptyState({ onAnalyze, disabled }: AnalysisEmptyStatePr
         Nenhuma análise disponível
       </h3>
       <p className="text-sm text-[var(--text-secondary)] max-w-sm mb-6">
-        Selecione um portfólio e clique abaixo para gerar uma análise aprofundada baseada em IA sobre seus investimentos.
+        Selecione uma carteira e clique abaixo para gerar uma análise aprofundada baseada em IA sobre seus investimentos.
       </p>
       {onAnalyze && (
         <button

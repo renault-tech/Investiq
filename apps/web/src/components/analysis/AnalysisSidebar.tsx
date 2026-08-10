@@ -26,7 +26,7 @@ export function AnalysisSidebar({ portfolioId, activeAnalysisId, onSelect }: Ana
     return (
       <div className="w-64 flex-shrink-0 border-r border-[var(--border)] bg-[var(--surface)] p-4 flex flex-col hidden md:flex">
         <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Histórico</h3>
-        <p className="text-xs text-[var(--text-muted)]">Selecione um portfólio primeiro.</p>
+        <p className="text-xs text-[var(--text-muted)]">Selecione uma carteira primeiro.</p>
       </div>
     );
   }

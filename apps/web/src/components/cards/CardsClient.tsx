@@ -15,6 +15,7 @@ import { useCategories } from "@/hooks/useFinance";
 import { CardInvoice } from "@/lib/cards-api";
 import { formatBRL, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useMask } from "@/hooks/useMask";
 import { CardModal } from "./CardModal";
 import { InvoiceUploadZone } from "./InvoiceUploadZone";
 import { InvoiceReviewTable } from "./InvoiceReviewTable";
@@ -46,6 +47,7 @@ export function CardsClient() {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
+  const mask = useMask();
 
   const { data: cards = [], isLoading: cardsLoading } = useCards();
   const selectedCardId = activeCardId ?? cards[0]?.id ?? null;
@@ -104,7 +106,7 @@ export function CardsClient() {
               <div>
                 <div className="text-base tracking-[.14em] tabular-nums text-[#F2F4F7]">•••• •••• •••• {card.last4 ?? "----"}</div>
                 <div className="flex justify-between mt-3 text-[11.5px] text-[#F2F4F7] opacity-70">
-                  <span>{card.credit_limit ? `Limite ${formatBRL(Number(card.credit_limit))}` : (card.brand ?? "")}</span>
+                  <span>{card.credit_limit ? mask(`Limite ${formatBRL(Number(card.credit_limit))}`) : (card.brand ?? "")}</span>
                   <span>{card.due_day ? `vence dia ${card.due_day}` : ""}</span>
                 </div>
               </div>
@@ -159,7 +161,7 @@ export function CardsClient() {
                         <div className="text-[11px] text-[var(--text-muted)]">{item.installment_no}/{item.installment_total}</div>
                       )}
                     </div>
-                    <b className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{formatBRLCompact(Number(item.amount))}</b>
+                    <b className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(Number(item.amount)))}</b>
                   </div>
                 ))
               )}
@@ -217,7 +219,7 @@ export function CardsClient() {
                         <span className="text-xs text-[var(--text-muted)] truncate">{invoice.error_message}</span>
                       )}
                       <span className="ml-auto tabular-nums text-[var(--text-secondary)]">
-                        {invoice.total_amount != null ? formatBRLExact(Number(invoice.total_amount)) : "—"}
+                        {invoice.total_amount != null ? mask(formatBRLExact(Number(invoice.total_amount))) : "—"}
                       </span>
                     </button>
                   </li>

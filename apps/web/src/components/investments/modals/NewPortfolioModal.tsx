@@ -24,15 +24,15 @@ export function NewPortfolioModal({ onClose }: NewPortfolioModalProps) {
     mutationFn: () => createPortfolio({ name, description: description || undefined, currency }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      toast.success("Portfólio criado!");
+      toast.success("Carteira criada!");
       onClose();
     },
-    onError: () => toast.error("Erro ao criar portfólio"),
+    onError: () => toast.error("Erro ao criar carteira"),
   });
 
   return (
     <Modal
-      title="Novo Portfólio"
+      title="Nova carteira"
       onClose={onClose}
       footer={
         <>
@@ -45,7 +45,7 @@ export function NewPortfolioModal({ onClose }: NewPortfolioModalProps) {
             disabled={!name.trim() || mutation.isPending}
             loading={mutation.isPending}
           >
-            {mutation.isPending ? "Criando..." : "Criar Portfólio"}
+            {mutation.isPending ? "Criando..." : "Criar carteira"}
           </Button>
         </>
       }

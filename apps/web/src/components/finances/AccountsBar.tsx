@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Landmark, Pencil, Plus, Wallet } from "lucide-react";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useMask } from "@/hooks/useMask";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -20,6 +21,7 @@ interface Props {
 
 export function AccountsBar({ holder, onHolderChange }: Props) {
   const { data: accounts = [], isLoading, isError, refetch } = useAccounts();
+  const mask = useMask();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Account | undefined>(undefined);
 
@@ -64,7 +66,7 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
             <span className="text-xs text-[var(--text-muted)]">
               Total{" "}
               <span className="font-mono font-medium text-[var(--text-primary)]">
-                {formatBRLExact(total)}
+                {mask(formatBRLExact(total))}
               </span>
             </span>
           )}
@@ -124,7 +126,7 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
                     balance < 0 ? "text-[var(--danger)]" : "text-[var(--text-primary)]"
                   }`}
                 >
-                  {formatBRLExact(balance)}
+                  {mask(formatBRLExact(balance))}
                 </p>
                 {!account.include_in_total && (
                   <p className="text-[10px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1">

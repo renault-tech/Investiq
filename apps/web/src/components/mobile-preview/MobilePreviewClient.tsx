@@ -86,7 +86,7 @@ export function MobilePreviewClient() {
             <div className="text-[11px] text-[var(--text-secondary)]">Total investido</div>
             <div className="text-2xl font-semibold tracking-[-.04em] mt-1 text-[var(--text-primary)]">{formatBRLCompact(invested)}</div>
             <div className="text-xs mt-1" style={{ color: (summary?.total_pnl_percent ?? 0) >= 0 ? "var(--accent)" : "var(--danger)" }}>
-              {(summary?.total_pnl_percent ?? 0) >= 0 ? "+" : ""}{(summary?.total_pnl_percent ?? 0).toFixed(1)}%
+              {Number(summary?.total_pnl_percent ?? 0) >= 0 ? "+" : ""}{Number(summary?.total_pnl_percent ?? 0).toFixed(1)}%
             </div>
           </div>
           <div className="text-xs text-[var(--text-secondary)] my-4.5">Posições</div>
@@ -105,7 +105,7 @@ export function MobilePreviewClient() {
                 <div className="text-right">
                   <div className="text-xs font-semibold text-[var(--text-primary)]">{formatBRLCompact(p.current_price ?? 0)}</div>
                   <div className="text-[10.5px]" style={{ color: p.pnl_percent >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                    {p.pnl_percent >= 0 ? "+" : ""}{p.pnl_percent.toFixed(1)}%
+                    {Number(p.pnl_percent) >= 0 ? "+" : ""}{Number(p.pnl_percent).toFixed(1)}%
                   </div>
                 </div>
               </div>

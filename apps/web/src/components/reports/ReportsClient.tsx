@@ -8,6 +8,7 @@ import { usePortfolioIncome } from "@/hooks/usePortfolioIncome";
 import { useFinanceSummary } from "@/hooks/useFinance";
 import { apiClient } from "@/lib/api-client";
 import { formatBRLCompact } from "@/components/charts/chartTheme";
+import { useMask } from "@/hooks/useMask";
 
 function currentMonth(): string {
   const d = new Date();
@@ -29,6 +30,7 @@ async function downloadBlob(url: string, filename: string, params?: Record<strin
 }
 
 export function ReportsClient() {
+  const mask = useMask();
   const month = currentMonth();
   const year = new Date().getFullYear();
 
@@ -47,11 +49,22 @@ export function ReportsClient() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
+  // Decimal do backend chega como string no JSON — sem Number(), .toFixed
+  // estoura e derruba a página inteira.
+  const pnlPercent = Number(summary?.total_pnl_percent ?? 0);
+  const investedTotal = Number(summary?.total_invested_brl ?? 0);
+  const financeNet = Number(finSummary?.net ?? 0);
+  const incomeTotal = Number(income?.total ?? 0);
+
   const metrics = [
-    { label: "Variação patrimonial", value: `${(summary?.total_pnl_percent ?? 0) >= 0 ? "+" : ""}${(summary?.total_pnl_percent ?? 0).toFixed(1)}%`, color: (summary?.total_pnl_percent ?? 0) >= 0 ? "var(--accent)" : "var(--danger)" },
-    { label: "Total investido", value: formatBRLCompact(summary?.total_invested_brl ?? 0), color: "var(--text-primary)" },
-    { label: "Sobra do mês", value: formatBRLCompact(finSummary?.net ?? 0), color: "var(--text-primary)" },
-    { label: `Proventos em ${year}`, value: formatBRLCompact(income?.total ?? 0), color: "var(--accent)" },
+    {
+      label: "Variação patrimonial",
+      value: `${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(1)}%`,
+      color: pnlPercent >= 0 ? "var(--accent)" : "var(--danger)",
+    },
+    { label: "Total investido", value: mask(formatBRLCompact(investedTotal)), color: "var(--text-primary)" },
+    { label: "Sobra do mês", value: mask(formatBRLCompact(financeNet)), color: "var(--text-primary)" },
+    { label: `Proventos em ${year}`, value: mask(formatBRLCompact(incomeTotal)), color: "var(--accent)" },
   ];
 
   return (

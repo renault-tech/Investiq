@@ -15,6 +15,7 @@ import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { PERIODS, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { useMask } from "@/hooks/useMask";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -62,6 +63,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
   const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
   const [activeTab, setActiveTab] = useState<"positions" | "income">("positions");
+  const mask = useMask();
 
   const { data: portfolios = initialPortfolios } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
@@ -108,15 +110,20 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       {/* Ações */}
       <div className="flex items-center justify-between px-[30px] pt-[22px]">
         {portfolios.length > 0 ? (
-          <PortfolioTabs
-            portfolios={portfolios}
-            activeId={activePortfolioId}
-            onChange={setActivePortfolioId}
-          />
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-[11px] text-[var(--text-muted)] tracking-[.1em] uppercase flex-shrink-0">
+              Carteiras
+            </span>
+            <PortfolioTabs
+              portfolios={portfolios}
+              activeId={activePortfolioId}
+              onChange={setActivePortfolioId}
+            />
+          </div>
         ) : <div />}
         <div className="flex gap-2">
           <Button size="sm" onClick={() => setShowNewPortfolio(true)}>
-            + Portfólio
+            + Nova carteira
           </Button>
           <Button
             size="sm"
@@ -146,9 +153,9 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
         <div className="flex-1 flex items-center justify-center">
           <EmptyState
             icon={LayoutDashboard}
-            title="Nenhum portfólio encontrado."
-            description="Crie seu primeiro portfólio para começar a acompanhar seus investimentos."
-            action={<Button onClick={() => setShowNewPortfolio(true)}>Criar Portfólio</Button>}
+            title="Nenhuma carteira encontrada."
+            description="Crie sua primeira carteira para começar a acompanhar seus investimentos."
+            action={<Button onClick={() => setShowNewPortfolio(true)}>Criar carteira</Button>}
           />
         </div>
       )}
@@ -158,7 +165,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
       {portfolios.length > 0 && isSummaryError && !isSummaryLoading && (
         <div className="flex-1 flex items-center justify-center">
           <ErrorState
-            title="Não foi possível carregar o portfólio."
+            title="Não foi possível carregar a carteira."
             onRetry={refetchSummary}
           />
         </div>
@@ -181,11 +188,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <div>
                   <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Carteira total</div>
                   <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
-                    {formatBRLExact(marketValue)}
+                    {mask(formatBRLExact(marketValue))}
                   </div>
                   <div className="flex items-center gap-2.5 mt-2 text-[13px]">
                     <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {pnlAbsolute >= 0 ? "+" : ""}{formatBRLCompact(pnlAbsolute)}
+                      {mask(`${pnlAbsolute >= 0 ? "+" : ""}${formatBRLCompact(pnlAbsolute)}`)}
                     </span>
                     <span className="text-[var(--text-muted)]">·</span>
                     <span className="text-[var(--text-secondary)]">
@@ -196,12 +203,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <div className="flex gap-6">
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Total investido</div>
-                    <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{formatBRLCompact(investedValue)}</div>
+                    <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{mask(formatBRLCompact(investedValue))}</div>
                   </div>
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Resultado</div>
                     <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {formatBRLCompact(pnlAbsolute)}
+                      {mask(formatBRLCompact(pnlAbsolute))}
                     </div>
                   </div>
                 </div>

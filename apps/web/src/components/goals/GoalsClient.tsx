@@ -10,6 +10,7 @@ import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useMask } from "@/hooks/useMask";
 
 function currentMonth(): string {
   const d = new Date();
@@ -39,6 +40,7 @@ function paceStatus(goal: Goal): { label: string; color: string } | null {
 
 function GoalCard({ goal, index }: { goal: Goal; index: number }) {
   const [contribution, setContribution] = useState("");
+  const mask = useMask();
   const contributeMutation = useContributeToGoal();
   const deleteMutation = useDeleteGoal();
   const pct = Math.min(Number(goal.pct_complete), 1);
@@ -76,11 +78,11 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
       <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
         <div>
           <div className="text-[var(--text-secondary)]">Acumulado</div>
-          <b className="font-semibold text-[var(--text-primary)]">{formatBRLCompact(Number(goal.current_amount))}</b>
+          <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(Number(goal.current_amount)))}</b>
         </div>
         <div className="text-right">
           <div className="text-[var(--text-secondary)]">Objetivo</div>
-          <b className="font-semibold text-[var(--text-primary)]">{formatBRLCompact(Number(goal.target_amount))}</b>
+          <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(Number(goal.target_amount)))}</b>
         </div>
       </div>
       {status && <div className="mt-3 text-[11.5px]" style={{ color: status.color }}>{status.label}</div>}
@@ -118,6 +120,7 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
 }
 
 export function GoalsClient() {
+  const mask = useMask();
   const { data: goals = [], isLoading } = useGoals();
   const { data: summary } = useFinanceSummary(currentMonth());
   const createMutation = useCreateGoal();
@@ -181,7 +184,7 @@ export function GoalsClient() {
             <section className="mt-[18px] border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".2s" }}>
               <div className="text-sm font-semibold text-[var(--text-primary)]">Plano de aportes sugerido</div>
               <div className="text-[12.5px] text-[var(--text-secondary)] mt-1">
-                Distribuição automática da sobra mensal de {formatBRLExact(surplus)}, proporcional ao quanto falta em cada meta
+                Distribuição automática da sobra mensal de {mask(formatBRLExact(surplus))}, proporcional ao quanto falta em cada meta
               </div>
               <div className="flex h-4 rounded-lg overflow-hidden mt-5 gap-[3px]">
                 {plan.map((p) => (
@@ -192,7 +195,7 @@ export function GoalsClient() {
                 {plan.map((p) => (
                   <span key={p.goal.id} className="flex items-center gap-1.5">
                     <i className="w-2 h-2 rounded-[3px] block" style={{ background: p.color }} />
-                    <span className="text-[var(--text-secondary)]">{p.goal.name}</span> · {formatBRLExact(p.amount)}
+                    <span className="text-[var(--text-secondary)]">{p.goal.name}</span> · {mask(formatBRLExact(p.amount))}
                   </span>
                 ))}
               </div>
