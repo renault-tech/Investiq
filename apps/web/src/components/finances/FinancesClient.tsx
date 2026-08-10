@@ -1,20 +1,30 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
 import { ChartCard } from "@/components/charts/ChartCard";
+import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SummaryCards } from "./SummaryCards";
-import { ExpensesByCategoryDonut, MonthlyFlowChart } from "./FinanceCharts";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
 import { GoalsSection } from "./GoalsSection";
+
+const ExpensesByCategoryDonut = dynamic(
+  () => import("./FinanceCharts").then((m) => m.ExpensesByCategoryDonut),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
+const MonthlyFlowChart = dynamic(
+  () => import("./FinanceCharts").then((m) => m.MonthlyFlowChart),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;

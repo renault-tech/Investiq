@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { AlertTriangle } from "lucide-react";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -8,7 +9,11 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Select } from "@/components/ui/Input";
-import { ForecastChart } from "./ForecastChart";
+
+const ForecastChart = dynamic(
+  () => import("./ForecastChart").then((m) => m.ForecastChart),
+  { ssr: false, loading: () => <Skeleton className="absolute inset-0 h-full" /> }
+);
 
 const HORIZONS = [3, 6, 12] as const;
 

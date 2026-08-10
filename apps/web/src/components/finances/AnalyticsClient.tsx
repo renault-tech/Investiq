@@ -1,14 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Flame, PiggyBank, Timer } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatBRLExact, formatPct } from "@/components/charts/chartTheme";
-import { SavingsRateChart } from "./SavingsRateChart";
+import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { CategoryTrendList } from "./CategoryTrendList";
 import { CategoryMatrix } from "./CategoryMatrix";
+
+const SavingsRateChart = dynamic(
+  () => import("./SavingsRateChart").then((m) => m.SavingsRateChart),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
 
 const HORIZONS = [3, 6, 12] as const;
 
