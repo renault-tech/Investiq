@@ -46,7 +46,7 @@ async def get_analytics(user_id: uuid.UUID, db: AsyncSession, *, months: int = 6
 
     for item in items:
         month = _month_key(item["transaction_date"])
-        amount = Decimal(str(item["amount"]))
+        amount = Decimal(str(item["amount_brl"]))
         bucket = totals_by_month.setdefault(month, {"income": _ZERO, "expense": _ZERO})
         bucket[item["transaction_type"]] += amount
 

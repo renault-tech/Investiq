@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from dateutil.relativedelta import relativedelta
 
 from .conftest import register_and_login
 
@@ -122,6 +123,36 @@ async def test_budget_upsert_and_spend_tracking(client):
     budgets_after = (await client.get("/finance/budgets", headers=headers)).json()
     assert len([b for b in budgets_after if b["category_id"] == category_id]) == 1
     assert next(b for b in budgets_after if b["category_id"] == category_id)["amount"] == "1000.00000000"
+
+
+@pytest.mark.asyncio
+async def test_budget_spend_counts_virtual_recurring_occurrences(client):
+    """_month_spend_for_category enxerga recorrência ainda não materializada
+    neste mês, do mesmo jeito que get_summary já enxergava — antes divergiam
+    porque o orçamento somava só linhas reais via SQL puro."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+    category_id = await _first_expense_category(client, headers)
+
+    await client.put("/finance/budgets", json={"category_id": category_id, "amount": 500}, headers=headers)
+
+    template_date = (
+        (datetime.now(timezone.utc) - relativedelta(months=2))
+        .replace(day=5, hour=12, minute=0, second=0, microsecond=0)
+        .isoformat()
+    )
+    await client.post(
+        "/finance/transactions",
+        json={
+            "transaction_type": "expense", "amount": 150, "category_id": category_id,
+            "transaction_date": template_date, "recurrence_rule": "FREQ=MONTHLY",
+        },
+        headers=headers,
+    )
+
+    budgets = (await client.get("/finance/budgets", headers=headers)).json()
+    budget = next(b for b in budgets if b["category_id"] == category_id)
+    assert budget["spent"] == "150.00000000"
 
 
 @pytest.mark.asyncio

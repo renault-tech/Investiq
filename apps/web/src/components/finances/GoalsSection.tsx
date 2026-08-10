@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Plus, Trash2, Target, CheckCircle2 } from "lucide-react";
 import { useGoals, useCreateGoal, useDeleteGoal, useContributeToGoal } from "@/hooks/useGoals";
 import { Goal } from "@/lib/goals-api";
-import { formatBRL } from "@/components/charts/chartTheme";
+import { formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -38,7 +40,7 @@ function GoalRow({ goal }: { goal: Goal }) {
           {targetDate && <span className="text-[var(--text-muted)] font-normal">até {targetDate}</span>}
         </span>
         <span className="flex items-center gap-2 font-mono text-[var(--text-secondary)]">
-          {formatBRL(Number(goal.current_amount))} / {formatBRL(Number(goal.target_amount))}
+          {formatBRLExact(Number(goal.current_amount))} / {formatBRLExact(Number(goal.target_amount))}
           <button
             onClick={() => deleteMutation.mutate(goal.id)}
             className="text-[var(--text-muted)] hover:text-[var(--danger)]"
@@ -117,43 +119,30 @@ export function GoalsSection() {
 
       {showForm && (
         <form onSubmit={handleCreate} className="flex items-end gap-2 mb-4 pb-4 border-b border-[var(--border)] flex-wrap">
-          <div className="flex-1 min-w-[140px]">
-            <label className="block text-[10px] text-[var(--text-muted)] mb-1">Nome</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Viagem, Reserva de emergência"
-              className="w-full px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)]"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-[var(--text-muted)] mb-1">Valor alvo (R$)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              placeholder="0,00"
-              className="w-28 px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)] font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] text-[var(--text-muted)] mb-1">Data alvo (opcional)</label>
-            <input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              className="px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)]"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={createMutation.isPending}
-            className="px-3 py-1.5 text-xs bg-[var(--navy)] text-white rounded-md hover:opacity-90 disabled:opacity-50"
-          >
+          <Input
+            label="Nome"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Viagem, Reserva de emergência"
+            className="flex-1 min-w-[140px]"
+          />
+          <Input
+            label="Valor alvo (R$)"
+            inputMode="decimal"
+            value={targetAmount}
+            onChange={(e) => setTargetAmount(e.target.value)}
+            placeholder="0,00"
+            className="w-28 font-mono"
+          />
+          <Input
+            label="Data alvo (opcional)"
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+          />
+          <Button type="submit" size="sm" loading={createMutation.isPending}>
             Salvar
-          </button>
+          </Button>
         </form>
       )}
 

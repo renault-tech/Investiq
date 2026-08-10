@@ -2,7 +2,7 @@
 
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { FinanceSummary } from "@/lib/finance-api";
-import { formatBRL } from "@/components/charts/chartTheme";
+import { formatBRLExact } from "@/components/charts/chartTheme";
 
 interface SummaryCardsProps {
   summary?: FinanceSummary;
@@ -61,7 +61,7 @@ export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
           ) : (
             <>
               <p className={`text-xl font-semibold font-mono mt-1 ${card.color}`}>
-                {formatBRL(Number(card.value))}
+                {formatBRLExact(Number(card.value))}
               </p>
               {card.variation}
             </>

@@ -27,6 +27,7 @@ from src.finance.account_models import BankAccount
 from src.finance.budget_models import FinanceBudget
 from src.finance.goal_models import FinanceGoal, FinanceGoalContribution
 from src.shared.exceptions import NotFoundError, ConflictError, ValidationError
+from src.shared.fx import get_fx_rates_to_brl
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,7 @@ def _txn_to_dict(txn: FinancialTransaction, *, virtual_date: Optional[datetime] 
         "id": f"{txn.id}:{virtual_date.date().isoformat()}" if virtual_date else str(txn.id),
         "transaction_type": txn.transaction_type,
         "amount": txn.amount,
+        "amount_brl": txn.amount_brl,
         "currency": txn.currency,
         "description": txn.description,
         "notes": txn.notes,
@@ -448,7 +450,17 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
     if count > 1 and data.get("recurrence_rule"):
         raise ValidationError("Uma transação parcelada não pode também ser recorrente")
 
-    rate = Decimal(data.get("fx_rate") or 1)
+    currency = data.get("currency") or "BRL"
+    if data.get("fx_rate"):
+        rate = Decimal(data["fx_rate"])
+    elif currency != "BRL":
+        # Sem UI de moeda estrangeira ainda — mas quando currency vier de
+        # importação/API, trava a cotação real do dia em vez de assumir 1:1,
+        # que mentiria no histórico assim que uma moeda estrangeira aparecer.
+        rates = await get_fx_rates_to_brl({currency}, db)
+        rate = rates.get(currency, _ONE)
+    else:
+        rate = _ONE
     amounts = _split_installments(data["amount"], count) if count > 1 else [data["amount"]]
     group_id = uuid.uuid4() if count > 1 else None
     base_date = data["transaction_date"]
@@ -460,7 +472,7 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
             user_id=user_id,
             transaction_type=txn_type,
             amount=part,
-            currency=data.get("currency") or "BRL",
+            currency=currency,
             fx_rate=rate,
             amount_brl=part * rate,
             description=data.get("description"),
@@ -489,7 +501,7 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
 
     if first.transaction_type == "expense" and first.category_id:
         await _notify_if_budget_just_exceeded(
-            user_id, first.category_id, first.amount, first.transaction_date, db
+            user_id, first.category_id, first.amount_brl, first.transaction_date, db
         )
 
     # Digitar uma transação com descrição e categoria é o sinal de treino mais
@@ -611,15 +623,15 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
         return f"{dt.year:04d}-{dt.month:02d}"
 
     current = [i for i in items if start <= i["transaction_date"] <= end]
-    income = sum((i["amount"] for i in current if i["transaction_type"] == "income"), _ZERO)
-    expense = sum((i["amount"] for i in current if i["transaction_type"] == "expense"), _ZERO)
+    income = sum((i["amount_brl"] for i in current if i["transaction_type"] == "income"), _ZERO)
+    expense = sum((i["amount_brl"] for i in current if i["transaction_type"] == "expense"), _ZERO)
 
     # previous month for variation
     prev_month_end = start - timedelta(microseconds=1)
     prev_start = prev_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     prev = [i for i in items if prev_start <= i["transaction_date"] <= prev_month_end]
-    prev_income = sum((i["amount"] for i in prev if i["transaction_type"] == "income"), _ZERO)
-    prev_expense = sum((i["amount"] for i in prev if i["transaction_type"] == "expense"), _ZERO)
+    prev_income = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "income"), _ZERO)
+    prev_expense = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "expense"), _ZERO)
 
     def variation(current_val: Decimal, prev_val: Decimal) -> Optional[Decimal]:
         if prev_val == _ZERO:
@@ -639,7 +651,7 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
                 "category_color": item["category_color"],
                 "value": _ZERO,
             }
-        by_cat[key]["value"] += item["amount"]
+        by_cat[key]["value"] += item["amount_brl"]
     by_category = sorted(by_cat.values(), key=lambda c: c["value"], reverse=True)
     for cat in by_category:
         cat["pct"] = cat["value"] / expense if expense > _ZERO else _ZERO
@@ -655,9 +667,9 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
         if bucket is None:
             continue
         if item["transaction_type"] == "income":
-            bucket["income"] += item["amount"]
+            bucket["income"] += item["amount_brl"]
         elif item["transaction_type"] == "expense":
-            bucket["expense"] += item["amount"]
+            bucket["expense"] += item["amount_brl"]
 
     return {
         "month": month,
@@ -676,18 +688,16 @@ async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _month_spend_for_category(user_id: uuid.UUID, category_id: uuid.UUID, on_date: datetime, db: AsyncSession) -> Decimal:
+    """Gasto do mês na categoria, em BRL — via `list_transactions` (não SQL
+    puro) para enxergar ocorrências recorrentes virtuais, do mesmo jeito que
+    `get_summary` já faz. Antes disso divergiam: o orçamento não via uma
+    despesa recorrente que ainda não virou linha, e `get_summary` via."""
     start, end = _month_bounds(f"{on_date.year:04d}-{on_date.month:02d}")
-    result = await db.execute(
-        select(sa_func.coalesce(sa_func.sum(FinancialTransaction.amount), _ZERO)).where(
-            FinancialTransaction.user_id == user_id,
-            FinancialTransaction.category_id == category_id,
-            FinancialTransaction.transaction_type == "expense",
-            FinancialTransaction.deleted_at.is_(None),
-            FinancialTransaction.transaction_date >= start,
-            FinancialTransaction.transaction_date <= end,
-        )
+    listing = await list_transactions(
+        user_id, db, date_from=start, date_to=end,
+        category_id=category_id, transaction_type="expense", per_page=100_000,
     )
-    return result.scalar() or _ZERO
+    return sum((item["amount_brl"] for item in listing["items"]), _ZERO)
 
 
 async def _notify_if_budget_just_exceeded(
@@ -722,10 +732,24 @@ async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
         .where(FinanceBudget.user_id == user_id)
         .order_by(FinanceCategory.name)
     )
+    rows = result.all()
     now = datetime.now(timezone.utc)
+    start, end = _month_bounds(f"{now.year:04d}-{now.month:02d}")
+    # Uma única listagem do mês para todos os orçamentos, em vez de uma
+    # query por orçamento — e reaproveita expand_recurring, então enxerga
+    # despesas recorrentes que ainda não viraram linha, como get_summary.
+    listing = await list_transactions(
+        user_id, db, date_from=start, date_to=end, transaction_type="expense", per_page=100_000,
+    )
+    spend_by_category: dict[uuid.UUID, Decimal] = {}
+    for item in listing["items"]:
+        if item["category_id"] is None:
+            continue
+        spend_by_category[item["category_id"]] = spend_by_category.get(item["category_id"], _ZERO) + item["amount_brl"]
+
     budgets = []
-    for budget, category in result.all():
-        spent = await _month_spend_for_category(user_id, category.id, now, db)
+    for budget, category in rows:
+        spent = spend_by_category.get(category.id, _ZERO)
         budgets.append({
             "id": budget.id,
             "category_id": category.id,

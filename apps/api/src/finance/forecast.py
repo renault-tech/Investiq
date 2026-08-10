@@ -112,7 +112,7 @@ async def get_forecast(
             txn_date = txn_date.replace(tzinfo=timezone.utc)
         month = _month_key(txn_date)
         category_key = str(item["category_id"] or "none")
-        amount = Decimal(str(item["amount"]))
+        amount = Decimal(str(item["amount_brl"]))
 
         if txn_date < this_month_start:
             # Mês fechado — entra na mediana da linha de base.
