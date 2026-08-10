@@ -39,7 +39,7 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
   };
 
   return (
-    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".22s" }}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Contas</h2>
@@ -96,7 +96,7 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
             return (
               <li
                 key={account.id}
-                className="group relative border border-[var(--border)] rounded-lg p-3 hover:border-[var(--border-strong)] transition-colors"
+                className="group relative border border-[var(--border)] bg-[var(--surface-2)] rounded-2xl p-4 hover:border-[var(--border-strong)] transition-colors"
               >
                 <div className="flex items-start justify-between gap-1">
                   <div className="min-w-0">

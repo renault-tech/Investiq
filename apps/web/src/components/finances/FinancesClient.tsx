@@ -1,30 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
+import { useForecast } from "@/hooks/useForecast";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
-import { ChartCard } from "@/components/charts/ChartCard";
-import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { SummaryCards } from "./SummaryCards";
+import { CategoryBars } from "./CategoryBars";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
-import { GoalsSection } from "./GoalsSection";
-
-const ExpensesByCategoryDonut = dynamic(
-  () => import("./FinanceCharts").then((m) => m.ExpensesByCategoryDonut),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
-const MonthlyFlowChart = dynamic(
-  () => import("./FinanceCharts").then((m) => m.MonthlyFlowChart),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
+import { ForecastChart } from "./ForecastChart";
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -55,6 +46,7 @@ export function FinancesClient() {
 
   const { data: categories = [] } = useCategories();
   const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useFinanceSummary(month);
+  const { data: forecast, isLoading: forecastLoading, isError: forecastError } = useForecast(6);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
   const { data: txnList, isLoading: txnLoading, isError: txnError, refetch: refetchTxns } = useTransactions({
@@ -127,11 +119,11 @@ export function FinancesClient() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full space-y-4">
+    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Finanças</h1>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Finanças</h2>
           <div className="flex items-center gap-1 ml-2">
             <button onClick={() => shiftMonth(-1)} aria-label="Mês anterior" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <ChevronLeft size={18} />
@@ -147,26 +139,25 @@ export function FinancesClient() {
         <div className="flex gap-2">
           <button
             onClick={handleDownloadReport}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] rounded-[11px] hover:text-[var(--text-primary)] transition-colors"
           >
             <FileText size={15} /> Relatório PDF
           </button>
           <button
             onClick={() => setShowCategoryManager(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--text-secondary)] rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] rounded-[11px] hover:text-[var(--text-primary)] transition-colors"
           >
             <Tags size={15} /> Categorias
           </button>
           <button
             onClick={() => { setEditingTxn(undefined); setShowTransactionModal(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90"
+            className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px] transition-colors"
+            style={{ background: "var(--accent)", color: "#04120D" }}
           >
             <Plus size={15} /> Nova transação
           </button>
         </div>
       </div>
-
-      <AccountsBar holder={holder} onHolderChange={setHolder} />
 
       {summaryError && !summaryLoading ? (
         <ErrorState title="Não foi possível carregar o resumo do mês." onRetry={refetchSummary} />
@@ -174,36 +165,37 @@ export function FinancesClient() {
         <SummaryCards summary={summary} isLoading={summaryLoading} />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <ChartCard
-          title="Despesas por categoria"
-          isLoading={summaryLoading}
-          isError={summaryError}
-          onRetry={refetchSummary}
-          isEmpty={!summary || summary.by_category.length === 0}
-          emptyMessage="Nenhuma despesa neste mês."
-        >
-          <ExpensesByCategoryDonut byCategory={summary?.by_category ?? []} />
-        </ChartCard>
-        <ChartCard
-          title="Fluxo mensal (12 meses)"
-          isLoading={summaryLoading}
-          isError={summaryError}
-          onRetry={refetchSummary}
-          isEmpty={!summary || summary.monthly_series.every((p) => Number(p.income) === 0 && Number(p.expense) === 0)}
-          emptyMessage="Sem movimentações nos últimos 12 meses."
-        >
-          <MonthlyFlowChart series={summary?.monthly_series ?? []} />
-        </ChartCard>
+      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+        <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-[var(--text-primary)]">Projeção de saldo</div>
+              <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">Realizado e previsto pelos próximos meses</div>
+            </div>
+          </div>
+          <div className="h-[210px] mt-4">
+            {forecastError ? (
+              <ErrorState title="Não foi possível carregar a projeção." />
+            ) : forecastLoading ? (
+              <Skeleton className="h-full" />
+            ) : (
+              <ForecastChart months={forecast?.months ?? []} negativeFrom={forecast?.negative_from ?? null} />
+            )}
+          </div>
+        </section>
+
+        <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".16s" }}>
+          <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Gastos por categoria</div>
+          {summaryLoading ? <Skeleton className="h-48" /> : <CategoryBars byCategory={summary?.by_category ?? []} />}
+        </section>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <BudgetsSection categories={categories} />
-        <GoalsSection />
-      </div>
+      <AccountsBar holder={holder} onHolderChange={setHolder} />
+
+      <BudgetsSection categories={categories} />
 
       {/* Filtros + tabela */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <select
             value={typeFilter}

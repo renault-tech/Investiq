@@ -19,7 +19,7 @@ const STEPS: Step[] = [
   { key: "has_position", label: "Adicionar um ativo", href: "/investments" },
   { key: "has_transaction", label: "Registrar uma transação de investimento", href: "/investments" },
   { key: "has_finance_transaction", label: "Registrar um gasto ou receita", href: "/finances" },
-  { key: "has_goal", label: "Criar uma meta de poupança", href: "/finances" },
+  { key: "has_goal", label: "Criar uma meta de poupança", href: "/goals" },
 ];
 
 export function OnboardingChecklist() {
@@ -41,7 +41,7 @@ export function OnboardingChecklist() {
   };
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 mb-4">
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] p-5 mb-[18px] shadow-[var(--shadow)]">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
           <Sparkles size={15} className="text-[var(--accent)]" />

@@ -13,11 +13,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--navy)] text-white hover:opacity-90 disabled:opacity-50",
+  primary: "bg-[var(--accent)] text-[#04120D] hover:opacity-90 disabled:opacity-50",
   secondary:
-    "border border-[var(--accent)] text-[var(--accent)] hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-50",
+    "border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50",
   ghost:
-    "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50",
+    "text-[var(--text-secondary)] hover:bg-[var(--surface-2)] disabled:opacity-50",
   danger: "bg-[var(--danger)] text-white hover:opacity-90 disabled:opacity-50",
 };
 
@@ -34,7 +34,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-[11px] font-medium transition-colors disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
       {...rest}
     >
       {loading && <Loader2 size={size === "sm" ? 13 : 15} className="animate-spin" />}

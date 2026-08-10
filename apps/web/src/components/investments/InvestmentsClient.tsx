@@ -10,11 +10,10 @@ import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
 import { usePortfolioBenchmark } from "@/hooks/usePortfolioBenchmark";
 import { PortfolioTabs } from "./PortfolioTabs";
-import { LeftPanel } from "./LeftPanel";
 import { PositionsTable } from "./PositionsTable";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
-import { PERIODS } from "@/components/charts/chartTheme";
+import { PERIODS, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -97,11 +96,24 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     window.URL.revokeObjectURL(url);
   };
 
+  // Decimal do backend chega como string no JSON — sem Number(), .toFixed e
+  // comparações numéricas quebram.
+  const marketValue = Number(summary?.total_market_value_brl ?? 0);
+  const investedValue = Number(summary?.total_invested_brl ?? 0);
+  const pnlAbsolute = Number(summary?.total_pnl_absolute ?? 0);
+  const pnlPercent = Number(summary?.total_pnl_percent ?? 0);
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Investimentos</h1>
+      {/* Ações */}
+      <div className="flex items-center justify-between px-[30px] pt-[22px]">
+        {portfolios.length > 0 ? (
+          <PortfolioTabs
+            portfolios={portfolios}
+            activeId={activePortfolioId}
+            onChange={setActivePortfolioId}
+          />
+        ) : <div />}
         <div className="flex gap-2">
           <Button size="sm" onClick={() => setShowNewPortfolio(true)}>
             + Portfólio
@@ -125,20 +137,9 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
         </div>
       </div>
 
-      <div className="px-6 pt-4">
+      <div className="px-[30px] pt-3">
         <OnboardingChecklist />
       </div>
-
-      {/* Portfolio Tabs */}
-      {portfolios.length > 0 && (
-        <div className="px-6 py-2 border-b border-[var(--border)]">
-          <PortfolioTabs
-            portfolios={portfolios}
-            activeId={activePortfolioId}
-            onChange={setActivePortfolioId}
-          />
-        </div>
-      )}
 
       {/* Empty state */}
       {portfolios.length === 0 && (
@@ -163,139 +164,178 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
         </div>
       )}
 
-      {/* Main split layout */}
+      {/* Main layout */}
       {portfolios.length > 0 && !isSummaryError && (
-        <div className="flex flex-1 min-h-0">
-          <div className="hidden md:block w-[210px] shrink-0 border-r border-[var(--border)] overflow-y-auto p-4">
-            <LeftPanel summary={summary} isLoading={isSummaryLoading} />
-          </div>
-          <div className="flex-1 overflow-auto p-4">
-            {dataUpdatedAt > 0 && (
-              <p className="text-xs text-[var(--text-muted)] text-right mb-2">
-                Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </p>
-            )}
+        <div className="flex-1 overflow-auto p-[26px_30px_60px] min-w-[1180px]">
+          {dataUpdatedAt > 0 && (
+            <p className="text-xs text-[var(--text-muted)] text-right mb-2">
+              Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </p>
+          )}
 
-            {/* Visão Geral — gráficos */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-              <div className="xl:col-span-2">
+          <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+            {/* Carteira total */}
+            <section className="col-span-8 relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden animate-rise-up">
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 80% -20%, var(--glow), transparent 70%)" }} />
+              <div className="relative flex justify-between items-start flex-wrap gap-4">
+                <div>
+                  <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Carteira total</div>
+                  <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
+                    {formatBRLExact(marketValue)}
+                  </div>
+                  <div className="flex items-center gap-2.5 mt-2 text-[13px]">
+                    <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                      {pnlAbsolute >= 0 ? "+" : ""}{formatBRLCompact(pnlAbsolute)}
+                    </span>
+                    <span className="text-[var(--text-muted)]">·</span>
+                    <span className="text-[var(--text-secondary)]">
+                      {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}% desde o início
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div>
+                    <div className="text-[11.5px] text-[var(--text-secondary)]">Total investido</div>
+                    <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{formatBRLCompact(investedValue)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] text-[var(--text-secondary)]">Resultado</div>
+                    <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                      {formatBRLCompact(pnlAbsolute)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end mt-3">
+                <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden p-[3px] gap-1">
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setPerformancePeriod(p.value)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        background: performancePeriod === p.value ? "var(--surface-3)" : "transparent",
+                        color: performancePeriod === p.value ? "var(--text-primary)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2">
                 <ChartCard
-                  title="Evolução patrimonial"
+                  title=""
                   isLoading={isPerformanceLoading}
                   isError={isPerformanceError}
                   onRetry={refetchPerformance}
                   isEmpty={!performance || performance.length === 0}
                   emptyMessage="Registre transações para ver a evolução da carteira."
-                  actions={
-                    <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
-                      {PERIODS.map((p) => (
-                        <button
-                          key={p.value}
-                          onClick={() => setPerformancePeriod(p.value)}
-                          className={`px-2 py-0.5 text-xs transition-colors ${
-                            performancePeriod === p.value
-                              ? "bg-[var(--navy)] text-white"
-                              : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  }
                 >
                   <PortfolioEvolutionChart data={performance ?? []} />
                 </ChartCard>
               </div>
-              <ChartCard
-                title="Alocação"
-                isLoading={isSummaryLoading}
-                isError={isSummaryError}
-                onRetry={refetchSummary}
-                isEmpty={!summary || summary.allocation_by_type.length === 0}
-                emptyMessage="Adicione posições para ver a alocação."
-                actions={
-                  <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
-                    {([["type", "Tipo"], ["asset", "Ativo"]] as const).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        onClick={() => setAllocationMode(mode)}
-                        className={`px-2 py-0.5 text-xs transition-colors ${
-                          allocationMode === mode
-                            ? "bg-[var(--navy)] text-white"
-                            : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                }
-              >
-                <AllocationDonut
-                  allocation={
-                    allocationMode === "type"
-                      ? summary?.allocation_by_type ?? []
-                      : (summary?.positions ?? []).map((p) => ({
-                          asset_type: p.ticker,
-                          value: p.market_value_brl,
-                          weight: p.weight,
-                        }))
-                  }
-                />
-              </ChartCard>
-            </div>
+            </section>
 
-            <div className="mb-4">
+            {/* Alocação */}
+            <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Alocação</div>
+                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+                  {([["type", "Tipo"], ["asset", "Ativo"]] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      onClick={() => setAllocationMode(mode)}
+                      className="px-2 py-1 text-[11px] transition-colors"
+                      style={{
+                        background: allocationMode === mode ? "var(--surface-3)" : "transparent",
+                        color: allocationMode === mode ? "var(--text-primary)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3">
+                <ChartCard
+                  title=""
+                  isLoading={isSummaryLoading}
+                  isError={isSummaryError}
+                  onRetry={refetchSummary}
+                  isEmpty={!summary || summary.allocation_by_type.length === 0}
+                  emptyMessage="Adicione posições para ver a alocação."
+                >
+                  <AllocationDonut
+                    allocation={
+                      allocationMode === "type"
+                        ? summary?.allocation_by_type ?? []
+                        : (summary?.positions ?? []).map((p) => ({
+                            asset_type: p.ticker,
+                            value: p.market_value_brl,
+                            weight: p.weight,
+                          }))
+                    }
+                  />
+                </ChartCard>
+              </div>
+            </section>
+
+            {/* Benchmark */}
+            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
+              <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Rentabilidade vs. CDI e Ibovespa</div>
               <ChartCard
-                title="Rentabilidade vs. CDI e Ibovespa"
+                title=""
                 isLoading={isBenchmarkLoading}
                 isError={isBenchmarkError}
                 onRetry={refetchBenchmark}
                 isEmpty={!benchmark || benchmark.length === 0}
                 emptyMessage="Registre transações para comparar a carteira com CDI e Ibovespa."
-                height={290}
+                height={260}
               >
                 <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>
-            </div>
+            </section>
 
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
-                {([["positions", "Posições"], ["income", "Proventos"]] as const).map(([tab, label]) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-1.5 text-xs transition-colors ${
-                      activeTab === tab
-                        ? "bg-[var(--navy)] text-white"
-                        : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            {/* Posições */}
+            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".2s" }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden p-[3px] gap-1">
+                  {([["positions", "Posições"], ["income", "Proventos"]] as const).map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        background: activeTab === tab ? "var(--surface-3)" : "transparent",
+                        color: activeTab === tab ? "var(--text-primary)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <Download size={13} /> Exportar CSV
+                </button>
               </div>
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <Download size={13} /> Exportar CSV
-              </button>
-            </div>
 
-            {activeTab === "positions" ? (
-              <PositionsTable
-                positions={summary?.positions ?? []}
-                isLoading={isSummaryLoading}
-                onAddTransaction={(positionId, _ticker) => {
-                  setDefaultTransactionPositionId(positionId);
-                  setShowNewTransaction(true);
-                }}
-              />
-            ) : (
-              activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
-            )}
+              {activeTab === "positions" ? (
+                <PositionsTable
+                  positions={summary?.positions ?? []}
+                  isLoading={isSummaryLoading}
+                  onAddTransaction={(positionId, _ticker) => {
+                    setDefaultTransactionPositionId(positionId);
+                    setShowNewTransaction(true);
+                  }}
+                />
+              ) : (
+                activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
+              )}
+            </section>
           </div>
         </div>
       )}

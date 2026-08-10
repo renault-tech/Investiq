@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, BarChart2, CreditCard, LineChart, Settings } from "lucide-react";
+import { LayoutDashboard, BarChart2, LineChart, ArrowLeftRight, CreditCard } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/investments", label: "Dashboard", icon: TrendingUp },
+  { href: "/overview", label: "Visão geral", icon: LayoutDashboard },
   { href: "/finances", label: "Finanças", icon: BarChart2 },
+  { href: "/investments", label: "Invest.", icon: LineChart },
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
-  { href: "/analysis", label: "Análise", icon: LineChart },
-  { href: "/settings", label: "Ajustes", icon: Settings },
+  { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
 ];
 
 export function BottomNav() {
@@ -27,7 +27,7 @@ export function BottomNav() {
             key={href}
             href={href}
             className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${
-              active ? "text-[var(--navy)] dark:text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              active ? "text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Icon size={20} />

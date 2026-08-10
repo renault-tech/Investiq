@@ -1,47 +1,69 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* Design system — handoff "InvestIQ Wealth OS" (2026-08-10). Variable names
+   kept from before the redesign (--background, --surface, --accent, ...) so
+   every existing component that already references them via var(--x) picks
+   up the new palette for free; --surface-2/3, --accent-2, --glow, --shadow,
+   --grid-line and --radius-card are new tokens the handoff introduced with
+   no prior equivalent. */
 :root {
-  --background:    #F8FAFC;
+  --background:    #F4F5F7;
   --surface:       #FFFFFF;
-  --border:        #E2E8F0;
-  --border-strong: #CBD5E1;
+  --surface-2:     #F7F8FA;
+  --surface-3:     #EDEFF3;
+  --border:        rgba(9,12,20,.08);
+  --border-strong: rgba(9,12,20,.16);
 
   --navy:          #0A192F;
-  --accent:        #10B981;
-  --danger:        #EF4444;
-  --warning:       #F59E0B;
+  --accent:        #0FA97C;
+  --accent-2:      #5A6BF0;
+  --danger:        #E1495C;
+  --warning:       #C77A17;
+  --glow:          rgba(15,169,124,.12);
 
-  --text-primary:  #0F172A;
-  --text-secondary:#475569;
-  /* #94A3B8 was 2.56:1 on white — fails WCAG AA (4.5:1) and was used for
-     real financial data (quantity, avg price, weight), not just decoration. */
-  --text-muted:    #5B6B80;
+  --text-primary:  #0B0E14;
+  --text-secondary:#666D7A;
+  --text-muted:    #9AA1AE;
+
+  --shadow:        0 20px 50px -28px rgba(12,18,30,.35);
+  --grid-line:      rgba(9,12,20,.06);
+  --radius-card:   24px;
+  --radius-card-sm:20px;
+  --radius-pill:   11px;
 
   --font-scale: 1.0;
 }
 
 .dark {
-  --background:    #020617;
-  --surface:       #0F172A;
-  --border:        #1E293B;
-  --border-strong: #334155;
+  --background:    #07080A;
+  --surface:       #101216;
+  --surface-2:     #171A20;
+  --surface-3:     #1E222A;
+  --border:        rgba(255,255,255,.075);
+  --border-strong: rgba(255,255,255,.14);
+
   --navy:          #1E3A5F;
-  --accent:        #34D399;
-  --danger:        #F87171;
-  --warning:       #FCD34D;
-  --text-primary:  #F1F5F9;
-  --text-secondary:#94A3B8;
-  /* same fix as light: #475569 was 2.36:1 on #0F172A. */
-  --text-muted:    #8B9CB3;
+  --accent:        #37D6A6;
+  --accent-2:      #7C8CFF;
+  --danger:        #FF6B7A;
+  --warning:       #FFB35C;
+  --glow:          rgba(55,214,166,.16);
+
+  --text-primary:  #EDEFF3;
+  --text-secondary:#8B929E;
+  --text-muted:    #5C6270;
+
+  --shadow:        0 24px 60px -24px rgba(0,0,0,.75);
+  --grid-line:      rgba(255,255,255,.055);
 }
 
 /* Tailwind v4 utility-generating theme — without this, font-sans/font-mono
-   never resolve to the Manrope/Geist Mono variables next/font sets up in
-   layout.tsx, and the app silently renders in the system font stack despite
-   downloading both families. */
+   never resolve to the Instrument Sans/Geist Mono variables next/font sets
+   up in layout.tsx, and the app silently renders in the system font stack
+   despite downloading both families. */
 @theme inline {
-  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
@@ -52,6 +74,7 @@ html {
 
 body {
   min-height: 100%;
+  letter-spacing: -.01em;
 }
 
 :focus-visible {
@@ -59,6 +82,26 @@ body {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+@keyframes draw { from { stroke-dashoffset: 1200; } to { stroke-dashoffset: 0; } }
+@keyframes riseUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes growY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes ring { from { stroke-dashoffset: 360; } }
+@keyframes pulseDot { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+.animate-rise-up { animation: riseUp .5s both; }
+.animate-slide-in { animation: slideIn .32s cubic-bezier(.3,0,.2,1) both; }
+.animate-draw { stroke-dasharray: 1200; animation: draw 1.6s cubic-bezier(.6,0,.2,1) both; }
+.animate-grow-y { transform-origin: bottom; animation: growY .8s cubic-bezier(.4,0,.2,1) both; }
+.animate-ring { animation: ring 1.2s cubic-bezier(.5,0,.2,1) both; }
+.animate-pulse-dot { animation: pulseDot 2.4s infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

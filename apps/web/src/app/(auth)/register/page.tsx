@@ -36,7 +36,7 @@ export default function RegisterPage() {
       setAccessToken(loginRes.data.access_token);
       const meRes = await apiClient.get("/auth/me");
       setUser(meRes.data);
-      router.push("/investments");
+      router.push("/overview");
     } catch (err: unknown) {
       console.error(err);
       let message = "Erro ao criar conta";

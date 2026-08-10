@@ -25,7 +25,7 @@ export default function LoginPage() {
       setAccessToken(res.data.access_token);
       const meRes = await apiClient.get("/auth/me");
       setUser(meRes.data);
-      router.push("/investments");
+      router.push("/overview");
     } catch (err: unknown) {
       console.error(err);
       let message = "Credenciais inválidas";
