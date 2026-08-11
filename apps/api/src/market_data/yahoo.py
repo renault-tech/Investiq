@@ -203,6 +203,12 @@ class YahooFinanceProvider(MarketDataProvider):
             df = yf.download(yf_t, period=period, interval=interval, progress=False, auto_adjust=True)
             if df.empty:
                 return []
+            if isinstance(df.columns, pd.MultiIndex):
+                # yfinance returns MultiIndex columns (('Open', 'PETR4.SA'), ...) even
+                # for a single ticker in some versions — row.get("Volume") then hands
+                # back a Series instead of a scalar, and `... or 0` below blows up with
+                # "truth value of a Series is ambiguous". Flatten to plain column names.
+                df.columns = df.columns.get_level_values(0)
             bars = []
             for ts, row in df.iterrows():
                 date = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts

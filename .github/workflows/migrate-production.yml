@@ -1,0 +1,46 @@
+name: Migrate production database
+
+# Vercel has no deploy-time hook that runs Alembic, so migrations only ever
+# reached production when someone ran `alembic upgrade head` by hand — and
+# that stopped happening after migration 0010, silently breaking every
+# feature built on 0011+ (accounts with holder, transfers, installments,
+# category rules, watchlist) while CI stayed green the whole time, because
+# CI only ever migrates its own throwaway Postgres service container.
+#
+# This workflow closes that gap: it runs the real migration against the
+# real production database, either automatically when a migration file
+# lands on master, or on demand from the Actions tab.
+#
+# Requires a repository secret PRODUCTION_DATABASE_URL — the same
+# DATABASE_URL configured in the Vercel project (investiq-web-9kvc) for the
+# Production environment. Find it at Vercel → investiq-web-9kvc → Settings →
+# Environment Variables → DATABASE_URL (Production), and add it at
+# GitHub → this repo → Settings → Secrets and variables → Actions.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/api/migrations/versions/**"
+  workflow_dispatch: # manual run from the Actions tab
+
+jobs:
+  migrate:
+    name: alembic upgrade head
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/pyproject.toml
+      - name: Install dependencies
+        run: pip install -e .[dev]
+      - name: Run migrations against production
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
