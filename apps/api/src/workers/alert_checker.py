@@ -96,8 +96,15 @@ async def alert_checker_job() -> None:
                 db.add_all(notifications)
                 await db.commit()
 
-            for payload in triggered_payloads:
-                await redis_client.publish("alert_triggered", payload)
+            # Best-effort: alerts already flipped to triggered and the
+            # Notification rows already committed above, so a broken Redis
+            # here must not look like the whole job failed.
+            if redis_client:
+                try:
+                    for payload in triggered_payloads:
+                        await redis_client.publish("alert_triggered", payload)
+                except Exception as exc:
+                    logger.warning("Alert checker: pub/sub broadcast failed: %s", exc)
             logger.info("Alert checker: %d alert(s) triggered", len(triggered_ids))
 
     except Exception as exc:

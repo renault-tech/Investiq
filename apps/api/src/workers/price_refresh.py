@@ -112,14 +112,20 @@ async def price_refresh_job() -> None:
         cache = get_cache(redis_client)
         await cache.set_quotes({t: q for t, q in quotes.items()})
 
-        # Publish price updates for WebSocket consumers
-        for quote in quotes.values():
-            payload = json.dumps({
-                "ticker": quote.ticker,
-                "price": str(quote.price),
-                "change_pct": str(quote.change_pct) if quote.change_pct is not None else None,
-            })
-            await redis_client.publish("price_updates", payload)
+        # Publish price updates for WebSocket consumers — best-effort: a
+        # misconfigured/unreachable Redis here must not undo the DB write
+        # that already committed above.
+        if redis_client:
+            try:
+                for quote in quotes.values():
+                    payload = json.dumps({
+                        "ticker": quote.ticker,
+                        "price": str(quote.price),
+                        "change_pct": str(quote.change_pct) if quote.change_pct is not None else None,
+                    })
+                    await redis_client.publish("price_updates", payload)
+            except Exception as exc:
+                logger.warning("Price refresh: pub/sub broadcast failed: %s", exc)
 
         logger.info("Price refresh: updated %d/%d quotes", len(quotes), len(tickers))
 
