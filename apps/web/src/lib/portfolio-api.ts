@@ -65,6 +65,21 @@ export interface BenchmarkPoint {
   ibov_pct: number | null;
 }
 
+export interface LookThroughBucket {
+  label: string;
+  value_brl: number;
+  weight: number;
+}
+
+export interface PortfolioLookThrough {
+  portfolio_id: string;
+  total_market_value_brl: number;
+  by_sector: LookThroughBucket[];
+  by_country: LookThroughBucket[];
+  by_asset_class: LookThroughBucket[];
+  country_coverage: number;
+}
+
 export interface CreatePortfolioInput {
   name: string;
   description?: string;
@@ -141,6 +156,20 @@ export async function getPortfolioBenchmark(
     { params: { period } }
   );
   return coerceNumbersInList(res.data, ["portfolio_pct", "cdi_pct", "ibov_pct"] as const);
+}
+
+const LOOK_THROUGH_NUMERIC = ["total_market_value_brl", "country_coverage"] as const;
+const LOOK_THROUGH_BUCKET_NUMERIC = ["value_brl", "weight"] as const;
+
+export async function getPortfolioLookThrough(portfolioId: string): Promise<PortfolioLookThrough> {
+  const res = await apiClient.get<PortfolioLookThrough>(`/portfolios/${portfolioId}/look-through`);
+  const data = coerceNumbers(res.data, LOOK_THROUGH_NUMERIC);
+  return {
+    ...data,
+    by_sector: coerceNumbersInList(data.by_sector ?? [], LOOK_THROUGH_BUCKET_NUMERIC),
+    by_country: coerceNumbersInList(data.by_country ?? [], LOOK_THROUGH_BUCKET_NUMERIC),
+    by_asset_class: coerceNumbersInList(data.by_asset_class ?? [], LOOK_THROUGH_BUCKET_NUMERIC),
+  };
 }
 
 export async function addPosition(
