@@ -133,3 +133,18 @@ export async function getMarketQuotes(tickers: string[]): Promise<Quote[]> {
   });
   return coerceNumbersInList(res.data, QUOTE_NUMERIC);
 }
+
+export interface Sparkline {
+  ticker: string;
+  closes: number[];
+}
+
+/** Fechamentos diários recentes por ticker, em lote — o mini-gráfico ao
+ * lado do preço na watchlist. */
+export async function getSparklines(tickers: string[]): Promise<Sparkline[]> {
+  if (tickers.length === 0) return [];
+  const res = await apiClient.get<Sparkline[]>("/market/sparklines", {
+    params: { tickers: tickers.join(",") },
+  });
+  return res.data.map((s) => ({ ...s, closes: s.closes.map(Number) }));
+}

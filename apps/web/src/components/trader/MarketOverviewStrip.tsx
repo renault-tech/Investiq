@@ -12,7 +12,10 @@ const INSTRUMENTS: { ticker: string; label: string; kind: Kind }[] = [
   { ticker: "^IXIC", label: "Nasdaq", kind: "points" },
   { ticker: "^DJI", label: "Dow Jones", kind: "points" },
   { ticker: "USDBRL=X", label: "Dólar", kind: "brl" },
+  { ticker: "EURBRL=X", label: "Euro", kind: "brl" },
   { ticker: "BTC-USD", label: "Bitcoin", kind: "usd" },
+  { ticker: "GC=F", label: "Ouro", kind: "usd" },
+  { ticker: "CL=F", label: "Petróleo (WTI)", kind: "usd" },
 ];
 
 function formatValue(value: number, kind: Kind): string {

@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Plus, Star, Trash2 } from "lucide-react";
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from "@/hooks/useWatchlist";
+import { useSparklines } from "@/hooks/useAssetData";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { useMask } from "@/hooks/useMask";
+import { Sparkline } from "./Sparkline";
 
 function formatPrice(price: number | null, currency: string): string {
   if (price == null) return "indisponível";
@@ -19,6 +21,9 @@ export function WatchlistTable() {
   const removeMutation = useRemoveFromWatchlist();
   const mask = useMask();
   const [ticker, setTicker] = useState("");
+
+  const { data: sparklines = [] } = useSparklines(items.map((i) => i.ticker));
+  const sparklineByTicker = new Map(sparklines.map((s) => [s.ticker, s.closes]));
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +71,9 @@ export function WatchlistTable() {
                     <div className="text-[11px] text-[var(--text-muted)] truncate">{item.name}</div>
                   </div>
                 </Link>
+                <div className="hidden sm:block flex-shrink-0">
+                  <Sparkline closes={sparklineByTicker.get(item.ticker) ?? []} />
+                </div>
                 <div className="text-right">
                   <div className="text-[13px] font-semibold tabular-nums text-[var(--text-primary)]">
                     {mask(formatPrice(item.price, item.currency))}

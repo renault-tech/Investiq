@@ -4,6 +4,7 @@ import {
   getAssetIndicators,
   getAssetFundamentals,
   getMarketQuotes,
+  getSparklines,
   HistoryPeriod,
 } from "@/lib/market-api";
 
@@ -44,6 +45,19 @@ export function useMarketQuotes(tickers: string[]) {
     enabled: tickers.length > 0,
     staleTime: 60_000,
     refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
+/** Fechamentos recentes por ticker, para o mini-gráfico da watchlist —
+ * atualiza bem mais devagar que a cotação em si, um sparkline não precisa
+ * ser recalculado a cada minuto. */
+export function useSparklines(tickers: string[]) {
+  return useQuery({
+    queryKey: ["sparklines", ...tickers],
+    queryFn: () => getSparklines(tickers),
+    enabled: tickers.length > 0,
+    staleTime: 15 * 60_000,
     retry: 1,
   });
 }
