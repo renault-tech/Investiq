@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,13 +9,20 @@ from src.auth.jwt import decode_access_token
 from src.auth.models import User
 from src.shared.exceptions import UnauthorizedError, ForbiddenError
 
-bearer = HTTPBearer()
+# auto_error=False porque o padrão do HTTPBearer responde 403 quando o header
+# Authorization está ausente, e o interceptor do frontend só renova a sessão
+# em 401 — um reload de página (que perde o token da memória) virava uma
+# enxurrada de 403 que nunca disparava o refresh, derrubando o usuário para
+# o login. Ausência de credencial é 401, não 403.
+bearer = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    if credentials is None:
+        raise UnauthorizedError("Not authenticated")
     try:
         payload = decode_access_token(credentials.credentials)
     except Exception:

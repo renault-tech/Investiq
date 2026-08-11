@@ -16,6 +16,7 @@ from src.market_data.base import (
     HistoricalBar,
     MarketDataProvider,
     Quote,
+    is_b3_ticker,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,15 @@ class FallbackProvider(MarketDataProvider):
         missing = [t for t in tickers if t not in result]
         if not missing:
             return result
+
+        # A Brapi só conhece a B3 e responde erro para o lote inteiro quando
+        # um símbolo é desconhecido — um `BTC-USD` ou `^BVSP` no meio da lista
+        # (a faixa de mercado do Trader manda os dois) derrubava a cotação de
+        # todos os outros junto. Só faz sentido perguntar o que ela cobre.
+        if self._secondary.name == "brapi":
+            missing = [t for t in missing if is_b3_ticker(t)]
+            if not missing:
+                return result
 
         try:
             for ticker, quote in (await self._secondary.get_quotes(missing)).items():

@@ -13,6 +13,7 @@ class FakeProvider(MarketDataProvider):
         self._name = name
         self._quotes = quotes or {}
         self._raises = raises
+        self.batches: list[list[str]] = []
 
     @property
     def name(self) -> str:
@@ -27,6 +28,7 @@ class FakeProvider(MarketDataProvider):
         return Quote(ticker=ticker, price=price, currency="BRL")
 
     async def get_quotes(self, tickers: list[str]) -> dict[str, Quote]:
+        self.batches.append(list(tickers))
         if self._raises:
             raise RuntimeError(f"{self._name} fora do ar")
         return {
@@ -86,6 +88,28 @@ async def test_get_quotes_mescla_os_dois_provedores():
     assert quotes["AAPL"].price == Decimal("190")
     assert quotes["WEGE3"].price == Decimal("52.30")
     assert quotes["PETR4"].price == Decimal("38.10")
+
+
+@pytest.mark.asyncio
+async def test_brapi_so_recebe_tickers_da_b3():
+    """A Brapi responde erro para o lote inteiro quando um símbolo é
+    desconhecido — mandar BTC-USD junto zerava a cotação da WEGE3 também."""
+    brapi = FakeProvider("brapi", {"WEGE3": Decimal("52.30")})
+    provider = FallbackProvider(primary=FakeProvider("yahoo", raises=True), secondary=brapi)
+
+    quotes = await provider.get_quotes(["WEGE3", "BTC-USD", "^BVSP", "USDBRL=X", "AAPL"])
+
+    assert brapi.batches == [["WEGE3"]]
+    assert quotes["WEGE3"].price == Decimal("52.30")
+
+
+@pytest.mark.asyncio
+async def test_sem_ticker_da_b3_nao_chama_a_brapi():
+    brapi = FakeProvider("brapi", {})
+    provider = FallbackProvider(primary=FakeProvider("yahoo", raises=True), secondary=brapi)
+
+    assert await provider.get_quotes(["BTC-USD", "AAPL"]) == {}
+    assert brapi.batches == []
 
 
 @pytest.mark.asyncio

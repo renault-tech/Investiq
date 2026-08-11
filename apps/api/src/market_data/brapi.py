@@ -48,6 +48,19 @@ class BrapiProvider(MarketDataProvider):
     async def get_quotes(self, tickers: list[str]) -> dict[str, Quote]:
         if not tickers:
             return {}
+        result = await self._get_quotes_batch(tickers)
+        if result or len(tickers) == 1:
+            return result
+        # O endpoint devolve erro para o lote inteiro se um único símbolo for
+        # desconhecido (papel novo, delistado, ou grafado errado), zerando a
+        # cotação de todos os outros junto. Quando o lote falha por completo,
+        # perguntar um a um isola o símbolo ruim.
+        recovered: dict[str, Quote] = {}
+        for ticker in tickers:
+            recovered.update(await self._get_quotes_batch([ticker]))
+        return recovered
+
+    async def _get_quotes_batch(self, tickers: list[str]) -> dict[str, Quote]:
         tickers_str = ",".join(tickers)
         try:
             resp = await self._client.get(
