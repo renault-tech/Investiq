@@ -19,15 +19,29 @@ async def test_add_list_and_remove_watchlist_item(client):
     assert listed.status_code == 200
     tickers = [item["ticker"] for item in listed.json()]
     assert tickers == ["PETR4"]
-    # Sem provedor de mercado alcançável no ambiente de teste, o preço vem
-    # nulo — a resposta não pode quebrar por causa disso.
-    assert listed.json()[0]["price"] is None
 
     deleted = await client.delete(f"/watchlist/{item_id}", headers=a["headers"])
     assert deleted.status_code == 204
 
     empty = await client.get("/watchlist", headers=a["headers"])
     assert empty.json() == []
+
+
+@pytest.mark.asyncio
+async def test_watchlist_item_with_no_resolvable_quote_degrades_gracefully(client):
+    """Um ticker que nenhum provedor reconhece não pode quebrar a resposta —
+    price/change_pct vêm nulos em vez de a rota estourar 500."""
+    a = await register_and_login(client)
+
+    created = await client.post("/watchlist", json={"ticker": "ZZZNAOEXISTE99"}, headers=a["headers"])
+    assert created.status_code == 201
+
+    listed = await client.get("/watchlist", headers=a["headers"])
+    assert listed.status_code == 200
+    item = listed.json()[0]
+    assert item["ticker"] == "ZZZNAOEXISTE99"
+    assert item["price"] is None
+    assert item["change_pct"] is None
 
 
 @pytest.mark.asyncio
