@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import {
+  BookOpen,
   LayoutDashboard,
   BarChart2,
   LineChart,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { href: "/goals", label: "Metas", icon: Target },
   { href: "/reports", label: "Relatórios", icon: FileText },
   { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
+  { href: "/ajuda", label: "Ajuda", icon: BookOpen },
 ];
 
 export function Sidebar() {

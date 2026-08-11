@@ -2,33 +2,43 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { useCreateCard } from "@/hooks/useCards";
+import { useCreateCard, useUpdateCard } from "@/hooks/useCards";
 import { CreditCard } from "@/lib/cards-api";
 
 interface CardModalProps {
+  /** Presente = editando este cartão; ausente = cadastrando um novo. */
+  card?: CreditCard;
   onClose: () => void;
 }
 
-export function CardModal({ onClose }: CardModalProps) {
-  const [name, setName] = useState("");
-  const [brand, setBrand] = useState<NonNullable<CreditCard["brand"]>>("visa");
-  const [last4, setLast4] = useState("");
-  const [creditLimit, setCreditLimit] = useState("");
-  const [closingDay, setClosingDay] = useState("");
-  const [dueDay, setDueDay] = useState("");
+export function CardModal({ card, onClose }: CardModalProps) {
+  const isEditing = Boolean(card);
+  const [name, setName] = useState(card?.name ?? "");
+  const [brand, setBrand] = useState<NonNullable<CreditCard["brand"]>>(card?.brand ?? "visa");
+  const [last4, setLast4] = useState(card?.last4 ?? "");
+  const [creditLimit, setCreditLimit] = useState(card?.credit_limit != null ? String(card.credit_limit) : "");
+  const [closingDay, setClosingDay] = useState(card?.closing_day != null ? String(card.closing_day) : "");
+  const [dueDay, setDueDay] = useState(card?.due_day != null ? String(card.due_day) : "");
   const createMutation = useCreateCard();
+  const updateMutation = useUpdateCard();
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await createMutation.mutateAsync({
+    const input = {
       name: name.trim(),
       brand,
       last4: /^\d{4}$/.test(last4) ? last4 : undefined,
       credit_limit: creditLimit ? Number(creditLimit.replace(",", ".")) : undefined,
       closing_day: closingDay ? Number(closingDay) : undefined,
       due_day: dueDay ? Number(dueDay) : undefined,
-    });
+    };
+    if (isEditing && card) {
+      await updateMutation.mutateAsync({ id: card.id, input });
+    } else {
+      await createMutation.mutateAsync(input);
+    }
     onClose();
   };
 
@@ -44,7 +54,9 @@ export function CardModal({ onClose }: CardModalProps) {
         aria-labelledby="card-modal-title"
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-          <h2 id="card-modal-title" className="font-semibold text-[var(--text-primary)]">Novo cartão</h2>
+          <h2 id="card-modal-title" className="font-semibold text-[var(--text-primary)]">
+            {isEditing ? "Editar cartão" : "Novo cartão"}
+          </h2>
           <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Fechar">
             <X size={18} />
           </button>
@@ -90,10 +102,10 @@ export function CardModal({ onClose }: CardModalProps) {
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending || !name.trim()}
+              disabled={saving || !name.trim()}
               className="px-4 py-2 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
-              {createMutation.isPending ? "Salvando…" : "Salvar"}
+              {saving ? "Salvando…" : "Salvar"}
             </button>
           </div>
         </form>

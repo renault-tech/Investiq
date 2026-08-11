@@ -5,6 +5,7 @@ import { FinanceSummary } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useMask } from "@/hooks/useMask";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 
 interface SummaryCardsProps {
   summary?: FinanceSummary;
@@ -25,7 +26,11 @@ function Variation({ pct, invert = false }: { pct: number | null; invert?: boole
 }
 
 export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
-  const { data: analytics } = useAnalytics(6);
+  // A taxa de poupança fica ao lado de receitas/despesas, que já respeitam a
+  // carteira ativa — sem o mesmo escopo aqui, o card mostrava a poupança de
+  // todas as contas somadas ao lado do saldo de uma só.
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const { data: analytics } = useAnalytics(6, activeAccountId);
   const mask = useMask();
   const savingsSeries = analytics?.savings_series ?? [];
   const lastRate = savingsSeries[savingsSeries.length - 1]?.savings_rate;

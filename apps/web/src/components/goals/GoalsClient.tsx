@@ -152,7 +152,7 @@ export function GoalsClient() {
     : [];
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px]">
+    <div className="p-[26px_30px_60px]">
       <div className="flex items-center justify-end mb-4">
         <button
           onClick={() => setShowForm((v) => !v)}

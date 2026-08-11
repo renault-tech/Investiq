@@ -48,12 +48,36 @@ class BrapiProvider(MarketDataProvider):
     async def get_quotes(self, tickers: list[str]) -> dict[str, Quote]:
         if not tickers:
             return {}
+        result, reachable = await self._get_quotes_batch(tickers)
+        if result or len(tickers) == 1 or not reachable:
+            # `not reachable` = a própria conexão falhou (rede fora do ar,
+            # timeout, DNS) — reconsultar um a um não isola símbolo nenhum
+            # aqui, só multiplica o mesmo timeout por N, podendo transformar
+            # uma falha de rede de alguns segundos numa espera de minutos.
+            return result
+        # Lote alcançou a Brapi mas voltou vazio: ela devolve erro para o
+        # lote inteiro se um único símbolo for desconhecido (papel novo,
+        # delistado, ou grafado errado), zerando a cotação de todos os
+        # outros junto. Perguntar um a um isola o símbolo ruim.
+        recovered: dict[str, Quote] = {}
+        for ticker in tickers:
+            quotes, _ = await self._get_quotes_batch([ticker])
+            recovered.update(quotes)
+        return recovered
+
+    async def _get_quotes_batch(self, tickers: list[str]) -> tuple[dict[str, Quote], bool]:
+        """Devolve (cotações, alcançável) — `alcançável=False` só quando a
+        conexão em si falhou, distinto de a Brapi ter respondido com erro."""
         tickers_str = ",".join(tickers)
         try:
             resp = await self._client.get(
                 f"{BRAPI_BASE}/quote/{tickers_str}",
                 params=self._params(),
             )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as exc:
+            logger.error("Brapi unreachable for %s: %s", tickers, exc)
+            return {}, False
+        try:
             resp.raise_for_status()
             data = resp.json()
             results = data.get("results", [])
@@ -72,10 +96,10 @@ class BrapiProvider(MarketDataProvider):
                     volume=item.get("regularMarketVolume"),
                     market_cap=_to_decimal(item.get("marketCap")),
                 )
-            return result
+            return result, True
         except Exception as exc:
             logger.error("Brapi quote failed for %s: %s", tickers, exc)
-            return {}
+            return {}, True
 
     async def get_fundamentals(self, ticker: str) -> Optional[Fundamentals]:
         """Fetch fundamentals from Brapi.

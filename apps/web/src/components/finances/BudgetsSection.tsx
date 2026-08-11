@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Plus, Trash2, Wallet } from "lucide-react";
 import { useBudgets, useUpsertBudget, useDeleteBudget } from "@/hooks/useBudgets";
+import { useAccounts } from "@/hooks/useAccounts";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { FinanceCategory } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -23,6 +25,9 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
   const { data: budgets = [] } = useBudgets();
   const upsertMutation = useUpsertBudget();
   const deleteMutation = useDeleteBudget();
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const { data: accounts = [] } = useAccounts();
+  const activeAccount = accounts.find((a) => a.id === activeAccountId);
 
   const [showForm, setShowForm] = useState(false);
   const [categoryId, setCategoryId] = useState("");
@@ -46,9 +51,16 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] p-5 shadow-[var(--shadow)]">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-          <Wallet size={15} /> Orçamentos
-        </h3>
+        <div>
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+            <Wallet size={15} /> Orçamentos
+          </h3>
+          {/* Cada carteira tem seus próprios tetos, então sem dizer de quem é
+              o teto exibido o número fica ambíguo ao trocar de carteira. */}
+          <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+            {activeAccount ? activeAccount.name : "Consolidado · todas as carteiras"}
+          </p>
+        </div>
         {availableCategories.length > 0 && (
           <button
             onClick={() => setShowForm((v) => !v)}

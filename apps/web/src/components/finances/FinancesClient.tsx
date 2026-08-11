@@ -131,7 +131,7 @@ export function FinancesClient() {
   };
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -172,6 +172,7 @@ export function FinancesClient() {
             <Tags size={15} /> Categorias
           </button>
           <button
+            data-tour="new-transaction"
             onClick={() => { setEditingTxn(undefined); setShowTransactionModal(true); }}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px] transition-colors"
             style={{ background: "var(--accent)", color: "#04120D" }}
@@ -187,7 +188,7 @@ export function FinancesClient() {
         <SummaryCards summary={summary} isLoading={summaryLoading} />
       )}
 
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
           <div className="flex items-center justify-between">
             <div>
@@ -212,9 +213,13 @@ export function FinancesClient() {
         </section>
       </div>
 
-      <AccountsBar holder={holder} onHolderChange={setHolder} />
+      <div data-tour="accounts-bar">
+        <AccountsBar holder={holder} onHolderChange={setHolder} />
+      </div>
 
-      <BudgetsSection categories={categories} />
+      <div data-tour="budgets-section">
+        <BudgetsSection categories={categories} />
+      </div>
 
       {/* Filtros + tabela */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6">

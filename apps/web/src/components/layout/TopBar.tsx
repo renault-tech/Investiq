@@ -23,6 +23,7 @@ const PAGE_TITLES: { prefix: string; title: string; sub: string }[] = [
   { prefix: "/mobile-preview", title: "App mobile", sub: "InvestIQ · telas principais" },
   { prefix: "/analysis", title: "Análise", sub: "Análise técnica e fundamentalista" },
   { prefix: "/settings", title: "Configurações", sub: "Sua conta e preferências" },
+  { prefix: "/ajuda", title: "Central de ajuda", sub: "Tutoriais e o que cada tela faz" },
 ];
 
 export function TopBar() {
@@ -102,7 +103,10 @@ export function TopBar() {
       </form>
 
       {/* Period pills */}
-      <div className="hidden sm:flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-[3px]">
+      <div
+        data-tour="topbar-period"
+        className="hidden sm:flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-[3px]"
+      >
         {PERIODS.map((p) => (
           <button
             key={p}
@@ -120,6 +124,7 @@ export function TopBar() {
 
       {/* Privacy toggle */}
       <button
+        data-tour="topbar-privacy"
         onClick={togglePrivacy}
         title={privacy ? "Mostrar valores" : "Ocultar valores"}
         aria-pressed={privacy}

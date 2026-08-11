@@ -125,3 +125,37 @@ async def test_duplicate_invoice_for_same_card_and_month_is_rejected(client):
         f"/cards/{card_id}/invoices", data={"reference_month": "2026-06-15"}, files=files, headers=headers
     )
     assert second.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_card_changes_name_and_limit(client):
+    session = await register_and_login(client)
+    headers = session["headers"]
+    card_id = await _create_card(client, headers)
+
+    resp = await client.patch(
+        f"/cards/{card_id}", json={"name": "Nubank Platinum", "credit_limit": 8000}, headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["name"] == "Nubank Platinum"
+    assert body["credit_limit"] == "8000.00000000"
+    assert body["last4"] == "1234"  # campo não enviado permanece intacto
+
+    listed = await client.get("/cards", headers=headers)
+    assert listed.json()[0]["name"] == "Nubank Platinum"
+
+
+@pytest.mark.asyncio
+async def test_cannot_update_card_of_another_user(client):
+    a = await register_and_login(client)
+    b = await register_and_login(client)
+    card_id = await _create_card(client, a["headers"])
+
+    resp = await client.patch(
+        f"/cards/{card_id}", json={"name": "Roubado"}, headers=b["headers"]
+    )
+    assert resp.status_code == 404
+
+    still_named = await client.get("/cards", headers=a["headers"])
+    assert still_named.json()[0]["name"] == "Nubank"

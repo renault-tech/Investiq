@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Check, KeyRound, Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
+import { BookOpen, Check, KeyRound, Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
 import { ApiKeysUpdate } from "@/lib/settings-api";
 import { useShallow } from "zustand/react/shallow";
@@ -208,6 +209,7 @@ export function SettingsClient() {
         </div>
       </Section>
 
+      <div data-tour="settings-ai">
       <Section
         title="Inteligência artificial"
         description="A análise de carteiras, de ativos e a leitura de faturas usam a SUA chave — ela é criptografada e nunca exibida de volta."
@@ -265,9 +267,16 @@ export function SettingsClient() {
                 saving={keysMutation.isPending}
               />
             ))}
+            <Link
+              href="/ajuda"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
+            >
+              <BookOpen size={13} /> Como obter uma chave gratuita do Gemini
+            </Link>
           </div>
         </div>
       </Section>
+      </div>
 
       <Section title="Sessões" description="Dispositivos com uma sessão ativa na sua conta.">
         <SessionsSection />

@@ -216,7 +216,7 @@ export function OverviewClient() {
         </div>
       )}
 
-      <div className="grid gap-[18px] min-w-[1180px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
 
         {/* Patrimônio líquido */}
         {visible("net") && (

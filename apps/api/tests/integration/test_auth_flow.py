@@ -31,8 +31,18 @@ async def test_duplicate_email_rejected(client):
 
 @pytest.mark.asyncio
 async def test_me_without_token_is_unauthorized(client):
+    """401 exatamente, não 403: o interceptor do frontend só renova a sessão
+    em 401, então um 403 aqui fazia todo reload de página (que perde o token
+    da memória) falhar sem nunca tentar renovar, derrubando para o login."""
     res = await client.get("/auth/me")
-    assert res.status_code in (401, 403)
+    assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_protected_route_without_token_is_401_not_403(client):
+    for path in ("/portfolios/", "/finance/transactions", "/finance/budgets"):
+        res = await client.get(path)
+        assert res.status_code == 401, f"{path} devolveu {res.status_code}"
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Download } from "lucide-react";
-import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/portfolio-api";
+import { listPortfolios, type Portfolio, type PerformancePeriod, type PositionSummary } from "@/lib/portfolio-api";
 import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
@@ -24,6 +24,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
+import { ManagePositionModal } from "./modals/ManagePositionModal";
 
 const AllocationDonut = dynamic(
   () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
@@ -66,6 +67,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [defaultTransactionPositionId, setDefaultTransactionPositionId] = useState<
     string | undefined
   >(undefined);
+  const [managingPosition, setManagingPosition] = useState<PositionSummary | null>(null);
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
   const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
   const [lookThroughMode, setLookThroughMode] = useState<"sector" | "country" | "class">("sector");
@@ -197,14 +199,14 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
       {/* Main layout */}
       {portfolios.length > 0 && !isSummaryError && (
-        <div className="flex-1 overflow-auto p-[26px_30px_60px] min-w-[1180px]">
+        <div className="flex-1 overflow-auto p-[26px_30px_60px]">
           {dataUpdatedAt > 0 && (
             <p className="text-xs text-[var(--text-muted)] text-right mb-2">
               Atualizado às {new Date(dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </p>
           )}
 
-          <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+          <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
             {/* Carteira total */}
             <section className="col-span-8 relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden animate-rise-up">
               <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 80% -20%, var(--glow), transparent 70%)" }} />
@@ -454,6 +456,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                     setDefaultTransactionPositionId(positionId);
                     setShowNewTransaction(true);
                   }}
+                  onManage={setManagingPosition}
                 />
               ) : (
                 activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
@@ -482,6 +485,13 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
           portfolioId={activePortfolioId}
           positions={summary?.positions ?? []}
           defaultPositionId={defaultTransactionPositionId}
+        />
+      )}
+      {managingPosition && activePortfolioId && (
+        <ManagePositionModal
+          portfolioId={activePortfolioId}
+          position={managingPosition}
+          onClose={() => setManagingPosition(null)}
         />
       )}
     </div>

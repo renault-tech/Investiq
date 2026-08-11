@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard as CreditCardIcon, Plus, Trash2, Upload } from "lucide-react";
+import { CreditCard as CreditCardIcon, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   useCards,
   useInvoices,
@@ -12,7 +12,7 @@ import {
   useDeleteInvoice,
 } from "@/hooks/useCards";
 import { useCategories } from "@/hooks/useFinance";
-import { CardInvoice } from "@/lib/cards-api";
+import { CardInvoice, CreditCard } from "@/lib/cards-api";
 import { formatBRL, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useMask } from "@/hooks/useMask";
@@ -26,6 +26,12 @@ const STATUS_LABEL: Record<CardInvoice["status"], { label: string; className: st
   confirmed: { label: "confirmada ✓", className: "text-[var(--accent)]" },
   failed: { label: "falhou", className: "text-[var(--danger)]" },
 };
+// O backend guarda status como string livre (não um enum de banco), então um
+// valor futuro ou legado que STATUS_LABEL não conheça não pode derrubar a
+// tela inteira — só perde o rótulo bonito.
+function statusInfo(status: CardInvoice["status"]) {
+  return STATUS_LABEL[status] ?? { label: status, className: "text-[var(--text-muted)]" };
+}
 
 const CARD_GRADIENTS = [
   "linear-gradient(140deg,#14161C,#2B303B)",
@@ -47,6 +53,7 @@ export function CardsClient() {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
+  const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
   const mask = useMask();
 
   const { data: cards = [], isLoading: cardsLoading } = useCards();
@@ -69,7 +76,7 @@ export function CardsClient() {
     .slice(0, 5);
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[var(--text-primary)]">Cartões</h2>
         <button
@@ -89,19 +96,33 @@ export function CardsClient() {
       ) : (
         <div className="flex flex-wrap gap-[18px]">
           {cards.filter((c) => c.is_active).map((card, i) => (
-            <button
+            <div
               key={card.id}
+              role="button"
+              tabIndex={0}
               onClick={() => { setActiveCardId(card.id); setActiveInvoiceId(null); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") { setActiveCardId(card.id); setActiveInvoiceId(null); }
+              }}
               style={{
                 background: CARD_GRADIENTS[i % CARD_GRADIENTS.length],
                 outline: card.id === selectedCardId ? "2px solid var(--accent)" : "none",
                 outlineOffset: "2px",
               }}
-              className="text-left w-[320px] h-[196px] rounded-[22px] p-[22px] flex flex-col justify-between shadow-[var(--shadow)] transition-[outline] animate-rise-up"
+              className="text-left w-[320px] h-[196px] rounded-[22px] p-[22px] flex flex-col justify-between shadow-[var(--shadow)] transition-[outline] animate-rise-up cursor-pointer"
             >
               <div className="flex justify-between items-start">
                 <span className="text-[13px] font-semibold text-[#F2F4F7]">{card.name}</span>
-                <div className="w-[34px] h-[24px] rounded-[6px]" style={{ background: "linear-gradient(135deg,#D7C089,#9E874A)" }} />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingCard(card); }}
+                    aria-label={`Editar ${card.name}`}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[#F2F4F7] opacity-70 hover:opacity-100 hover:bg-white/10 transition-opacity"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <div className="w-[34px] h-[24px] rounded-[6px]" style={{ background: "linear-gradient(135deg,#D7C089,#9E874A)" }} />
+                </div>
               </div>
               <div>
                 <div className="text-base tracking-[.14em] tabular-nums text-[#F2F4F7]">•••• •••• •••• {card.last4 ?? "----"}</div>
@@ -110,14 +131,14 @@ export function CardsClient() {
                   <span>{card.due_day ? `vence dia ${card.due_day}` : ""}</span>
                 </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
 
       {selectedCard && (
         <>
-          <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+          <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
             <section className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-[var(--text-primary)]">Evolução da fatura</div>
@@ -212,8 +233,8 @@ export function CardsClient() {
                       <span className="capitalize text-[var(--text-primary)] font-medium">
                         {monthLabel(invoice.reference_month)}
                       </span>
-                      <span className={`text-xs ${STATUS_LABEL[invoice.status].className}`}>
-                        {STATUS_LABEL[invoice.status].label}
+                      <span className={`text-xs ${statusInfo(invoice.status).className}`}>
+                        {statusInfo(invoice.status).label}
                       </span>
                       {invoice.error_message && (
                         <span className="text-xs text-[var(--text-muted)] truncate">{invoice.error_message}</span>
@@ -247,6 +268,7 @@ export function CardsClient() {
       )}
 
       {showCardModal && <CardModal onClose={() => setShowCardModal(false)} />}
+      {editingCard && <CardModal card={editingCard} onClose={() => setEditingCard(null)} />}
     </div>
   );
 }

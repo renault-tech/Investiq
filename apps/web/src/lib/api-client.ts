@@ -26,6 +26,14 @@ apiClient.interceptors.request.use((config) => {
 // concurrent 401s await the same promise) fixes that.
 let refreshPromise: Promise<string> | null = null;
 
+// Compartilhar a promessa só cobre os 401 que chegam *durante* a renovação.
+// Os que chegam logo depois dela terminar abriam uma segunda renovação
+// apresentando o refresh_token que a primeira acabou de revogar — 401, e o
+// usuário caía no login sem motivo. Dentro desta janela o retry reusa o
+// token recém-obtido em vez de renovar de novo.
+const REFRESH_GRACE_MS = 10_000;
+let lastRefreshAt = 0;
+
 function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = axios
@@ -33,6 +41,7 @@ function refreshAccessToken(): Promise<string> {
       .then((res) => {
         const newToken = res.data.access_token;
         setAccessToken(newToken);
+        lastRefreshAt = Date.now();
         return newToken;
       })
       .finally(() => { refreshPromise = null; });
@@ -63,10 +72,19 @@ apiClient.interceptors.response.use(
     ) {
       original._retry = true;
       try {
-        const newToken = await refreshAccessToken();
+        const fresh = accessToken && Date.now() - lastRefreshAt < REFRESH_GRACE_MS;
+        const newToken = fresh ? accessToken : await refreshAccessToken();
         original.headers.Authorization = "Bearer " + newToken;
         return apiClient(original);
-      } catch { clearAccessToken(); if (typeof window !== "undefined") { window.location.href = "/login"; } }
+      } catch {
+        clearAccessToken();
+        // Já estar numa tela de autenticação significa que o refresh falhou
+        // durante o próprio login/registro — redirecionar dali recarregaria
+        // a página e apagaria o erro que o formulário está exibindo.
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login";
+        }
+      }
     }
     return Promise.reject(error);
   }

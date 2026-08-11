@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
+import { ReportBuilder } from "./ReportBuilder";
 import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioIncome } from "@/hooks/usePortfolioIncome";
@@ -68,7 +69,7 @@ export function ReportsClient() {
   ];
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-[26px] shadow-[var(--shadow)] animate-rise-up">
         <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
@@ -77,13 +78,6 @@ export function ReportsClient() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => downloadBlob("/reports/monthly", `relatorio-${month}.pdf`, { month })}
-              className="flex items-center gap-1.5 px-4 h-[38px] rounded-xl text-[12.5px] font-semibold"
-              style={{ background: "var(--accent)", color: "#04120D" }}
-            >
-              <Download size={14} /> Exportar PDF
-            </button>
-            <button
               onClick={() => downloadBlob("/finance/transactions/export", `transacoes-${month}.csv`)}
               className="px-4 h-[38px] rounded-xl border border-[var(--border-strong)] text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
@@ -91,6 +85,18 @@ export function ReportsClient() {
             </button>
           </div>
         </div>
+
+        <ReportBuilder
+          month={month}
+          onDownload={({ month: m, format, accountIds, portfolioIds }) =>
+            downloadBlob("/reports/monthly", `relatorio-${m}.${format}`, {
+              month: m,
+              format,
+              ...(accountIds.length ? { account_ids: accountIds.join(",") } : {}),
+              ...(portfolioIds.length ? { portfolio_ids: portfolioIds.join(",") } : {}),
+            })
+          }
+        />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-[18px] mt-6">
           {metrics.map((m) => (
             <div key={m.label} className="border-l border-[var(--border)] pl-4">
@@ -101,7 +107,7 @@ export function ReportsClient() {
         </div>
       </section>
 
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
           <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
           <div className="flex items-end gap-3 h-[190px] mt-5.5">

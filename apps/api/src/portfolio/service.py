@@ -574,6 +574,172 @@ async def record_transaction(
     return txn
 
 
+def _recompute_position_from_transactions(
+    position: PortfolioPosition, transactions: list[InvestmentTransaction]
+) -> None:
+    """Replay every transaction from scratch to derive quantity/avg_cost/
+    total_invested — the only correct way to reflect an edit or a delete.
+    Weighted average cost isn't reversible after the fact (a sell doesn't
+    remember which buy it came from), so "undo just this one transaction"
+    would drift from what a full replay produces the moment there's more
+    than a single buy in the history.
+
+    Mirrors record_transaction()'s per-type logic exactly; dividend/split/
+    bonus are accepted by the schema but don't mutate the position there
+    either, so they're skipped here too — not a gap introduced by this
+    function.
+    """
+    quantity = _ZERO
+    avg_cost = _ZERO
+    total_invested = _ZERO
+    for txn in sorted(transactions, key=lambda t: t.transaction_date):
+        if txn.transaction_type == "buy":
+            unit_price_brl = multiply(txn.unit_price, txn.fx_rate)
+            fees_brl = multiply(txn.fees, txn.fx_rate)
+            avg_cost = calculate_weighted_average_cost(quantity, avg_cost, txn.quantity, unit_price_brl, fees_brl)
+            quantity = quantity + txn.quantity
+            total_invested = total_invested + txn.total_amount
+        elif txn.transaction_type == "sell":
+            new_qty = quantity - txn.quantity
+            if new_qty < _ZERO:
+                # Sem essa transação (ou com os novos valores), uma venda
+                # posterior deixaria de caber na quantidade disponível —
+                # truncar em silêncio corromperia avg_cost/quantidade sem
+                # avisar; melhor recusar a edição/exclusão.
+                raise ConflictError(
+                    "Essa alteração deixaria uma venda posterior maior que a posição disponível. "
+                    "Edite ou apague as vendas primeiro."
+                )
+            if quantity > _ZERO:
+                sold_fraction = txn.quantity / quantity
+                total_invested = total_invested * (1 - sold_fraction)
+            quantity = new_qty
+    position.quantity = quantity
+    position.avg_cost = avg_cost
+    position.total_invested = total_invested
+
+
+async def _get_owned_position(position_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> PortfolioPosition:
+    result = await db.execute(
+        select(PortfolioPosition)
+        .join(Portfolio, Portfolio.id == PortfolioPosition.portfolio_id)
+        .where(PortfolioPosition.id == position_id)
+        .where(Portfolio.user_id == user_id)
+        .options(selectinload(PortfolioPosition.asset))
+    )
+    position = result.scalar_one_or_none()
+    if position is None:
+        raise NotFoundError(f"Position {position_id} not found")
+    return position
+
+
+async def update_position(
+    position_id: uuid.UUID,
+    user_id: uuid.UUID,
+    broker: Optional[str],
+    target_weight: Optional[Decimal],
+    db: AsyncSession,
+    *,
+    broker_set: bool = False,
+    target_weight_set: bool = False,
+) -> dict:
+    """Só broker e target_weight são editáveis diretamente — quantidade e
+    preço médio são sempre derivados das transações, editar ou apagar uma
+    transação é o que os muda."""
+    position = await _get_owned_position(position_id, user_id, db)
+    if broker_set:
+        position.broker = broker
+    if target_weight_set:
+        position.target_weight = target_weight
+    await db.commit()
+    await db.refresh(position, attribute_names=["asset"])
+    return {
+        "id": position.id,
+        "portfolio_id": position.portfolio_id,
+        "asset_id": position.asset_id,
+        "ticker": position.asset.ticker,
+        "broker": position.broker,
+        "quantity": position.quantity,
+        "avg_cost": position.avg_cost,
+        "target_weight": position.target_weight,
+        "created_at": position.created_at,
+    }
+
+
+async def delete_position(position_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> None:
+    """Apaga a posição e, via cascade, todas as transações dela — não há
+    histórico parcial de um ativo que o usuário removeu da carteira."""
+    position = await _get_owned_position(position_id, user_id, db)
+    await db.delete(position)
+    await db.commit()
+
+
+async def update_transaction(
+    transaction_id: uuid.UUID,
+    user_id: uuid.UUID,
+    updates: dict,
+    db: AsyncSession,
+) -> InvestmentTransaction:
+    result = await db.execute(
+        select(InvestmentTransaction).where(
+            InvestmentTransaction.id == transaction_id, InvestmentTransaction.user_id == user_id
+        )
+    )
+    txn = result.scalar_one_or_none()
+    if txn is None:
+        raise NotFoundError(f"Transaction {transaction_id} not found")
+
+    for field, value in updates.items():
+        setattr(txn, field, value)
+    txn.total_amount = calculate_transaction_total(txn.quantity, txn.unit_price, txn.fees, txn.fx_rate)
+
+    position = await _get_owned_position(txn.position_id, user_id, db)
+    siblings_result = await db.execute(
+        select(InvestmentTransaction).where(InvestmentTransaction.position_id == position.id)
+    )
+    _recompute_position_from_transactions(position, siblings_result.scalars().all())
+
+    await db.commit()
+    await db.refresh(txn)
+    return txn
+
+
+async def list_position_transactions(
+    position_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession
+) -> list[InvestmentTransaction]:
+    """Histórico de uma posição, mais recente primeiro — a lista que permite
+    escolher qual transação editar ou apagar."""
+    await _get_owned_position(position_id, user_id, db)  # 404 if not owned
+    result = await db.execute(
+        select(InvestmentTransaction)
+        .where(InvestmentTransaction.position_id == position_id)
+        .order_by(InvestmentTransaction.transaction_date.desc())
+    )
+    return result.scalars().all()
+
+
+async def delete_transaction(transaction_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> None:
+    result = await db.execute(
+        select(InvestmentTransaction).where(
+            InvestmentTransaction.id == transaction_id, InvestmentTransaction.user_id == user_id
+        )
+    )
+    txn = result.scalar_one_or_none()
+    if txn is None:
+        raise NotFoundError(f"Transaction {transaction_id} not found")
+
+    position = await _get_owned_position(txn.position_id, user_id, db)
+    await db.delete(txn)
+    await db.flush()
+
+    siblings_result = await db.execute(
+        select(InvestmentTransaction).where(InvestmentTransaction.position_id == position.id)
+    )
+    _recompute_position_from_transactions(position, siblings_result.scalars().all())
+
+    await db.commit()
+
+
 async def add_position(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,

@@ -444,11 +444,14 @@ async def get_analytics(
 
 @router.get("/budgets", response_model=list[BudgetResponse])
 async def list_budgets(
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Budgets with current-month spend and pct_used, for progress bars."""
-    return await service.list_budgets(current_user.id, db)
+    """Budgets with current-month spend and pct_used, for progress bars.
+    Sem `account_id`, devolve os orçamentos consolidados."""
+    return await service.list_budgets(current_user.id, db, account_id=account_id, holder=holder)
 
 
 @router.put("/budgets", response_model=BudgetResponse)
@@ -457,17 +460,21 @@ async def upsert_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update the budget for a category (one per category per user)."""
-    return await service.upsert_budget(current_user.id, body.category_id, body.amount, db)
+    """Create or update the budget for a category — um por categoria por
+    carteira, ou um consolidado quando `bank_account_id` vem vazio."""
+    return await service.upsert_budget(
+        current_user.id, body.category_id, body.amount, db, account_id=body.bank_account_id
+    )
 
 
 @router.delete("/budgets/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_budget(
     category_id: uuid.UUID,
+    account_id: Optional[uuid.UUID] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.delete_budget(current_user.id, category_id, db)
+    await service.delete_budget(current_user.id, category_id, db, account_id=account_id)
 
 
 # ---------------------------------------------------------------------------

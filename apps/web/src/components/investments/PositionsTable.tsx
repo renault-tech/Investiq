@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wallet } from "lucide-react";
+import { Settings2, Wallet } from "lucide-react";
 import { RebalanceTag } from "./RebalanceTag";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatBRLExact } from "@/components/charts/chartTheme";
@@ -9,6 +9,7 @@ interface PositionsTableProps {
   positions: PositionSummary[];
   isLoading: boolean;
   onAddTransaction: (positionId: string, ticker: string) => void;
+  onManage: (position: PositionSummary) => void;
 }
 
 function fmtBRL(v: number | string | null): string {
@@ -25,7 +26,7 @@ function fmtPct(v: number | string | null): string {
 
 const COLS = ["Ativo", "Qtd", "PM", "Atual", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações"];
 
-export function PositionsTable({ positions, isLoading, onAddTransaction }: PositionsTableProps) {
+export function PositionsTable({ positions, isLoading, onAddTransaction, onManage }: PositionsTableProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -106,13 +107,23 @@ export function PositionsTable({ positions, isLoading, onAddTransaction }: Posit
                   <RebalanceTag action={pos.rebalance_action} deltaUnits={pos.rebalance_delta_units} />
                 </td>
                 <td className="px-2.5 py-3 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
-                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
-                    style={{ color: "var(--accent)", background: "var(--glow)" }}
-                  >
-                    Transação
-                  </button>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                      style={{ color: "var(--accent)", background: "var(--glow)" }}
+                    >
+                      Transação
+                    </button>
+                    <button
+                      onClick={() => onManage(pos)}
+                      aria-label={`Gerenciar ${pos.ticker}`}
+                      title="Editar ou remover"
+                      className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors"
+                    >
+                      <Settings2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             );
