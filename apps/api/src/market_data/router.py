@@ -14,6 +14,7 @@ from src.market_data.schemas import (
     IndicatorsResponse,
     MaSeries,
     FundamentalsResponse,
+    QuoteResponse,
     FixedIncomeCompareRequest,
     FixedIncomeComparisonResult,
 )
@@ -143,6 +144,42 @@ async def get_asset_indicators(
         sma=sma_series,
         ema=ema_series,
     )
+
+
+@router.get("/quotes", response_model=list[QuoteResponse])
+async def get_quotes(
+    tickers: str = Query(..., description="Tickers separados por vírgula, ex: PETR4,^BVSP,USDBRL=X"),
+    current_user: User = Depends(get_current_user),
+    redis=Depends(get_redis),
+    provider_settings: dict = Depends(get_user_provider_settings),
+):
+    """Cotação em lote — usado pela visão geral de mercado e pela watchlist.
+
+    Cache-first (5 min), sem depender de um Asset cadastrado: aceita
+    qualquer ticker que o provedor reconheça, incluindo índices (^BVSP,
+    ^GSPC) e câmbio (USDBRL=X), diferente de /assets/{ticker}/* que assume
+    um papel individual.
+    """
+    ticker_list = list(dict.fromkeys(t.strip().upper() for t in tickers.split(",") if t.strip()))
+    if not ticker_list:
+        return []
+
+    cache = get_cache(redis) if redis else None
+    quotes = await cache.get_quotes(ticker_list) if cache else {}
+
+    missing = [t for t in ticker_list if t not in quotes]
+    if missing:
+        provider = get_provider(provider_settings["preferred"], provider_settings["brapi_key"])
+        fresh = await provider.get_quotes(missing)
+        quotes.update(fresh)
+        if cache and fresh:
+            await cache.set_quotes(fresh)
+
+    return [
+        QuoteResponse(ticker=t, price=quotes[t].price, currency=quotes[t].currency, change_pct=quotes[t].change_pct)
+        for t in ticker_list
+        if t in quotes
+    ]
 
 
 @router.get("/assets/{ticker}/fundamentals", response_model=FundamentalsResponse)

@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Sparkles, Star } from "lucide-react";
 import { Bar, AssetFundamentals } from "@/lib/market-api";
 import { formatBRL } from "@/components/charts/chartTheme";
+import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from "@/hooks/useWatchlist";
 
 interface AssetHeaderProps {
   ticker: string;
@@ -18,10 +19,31 @@ export function AssetHeader({ ticker, bars, fundamentals, onAnalyze, analyzing }
   const changePct = last && prev && prev.close !== 0 ? ((last.close - prev.close) / prev.close) * 100 : null;
   const positive = (changePct ?? 0) >= 0;
 
+  const { data: watchlist = [] } = useWatchlist();
+  const watchlistItem = watchlist.find((item) => item.ticker === ticker);
+  const addMutation = useAddToWatchlist();
+  const removeMutation = useRemoveFromWatchlist();
+  const toggling = addMutation.isPending || removeMutation.isPending;
+
+  const toggleWatchlist = () => {
+    if (watchlistItem) removeMutation.mutate(watchlistItem.id);
+    else addMutation.mutate(ticker);
+  };
+
   return (
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
       <div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleWatchlist}
+            disabled={toggling}
+            aria-pressed={!!watchlistItem}
+            aria-label={watchlistItem ? `Remover ${ticker} da watchlist` : `Adicionar ${ticker} à watchlist`}
+            className="text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors disabled:opacity-50"
+            style={watchlistItem ? { color: "var(--accent)" } : undefined}
+          >
+            <Star size={20} fill={watchlistItem ? "currentColor" : "none"} />
+          </button>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{ticker}</h1>
           {fundamentals?.sector && (
             <span className="text-xs px-2 py-0.5 rounded-md border border-[var(--border)] text-[var(--text-muted)]">
@@ -53,7 +75,8 @@ export function AssetHeader({ ticker, bars, fundamentals, onAnalyze, analyzing }
       <button
         onClick={onAnalyze}
         disabled={analyzing}
-        className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed self-start md:self-auto"
+        className="flex items-center gap-2 px-4 py-2 text-sm rounded-[11px] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed self-start md:self-auto"
+        style={{ background: "var(--accent)", color: "#04120D" }}
       >
         <Sparkles size={16} />
         {analyzing ? "Analisando…" : "Analisar com IA"}

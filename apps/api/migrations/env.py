@@ -19,6 +19,7 @@ import src.finance.rule_models  # noqa
 import src.analysis.models  # noqa
 import src.cards.models  # noqa
 import src.notifications.models  # noqa
+import src.watchlist.models  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

@@ -93,6 +93,13 @@ class FixedIncomeComparisonResult(BaseModel):
     ranking: int
 
 
+class QuoteResponse(BaseModel):
+    ticker: str
+    price: Decimal
+    currency: str
+    change_pct: Optional[Decimal]
+
+
 class FundamentalsResponse(BaseModel):
     ticker: str
     name: Optional[str]

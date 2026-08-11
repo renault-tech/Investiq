@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export type HistoryPeriod = "1mo" | "3mo" | "6mo" | "1y" | "5y" | "max";
 
@@ -69,6 +70,16 @@ export interface AssetFundamentals {
   week52_low: number | null;
 }
 
+// Pydantic serializa Decimal como string — coagir aqui, na fronteira, para os
+// componentes poderem confiar nos tipos declarados acima (ver lib/coerce.ts).
+// Sem isso, FundamentalsGrid quebra em runtime (String não tem .toLocaleString)
+// e o candle chart compara open/close como texto em vez de número.
+const BAR_NUMERIC = ["open", "high", "low", "close"] as const;
+const FUNDAMENTALS_NUMERIC = [
+  "market_cap", "p_l", "p_vp", "dividend_yield", "roe", "net_margin",
+  "lpa", "vpa", "revenue_ttm", "net_income_ttm", "week52_high", "week52_low",
+] as const;
+
 export async function getAssetHistory(
   ticker: string,
   period: HistoryPeriod = "1y",
@@ -77,7 +88,7 @@ export async function getAssetHistory(
   const res = await apiClient.get<AssetHistory>(`/market/assets/${ticker}/history`, {
     params: { period, interval },
   });
-  return res.data;
+  return { ...res.data, bars: coerceNumbersInList(res.data.bars ?? [], BAR_NUMERIC) };
 }
 
 export async function getAssetIndicators(
@@ -87,10 +98,38 @@ export async function getAssetIndicators(
   const res = await apiClient.get<AssetIndicators>(`/market/assets/${ticker}/indicators`, {
     params: { period },
   });
-  return res.data;
+  const data = res.data;
+  return {
+    ...data,
+    rsi: coerceNumbersInList(data.rsi ?? [], ["rsi"] as const),
+    macd: coerceNumbersInList(data.macd ?? [], ["macd", "signal", "histogram"] as const),
+    bollinger: coerceNumbersInList(data.bollinger ?? [], ["upper", "middle", "lower"] as const),
+    sma: (data.sma ?? []).map((s) => ({ ...s, points: coerceNumbersInList(s.points ?? [], ["value"] as const) })),
+    ema: (data.ema ?? []).map((s) => ({ ...s, points: coerceNumbersInList(s.points ?? [], ["value"] as const) })),
+  };
 }
 
 export async function getAssetFundamentals(ticker: string): Promise<AssetFundamentals> {
   const res = await apiClient.get<AssetFundamentals>(`/market/assets/${ticker}/fundamentals`);
-  return res.data;
+  return coerceNumbers(res.data, FUNDAMENTALS_NUMERIC);
+}
+
+export interface Quote {
+  ticker: string;
+  price: number;
+  currency: string;
+  change_pct: number | null;
+}
+
+const QUOTE_NUMERIC = ["price", "change_pct"] as const;
+
+/** Cotação em lote — aceita qualquer ticker que o provedor reconheça,
+ * incluindo índices (^BVSP, ^GSPC) e câmbio (USDBRL=X), sem exigir que o
+ * ticker já exista como Asset cadastrado. */
+export async function getMarketQuotes(tickers: string[]): Promise<Quote[]> {
+  if (tickers.length === 0) return [];
+  const res = await apiClient.get<Quote[]>("/market/quotes", {
+    params: { tickers: tickers.join(",") },
+  });
+  return coerceNumbersInList(res.data, QUOTE_NUMERIC);
 }

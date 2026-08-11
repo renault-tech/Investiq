@@ -10,11 +10,12 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import redis.asyncio as aioredis
-from sqlalchemy import select, update, exists
+from sqlalchemy import select, update, exists, or_
 
 from src.config import settings
 from src.database import AsyncSessionLocal
-from src.portfolio.models import Asset, PortfolioPosition
+from src.portfolio.models import Asset, PortfolioPosition, PriceAlert
+from src.watchlist.models import WatchlistItem
 from src.market_data.factory import get_provider, get_cache
 from src.workers.locking import acquire_lock_or_proceed
 
@@ -22,6 +23,22 @@ logger = logging.getLogger(__name__)
 
 _LOCK_KEY = "lock:price_refresh"
 _LOCK_TTL = 270  # seconds — shorter than 5-min interval
+
+
+def _relevant_assets_query():
+    """Assets worth a live price: held in a portfolio, on a watchlist, or the
+    target of a still-active alert. Factored out so tests can verify the
+    exact query the job runs without duplicating its shape."""
+    return select(Asset).where(
+        or_(
+            exists().where(PortfolioPosition.asset_id == Asset.id),
+            exists().where(WatchlistItem.asset_id == Asset.id),
+            exists().where(
+                PriceAlert.asset_id == Asset.id,
+                PriceAlert.is_active.is_(True),
+            ),
+        )
+    )
 
 
 def _is_market_hours() -> bool:
@@ -44,7 +61,9 @@ def _is_market_hours() -> bool:
 
 
 async def price_refresh_job() -> None:
-    """Refresh last_price on all assets held in portfolios."""
+    """Refresh last_price on assets held in a portfolio, watched, or with an
+    active alert — a ticker only on someone's watchlist (never bought) needs
+    live prices too, otherwise its alert can never trigger."""
     if not _is_market_hours():
         return
 
@@ -60,13 +79,8 @@ async def price_refresh_job() -> None:
             logger.debug("Price refresh skipped — lock held by another instance")
             return
 
-        # Load all assets that have at least one portfolio position
         async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(Asset).where(
-                    exists().where(PortfolioPosition.asset_id == Asset.id)
-                )
-            )
+            result = await db.execute(_relevant_assets_query())
             assets = result.scalars().all()
 
         if not assets:
