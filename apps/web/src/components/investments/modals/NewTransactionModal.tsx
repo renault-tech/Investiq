@@ -61,11 +61,20 @@ export function NewTransactionModal({
       onClose();
     },
     onError: (err: unknown) => {
-      const detail =
+      const raw =
         err != null &&
         typeof err === "object" &&
         "response" in err &&
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+        (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      // Num 422 de validação do FastAPI, `detail` é uma lista de objetos
+      // {msg,...} — passar isso direto pro toast quebra a página inteira
+      // (React não renderiza objeto/array como filho).
+      const detail =
+        typeof raw === "string"
+          ? raw
+          : Array.isArray(raw) && raw.length > 0 && raw[0] && typeof raw[0] === "object" && "msg" in raw[0]
+          ? String((raw[0] as { msg: unknown }).msg)
+          : undefined;
       toast.error(detail || "Erro ao registrar transação. Tente novamente.");
     },
   });

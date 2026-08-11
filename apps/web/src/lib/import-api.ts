@@ -37,8 +37,9 @@ export async function uploadStatement(file: File, bankAccountId?: string): Promi
   const form = new FormData();
   form.append("file", file);
   if (bankAccountId) form.append("bank_account_id", bankAccountId);
+  // Sem header de Content-Type explícito — ver o mesmo comentário em
+  // cards-api.ts: fixá-lo aqui sem boundary quebra o parse multipart.
   const res = await apiClient.post<ImportBatch>("/finance/import", form, {
-    headers: { "Content-Type": "multipart/form-data" },
     timeout: 60_000,
   });
   return res.data;

@@ -88,8 +88,12 @@ export async function uploadInvoice(
   const form = new FormData();
   form.append("reference_month", referenceMonth);
   form.append("file", file);
+  // Sem header de Content-Type explícito: o axios repassa o FormData intacto
+  // e o próprio browser gera "multipart/form-data; boundary=...". Fixar o
+  // header aqui (sem boundary) quebra o parse multipart no servidor — a
+  // requisição chega sem boundary, o FastAPI não consegue ler `file`/
+  // `reference_month` e devolve 422.
   const res = await apiClient.post<CardInvoice>(`/cards/${cardId}/invoices`, form, {
-    headers: { "Content-Type": "multipart/form-data" },
     timeout: 180_000, // extração via LLM pode demorar
   });
   return res.data;
