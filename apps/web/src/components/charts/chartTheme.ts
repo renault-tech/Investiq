@@ -63,6 +63,16 @@ export function formatBRLExact(value: number): string {
   });
 }
 
+/** Para valores em moeda estrangeira (ex.: patrimônio internacional em USD). */
+export function formatCurrencyExact(value: number, currency: string): string {
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function formatBRLCompact(value: number): string {
   if (Math.abs(value) >= 1_000_000) return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
   if (Math.abs(value) >= 1_000) return `R$ ${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil`;

@@ -60,8 +60,11 @@ class PositionSummary(BaseModel):
     broker: Optional[str]
     quantity: Decimal
     avg_cost: Decimal
+    currency: str
     current_price: Optional[Decimal]
+    current_price_native: Optional[Decimal]
     market_value_brl: Decimal
+    market_value_native: Decimal
     cost_basis_brl: Decimal
     pnl_absolute: Decimal
     pnl_percent: Decimal

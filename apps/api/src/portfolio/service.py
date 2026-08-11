@@ -177,8 +177,10 @@ async def get_portfolio_summary(
         # current_price is in the asset's native currency; avg_cost/total_invested
         # are already BRL (each transaction converted at its own historical fx_rate),
         # so only the live valuation needs today's rate applied here.
+        current_price_native = current_price
         current_price_brl = multiply(current_price, fx_rate)
         market_value = calculate_market_value(pos.quantity, current_price_brl)
+        market_value_native = calculate_market_value(pos.quantity, current_price_native)
         pnl_abs, pnl_pct = calculate_position_pnl(pos.quantity, pos.avg_cost, current_price_brl)
 
         position_data.append({
@@ -190,8 +192,11 @@ async def get_portfolio_summary(
             "broker": pos.broker,
             "quantity": pos.quantity,
             "avg_cost": pos.avg_cost,
+            "currency": asset.currency,
             "current_price": current_price_brl,
+            "current_price_native": current_price_native,
             "market_value_brl": market_value,
+            "market_value_native": market_value_native,
             "cost_basis_brl": pos.total_invested,
             "pnl_absolute": pnl_abs,
             "pnl_percent": pnl_pct,

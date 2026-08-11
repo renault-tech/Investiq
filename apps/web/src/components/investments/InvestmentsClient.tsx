@@ -14,7 +14,8 @@ import { PortfolioTabs } from "./PortfolioTabs";
 import { PositionsTable } from "./PositionsTable";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
-import { PERIODS, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
+import { PERIODS, formatBRLExact, formatBRLCompact, formatCurrencyExact, formatPct } from "@/components/charts/chartTheme";
+import { Globe2 } from "lucide-react";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { useMask } from "@/hooks/useMask";
 import { Button } from "@/components/ui/Button";
@@ -112,6 +113,21 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const investedValue = Number(summary?.total_invested_brl ?? 0);
   const pnlAbsolute = Number(summary?.total_pnl_absolute ?? 0);
   const pnlPercent = Number(summary?.total_pnl_percent ?? 0);
+
+  // Ativos cuja moeda nativa não é BRL — agrupados por moeda, com o valor
+  // nativo (o que aparece na corretora americana) ao lado do equivalente
+  // em reais já usado no resto da tela.
+  const internationalByCurrency = (summary?.positions ?? []).reduce<
+    Record<string, { native: number; brl: number }>
+  >((acc, p) => {
+    if (p.currency === "BRL") return acc;
+    const group = acc[p.currency] ?? { native: 0, brl: 0 };
+    group.native += p.market_value_native;
+    group.brl += p.market_value_brl;
+    acc[p.currency] = group;
+    return acc;
+  }, {});
+  const internationalCurrencies = Object.keys(internationalByCurrency);
 
   return (
     <div className="flex flex-col h-full">
@@ -295,6 +311,37 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 </ChartCard>
               </div>
             </section>
+
+            {/* Patrimônio internacional: ativos em moeda estrangeira, valor nativo + equivalente em BRL */}
+            {internationalCurrencies.length > 0 && (
+              <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Globe2 size={15} className="text-[var(--text-secondary)]" />
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">Patrimônio internacional</div>
+                </div>
+                <div className="flex flex-wrap gap-6">
+                  {internationalCurrencies.map((currency) => {
+                    const group = internationalByCurrency[currency];
+                    const weight = marketValue > 0 ? group.brl / marketValue : 0;
+                    return (
+                      <div key={currency}>
+                        <div className="text-[11.5px] text-[var(--text-secondary)]">
+                          Ativos em {currency} · {formatPct(weight)} da carteira
+                        </div>
+                        <div className="flex items-baseline gap-2.5 mt-0.5">
+                          <span className="text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
+                            {mask(formatCurrencyExact(group.native, currency))}
+                          </span>
+                          <span className="text-[13px] text-[var(--text-secondary)] tabular-nums">
+                            ≈ {mask(formatBRLExact(group.brl))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Raio-X da carteira: look-through geográfico e setorial */}
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".11s" }}>
