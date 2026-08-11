@@ -11,6 +11,24 @@ from src.market_data.base import (
 
 logger = logging.getLogger(__name__)
 
+# yfinance faz a chamada de rede de forma síncrona, sem timeout próprio, e
+# datacenter IP (a Vercel é um, um runner de CI é outro) é justamente o que
+# o Yahoo bloqueia com mais agressividade — às vezes devagar, deixando a
+# conexão pendurada em vez de rejeitar na hora. Sem um teto aqui, uma
+# chamada travada trava a rota inteira (e, em lote, cada teste que a
+# exercita) em vez de degradar para "sem cotação" como o resto do provedor
+# já trata.
+_CALL_TIMEOUT_S = 8.0
+
+
+async def _run_with_timeout(loop, fn, *args, fallback):
+    try:
+        return await asyncio.wait_for(loop.run_in_executor(None, fn, *args), timeout=_CALL_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        name = getattr(fn, "__name__", repr(fn))
+        logger.warning("Yahoo Finance timed out after %ss calling %s%s", _CALL_TIMEOUT_S, name, args)
+        return fallback
+
 
 def _to_decimal(value) -> Optional[Decimal]:
     """Safely convert a value to Decimal, returning None on failure."""
@@ -39,7 +57,7 @@ class YahooFinanceProvider(MarketDataProvider):
         if not tickers:
             return {}
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._fetch_quotes_sync, tickers)
+        return await _run_with_timeout(loop, self._fetch_quotes_sync, tickers, fallback={})
 
     def _fetch_quotes_sync(self, tickers: list[str]) -> dict[str, Quote]:
         """Synchronous yfinance call — runs in thread executor."""
@@ -90,14 +108,14 @@ class YahooFinanceProvider(MarketDataProvider):
     ) -> list[HistoricalBar]:
         """Fetch OHLCV history from Yahoo Finance."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, self._fetch_history_sync, ticker, period, interval
+        return await _run_with_timeout(
+            loop, self._fetch_history_sync, ticker, period, interval, fallback=[]
         )
 
     async def get_fundamentals(self, ticker: str) -> Optional[Fundamentals]:
         """Fetch fundamentals via yfinance get_info (free, best-effort per field)."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._fetch_fundamentals_sync, ticker)
+        return await _run_with_timeout(loop, self._fetch_fundamentals_sync, ticker, fallback=None)
 
     def _fetch_fundamentals_sync(self, ticker: str) -> Optional[Fundamentals]:
         try:
@@ -134,7 +152,7 @@ class YahooFinanceProvider(MarketDataProvider):
         yfinance's `funds_data` scraper. Only meaningful for tickers whose
         `quoteType` is ETF/MUTUALFUND — a plain stock returns None here."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._fetch_fund_composition_sync, ticker)
+        return await _run_with_timeout(loop, self._fetch_fund_composition_sync, ticker, fallback=None)
 
     def _fetch_fund_composition_sync(self, ticker: str) -> Optional[FundComposition]:
         try:
