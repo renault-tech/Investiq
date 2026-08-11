@@ -56,6 +56,7 @@ export function NewTransactionModal({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-look-through", portfolioId] });
       toast.success("Transação registrada!");
       onClose();
     },

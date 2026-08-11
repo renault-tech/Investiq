@@ -94,6 +94,28 @@ class PortfolioSummaryResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Look-through geográfico e setorial
+# ---------------------------------------------------------------------------
+
+class LookThroughBucket(BaseModel):
+    label: str
+    value_brl: Decimal
+    weight: Decimal   # 0.0-1.0 fraction of portfolio
+
+
+class PortfolioLookThroughResponse(BaseModel):
+    portfolio_id: uuid.UUID
+    total_market_value_brl: Decimal
+    by_sector: list[LookThroughBucket]
+    by_country: list[LookThroughBucket]
+    by_asset_class: list[LookThroughBucket]
+    # Fração da carteira cujo país foi de fato resolvido — para fundos, a
+    # geografia é uma amostra das maiores posições, não a composição
+    # completa, então isso mede o quanto dessa amostra é confiável.
+    country_coverage: Decimal
+
+
+# ---------------------------------------------------------------------------
 # Performance series
 # ---------------------------------------------------------------------------
 

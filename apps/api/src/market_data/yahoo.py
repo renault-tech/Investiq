@@ -4,7 +4,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 import logging
 
-from src.market_data.base import MarketDataProvider, Quote, HistoricalBar, Fundamentals, is_b3_ticker
+from src.market_data.base import (
+    MarketDataProvider, Quote, HistoricalBar, Fundamentals, FundComposition, FundHolding,
+    is_b3_ticker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,8 @@ class YahooFinanceProvider(MarketDataProvider):
                 ticker=ticker,
                 name=info.get("longName") or info.get("shortName"),
                 sector=info.get("sector"),
+                country=info.get("country"),
+                quote_type=info.get("quoteType"),
                 market_cap=_to_decimal(info.get("marketCap")),
                 p_l=_to_decimal(info.get("trailingPE")),
                 p_vp=_to_decimal(info.get("priceToBook")),
@@ -122,6 +127,72 @@ class YahooFinanceProvider(MarketDataProvider):
             )
         except Exception as exc:
             logger.warning("Yahoo fundamentals failed for %s: %s", ticker, exc)
+            return None
+
+    async def get_fund_composition(self, ticker: str) -> Optional[FundComposition]:
+        """Sector/asset-class/top-holdings breakdown for an ETF or fund, via
+        yfinance's `funds_data` scraper. Only meaningful for tickers whose
+        `quoteType` is ETF/MUTUALFUND — a plain stock returns None here."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._fetch_fund_composition_sync, ticker)
+
+    def _fetch_fund_composition_sync(self, ticker: str) -> Optional[FundComposition]:
+        try:
+            import yfinance as yf
+            yf_t = f"{ticker}.SA" if is_b3_ticker(ticker) else ticker
+            fd = yf.Ticker(yf_t).funds_data
+            if fd is None:
+                return None
+
+            sector_weights: dict[str, Decimal] = {}
+            raw_sectors = getattr(fd, "sector_weightings", None)
+            if raw_sectors:
+                # yfinance may hand back a dict or a single-column DataFrame
+                # depending on version — normalize both to plain items().
+                items = raw_sectors.items() if hasattr(raw_sectors, "items") else []
+                for key, value in items:
+                    weight = _to_decimal(value)
+                    if weight and weight > 0:
+                        sector_weights[str(key)] = weight
+
+            asset_class_weights: dict[str, Decimal] = {}
+            raw_classes = getattr(fd, "asset_classes", None)
+            if raw_classes:
+                items = raw_classes.items() if hasattr(raw_classes, "items") else []
+                for key, value in items:
+                    weight = _to_decimal(value)
+                    if weight and weight > 0:
+                        asset_class_weights[str(key)] = weight
+
+            top_holdings: list[FundHolding] = []
+            raw_holdings = getattr(fd, "top_holdings", None)
+            if raw_holdings is not None and not raw_holdings.empty:
+                weight_col = next(
+                    (c for c in raw_holdings.columns if "hold" in c.lower() or "%" in c or "weight" in c.lower()),
+                    raw_holdings.columns[0] if len(raw_holdings.columns) else None,
+                )
+                name_col = next((c for c in raw_holdings.columns if "name" in c.lower()), None)
+                for symbol, row in raw_holdings.iterrows():
+                    weight = _to_decimal(row.get(weight_col)) if weight_col else None
+                    if not weight or weight <= 0:
+                        continue
+                    top_holdings.append(FundHolding(
+                        symbol=str(symbol),
+                        name=str(row.get(name_col)) if name_col else None,
+                        weight=weight,
+                    ))
+
+            if not sector_weights and not asset_class_weights and not top_holdings:
+                return None
+
+            return FundComposition(
+                ticker=ticker,
+                sector_weights=sector_weights,
+                asset_class_weights=asset_class_weights,
+                top_holdings=top_holdings,
+            )
+        except Exception as exc:
+            logger.warning("Yahoo fund composition failed for %s: %s", ticker, exc)
             return None
 
     def _fetch_history_sync(self, ticker: str, period: str, interval: str) -> list[HistoricalBar]:

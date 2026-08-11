@@ -9,7 +9,7 @@ import redis.asyncio as aioredis
 
 from dataclasses import asdict
 
-from src.market_data.base import Quote, HistoricalBar, Fundamentals
+from src.market_data.base import Quote, HistoricalBar, Fundamentals, FundComposition, FundHolding
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,12 @@ QUOTE_TTL = 300
 HISTORY_TTL = 14400
 # Fundamentals TTL (24 hours — updates at most daily)
 FUNDAMENTALS_TTL = 86400
+# Fund composition TTL (7 days — index/ETF weightings rebalance quarterly at most)
+FUND_COMPOSITION_TTL = 604800
+
+# String-valued Fundamentals fields — everything else in the dataclass is a
+# Decimal and needs Decimal(...) reconstruction on read.
+_FUNDAMENTALS_STR_FIELDS = ("ticker", "name", "sector", "country", "quote_type")
 
 
 def _quote_to_dict(quote: Quote) -> dict:
@@ -204,7 +210,7 @@ class MarketDataCache:
                 return None
             data = json.loads(raw)
             return Fundamentals(**{
-                key: (Decimal(value) if key not in ("ticker", "name", "sector") and value is not None else value)
+                key: (Decimal(value) if key not in _FUNDAMENTALS_STR_FIELDS and value is not None else value)
                 for key, value in data.items()
             })
         except Exception as exc:
@@ -220,3 +226,46 @@ class MarketDataCache:
             await self._redis.setex(self._fundamentals_key(fundamentals.ticker), ttl, json.dumps(data))
         except Exception as exc:
             logger.warning("Cache set_fundamentals failed for %s: %s", fundamentals.ticker, exc)
+
+    # ------------------------------------------------------------------
+    # Fund composition cache (ETF/fund sector, asset-class, top-holdings)
+    # ------------------------------------------------------------------
+
+    def _fund_composition_key(self, ticker: str) -> str:
+        return f"fund_composition:{ticker.upper()}"
+
+    async def get_fund_composition(self, ticker: str) -> Optional[FundComposition]:
+        try:
+            raw = await self._redis.get(self._fund_composition_key(ticker))
+            if raw is None:
+                return None
+            data = json.loads(raw)
+            return FundComposition(
+                ticker=data["ticker"],
+                sector_weights={k: Decimal(v) for k, v in data["sector_weights"].items()},
+                asset_class_weights={k: Decimal(v) for k, v in data["asset_class_weights"].items()},
+                top_holdings=[
+                    FundHolding(symbol=h["symbol"], name=h["name"], weight=Decimal(h["weight"]))
+                    for h in data["top_holdings"]
+                ],
+                fetched_at=datetime.fromisoformat(data["fetched_at"]),
+            )
+        except Exception as exc:
+            logger.warning("Cache get_fund_composition failed for %s: %s", ticker, exc)
+            return None
+
+    async def set_fund_composition(self, composition: FundComposition, ttl: int = FUND_COMPOSITION_TTL) -> None:
+        try:
+            data = {
+                "ticker": composition.ticker,
+                "sector_weights": {k: str(v) for k, v in composition.sector_weights.items()},
+                "asset_class_weights": {k: str(v) for k, v in composition.asset_class_weights.items()},
+                "top_holdings": [
+                    {"symbol": h.symbol, "name": h.name, "weight": str(h.weight)}
+                    for h in composition.top_holdings
+                ],
+                "fetched_at": composition.fetched_at.isoformat(),
+            }
+            await self._redis.setex(self._fund_composition_key(composition.ticker), ttl, json.dumps(data))
+        except Exception as exc:
+            logger.warning("Cache set_fund_composition failed for %s: %s", composition.ticker, exc)

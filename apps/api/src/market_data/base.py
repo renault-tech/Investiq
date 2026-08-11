@@ -42,6 +42,8 @@ class Fundamentals:
     ticker: str
     name: Optional[str] = None
     sector: Optional[str] = None
+    country: Optional[str] = None
+    quote_type: Optional[str] = None          # "EQUITY" | "ETF" | "MUTUALFUND" | ...
     market_cap: Optional[Decimal] = None
     p_l: Optional[Decimal] = None            # price / earnings
     p_vp: Optional[Decimal] = None           # price / book
@@ -54,6 +56,33 @@ class Fundamentals:
     net_income_ttm: Optional[Decimal] = None
     week52_high: Optional[Decimal] = None
     week52_low: Optional[Decimal] = None
+
+
+@dataclass
+class FundHolding:
+    """Single constituent of an ETF/fund's top holdings, with its weight
+    inside the fund (0.0-1.0 fraction)."""
+    symbol: str
+    name: Optional[str]
+    weight: Decimal
+
+
+@dataclass
+class FundComposition:
+    """ETF/fund look-through data: how the fund itself is split by sector and
+    asset class, plus its largest individual holdings (used to estimate a
+    geographic breakdown, since Yahoo doesn't expose region weightings
+    directly). All weight dicts are fractions (0.0-1.0) and may not sum to
+    exactly 1 — the caller treats the gap as "unclassified"."""
+    ticker: str
+    sector_weights: dict[str, Decimal]
+    asset_class_weights: dict[str, Decimal]
+    top_holdings: list[FundHolding]
+    fetched_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.fetched_at is None:
+            self.fetched_at = datetime.utcnow()
 
 
 @dataclass
@@ -91,6 +120,11 @@ class MarketDataProvider(ABC):
 
     async def get_fundamentals(self, ticker: str) -> Optional[Fundamentals]:
         """Fetch fundamental data. Default: not supported by this provider."""
+        return None
+
+    async def get_fund_composition(self, ticker: str) -> Optional[FundComposition]:
+        """Fetch ETF/fund sector, asset-class and top-holdings breakdown.
+        Default: not supported by this provider (only Yahoo has this today)."""
         return None
 
     @property

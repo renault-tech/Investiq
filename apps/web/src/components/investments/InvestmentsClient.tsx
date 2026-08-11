@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
 import { usePortfolioBenchmark } from "@/hooks/usePortfolioBenchmark";
+import { usePortfolioLookThrough } from "@/hooks/usePortfolioLookThrough";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { PositionsTable } from "./PositionsTable";
 import { ChartCard } from "@/components/charts/ChartCard";
@@ -33,6 +34,10 @@ const PortfolioEvolutionChart = dynamic(
 );
 const BenchmarkChart = dynamic(
   () => import("@/components/charts/BenchmarkChart").then((m) => m.BenchmarkChart),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+);
+const LookThroughDonut = dynamic(
+  () => import("@/components/charts/LookThroughDonut").then((m) => m.LookThroughDonut),
   { ssr: false, loading: () => <ChartSkeleton /> }
 );
 // A aba inteira (não só o gráfico) — só monta quando o usuário clica em
@@ -62,6 +67,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   >(undefined);
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
   const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
+  const [lookThroughMode, setLookThroughMode] = useState<"sector" | "country" | "class">("sector");
   const [activeTab, setActiveTab] = useState<"positions" | "income">("positions");
   const mask = useMask();
 
@@ -79,6 +85,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     usePortfolioPerformance(activePortfolioId, performancePeriod);
   const { data: benchmark, isLoading: isBenchmarkLoading, isError: isBenchmarkError, refetch: refetchBenchmark } =
     usePortfolioBenchmark(activePortfolioId, performancePeriod);
+  const { data: lookThrough, isLoading: isLookThroughLoading, isError: isLookThroughError, refetch: refetchLookThrough } =
+    usePortfolioLookThrough(activePortfolioId);
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -286,6 +294,67 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   />
                 </ChartCard>
               </div>
+            </section>
+
+            {/* Raio-X da carteira: look-through geográfico e setorial */}
+            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".11s" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">Raio-X da carteira</div>
+                  <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
+                    Olhando através de cada ETF/fundo para suas posições de verdade
+                  </div>
+                </div>
+                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+                  {([["sector", "Setor"], ["country", "Região"], ["class", "Classe"]] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      onClick={() => setLookThroughMode(mode)}
+                      className="px-2.5 py-1 text-[11px] transition-colors"
+                      style={{
+                        background: lookThroughMode === mode ? "var(--surface-3)" : "transparent",
+                        color: lookThroughMode === mode ? "var(--text-primary)" : "var(--text-secondary)",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3">
+                <ChartCard
+                  title="" bare
+                  isLoading={isLookThroughLoading}
+                  isError={isLookThroughError}
+                  onRetry={refetchLookThrough}
+                  isEmpty={
+                    !lookThrough ||
+                    (lookThroughMode === "sector" ? lookThrough.by_sector.length === 0
+                      : lookThroughMode === "country" ? lookThrough.by_country.length === 0
+                      : lookThrough.by_asset_class.length === 0)
+                  }
+                  emptyMessage="Adicione posições para ver a distribuição."
+                >
+                  <LookThroughDonut
+                    buckets={
+                      lookThroughMode === "sector" ? lookThrough?.by_sector ?? []
+                        : lookThroughMode === "country" ? lookThrough?.by_country ?? []
+                        : lookThrough?.by_asset_class ?? []
+                    }
+                    ariaLabel={
+                      lookThroughMode === "sector" ? "Distribuição por setor"
+                        : lookThroughMode === "country" ? "Distribuição geográfica"
+                        : "Distribuição por classe de ativo"
+                    }
+                  />
+                </ChartCard>
+              </div>
+              {lookThroughMode === "country" && lookThrough && lookThrough.country_coverage < 0.95 && (
+                <p className="text-[11px] text-[var(--text-muted)] mt-3">
+                  A geografia dos fundos é estimada a partir das maiores posições de cada ETF — cobre{" "}
+                  {(lookThrough.country_coverage * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% da carteira com dado confiável; o restante aparece como &quot;Não mapeado&quot;.
+                </p>
+              )}
             </section>
 
             {/* Benchmark */}

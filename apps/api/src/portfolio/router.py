@@ -11,6 +11,7 @@ from src.auth.models import User
 from src.market_data.dependencies import get_redis as _get_redis
 from src.market_data.dependencies import get_user_provider_settings as _get_user_provider_settings
 from src.portfolio import service
+from src.portfolio import look_through
 from src.shared.csv_export import build_csv_response
 from datetime import date as dt_date
 
@@ -21,6 +22,7 @@ from src.portfolio.schemas import (
     PerformancePoint,
     BenchmarkPoint,
     PortfolioIncomeResponse,
+    PortfolioLookThroughResponse,
     TransactionCreate,
     TransactionResponse,
     AddPositionRequest,
@@ -129,6 +131,26 @@ async def get_portfolio_benchmark(
         portfolio_id=portfolio_id,
         user_id=current_user.id,
         period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/{portfolio_id}/look-through", response_model=PortfolioLookThroughResponse)
+async def get_portfolio_look_through(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Distribuição da carteira por setor, país e classe de ativo, olhando
+    através de cada ETF/fundo para suas posições subjacentes."""
+    return await look_through.get_portfolio_look_through(
+        portfolio_id=portfolio_id,
+        user_id=current_user.id,
         db=db,
         redis=redis,
         preferred_provider=provider_settings["preferred"],

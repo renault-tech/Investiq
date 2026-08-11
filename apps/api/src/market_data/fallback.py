@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from src.market_data.base import (
+    FundComposition,
     Fundamentals,
     HistoricalBar,
     MarketDataProvider,
@@ -90,4 +91,15 @@ class FallbackProvider(MarketDataProvider):
                 continue
             if fundamentals is not None:
                 return fundamentals
+        return None
+
+    async def get_fund_composition(self, ticker: str) -> Optional[FundComposition]:
+        for provider in (self._primary, self._secondary):
+            try:
+                composition = await provider.get_fund_composition(ticker)
+            except Exception:
+                logger.warning("%s falhou em get_fund_composition(%s)", provider.name, ticker, exc_info=True)
+                continue
+            if composition is not None:
+                return composition
         return None

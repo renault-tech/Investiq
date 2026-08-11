@@ -52,12 +52,14 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
     },
     onSuccess: (tickerName) => {
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-look-through", portfolioId] });
       toast.success(`${tickerName} adicionado à carteira!`);
       onClose();
     },
     onError: (err: unknown) => {
       // Sempre invalida — a posição pode ter sido criada antes da transação falhar
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-look-through", portfolioId] });
       const detail =
         err != null &&
         typeof err === "object" &&
