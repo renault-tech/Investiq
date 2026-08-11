@@ -28,7 +28,7 @@ const TYPE_FILTERS: { value: "" | "income" | "expense" | "transfer"; label: stri
 ];
 
 export function TransactionsClient() {
-  const { privacy } = useUIStore();
+  const privacy = useUIStore((s) => s.privacy);
   const mask = (text: string) => maskValue(text, privacy);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | "income" | "expense" | "transfer">("");

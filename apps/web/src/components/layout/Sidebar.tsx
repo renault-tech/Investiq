@@ -20,6 +20,7 @@ import {
   PanelLeftOpen,
   TrendingUp,
 } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -40,7 +41,9 @@ export function Sidebar() {
   const activeHref = NAV_ITEMS
     .filter((item) => pathname.startsWith(item.href))
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
-  const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar } = useUIStore(
+    useShallow((s) => ({ sidebarCollapsed: s.sidebarCollapsed, toggleSidebar: s.toggleSidebar }))
+  );
   const user = useUserStore((s) => s.user);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);

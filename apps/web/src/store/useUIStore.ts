@@ -2,18 +2,15 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_ACCENT_ID, getAccentOption } from "@/lib/accentPalette";
 
-type Theme = "dark" | "light";
 export type Period = "1M" | "6M" | "1A" | "Tudo";
 
 interface UIStore {
-  theme: Theme;
   fontScale: number;
   sidebarCollapsed: boolean;
   privacy: boolean;
   period: Period;
   customize: boolean;
   accentColorId: string;
-  setTheme: (theme: Theme) => void;
   setFontScale: (scale: number) => void;
   toggleSidebar: () => void;
   togglePrivacy: () => void;
@@ -40,19 +37,12 @@ function applyAccentColor(id: string) {
 export const useUIStore = create<UIStore>()(
   persist(
     (set) => ({
-      theme: "dark",
       fontScale: 1.0,
       sidebarCollapsed: false,
       privacy: false,
       period: "6M",
       customize: false,
       accentColorId: DEFAULT_ACCENT_ID,
-      setTheme: (theme) => {
-        set({ theme });
-        if (typeof document !== "undefined") {
-          document.documentElement.classList.toggle("dark", theme === "dark");
-        }
-      },
       setFontScale: (scale) => {
         const clamped = Math.min(1.5, Math.max(0.75, scale));
         set({ fontScale: clamped });

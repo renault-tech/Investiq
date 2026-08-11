@@ -1,14 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { AnalysisSidebar } from "./AnalysisSidebar";
-import { AnalysisReport } from "./AnalysisReport";
 import { AnalysisChat } from "./AnalysisChat";
 import { AnalysisEmptyState } from "./AnalysisEmptyState";
 import { AnalysisStreamingSkeleton } from "./AnalysisStreamingSkeleton";
+
+// react-markdown+remark-gfm (via AnalysisSection) só entra no bundle quando
+// há conteúdo pra render — a tela de análise já tem loading state próprio
+// (AnalysisStreamingSkeleton) para os outros casos.
+const AnalysisReport = dynamic(
+  () => import("./AnalysisReport").then((m) => m.AnalysisReport),
+  { ssr: false, loading: () => <AnalysisStreamingSkeleton /> }
+);
 import { useAnalysis as useAnalysisHook } from "@/hooks/useAnalysis";
 import { getRecentContext, saveAnalysis } from "@/lib/analysis-api";
 import { getPortfolioSummary } from "@/lib/portfolio-api";

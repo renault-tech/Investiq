@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { Check, KeyRound, Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
 import { ApiKeysUpdate } from "@/lib/settings-api";
+import { useShallow } from "zustand/react/shallow";
 import { useUserStore } from "@/store/useUserStore";
 import { useUIStore } from "@/store/useUIStore";
 import { ACCENT_PALETTE } from "@/lib/accentPalette";
@@ -76,7 +77,14 @@ export function SettingsClient() {
   const keysMutation = useUpdateApiKeys();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
-  const { fontScale, setFontScale, accentColorId, setAccentColor } = useUIStore();
+  const { fontScale, setFontScale, accentColorId, setAccentColor } = useUIStore(
+    useShallow((s) => ({
+      fontScale: s.fontScale,
+      setFontScale: s.setFontScale,
+      accentColorId: s.accentColorId,
+      setAccentColor: s.setAccentColor,
+    }))
+  );
 
   if (isLoading || !settings) {
     return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -12,11 +13,21 @@ import {
 import { HistoryPeriod } from "@/lib/market-api";
 import { streamAnalysis } from "@/lib/sse";
 import { AssetHeader } from "./AssetHeader";
-import { CandlestickChart } from "./CandlestickChart";
 import { IndicatorToggle, IndicatorState, DEFAULT_INDICATOR_STATE } from "./IndicatorToggle";
 import { FundamentalsGrid } from "./FundamentalsGrid";
-import { AssetAiPanel } from "./AssetAiPanel";
 import { AssetAlerts } from "./AssetAlerts";
+
+// recharts (CandlestickChart) e react-markdown (AssetAiPanel) só entram no
+// bundle da rota de ativo quando de fato renderizam — mesmo padrão já usado
+// nos gráficos de Investimentos/Finanças (dynamic + ChartSkeleton/skeleton).
+const CandlestickChart = dynamic(
+  () => import("./CandlestickChart").then((m) => m.CandlestickChart),
+  { ssr: false, loading: () => <div className="h-[360px] rounded-[var(--radius-card-sm)] bg-[var(--surface-2)] animate-pulse" /> }
+);
+const AssetAiPanel = dynamic(
+  () => import("./AssetAiPanel").then((m) => m.AssetAiPanel),
+  { ssr: false, loading: () => <div className="h-40 rounded-[var(--radius-card-sm)] bg-[var(--surface-2)] animate-pulse" /> }
+);
 
 const PERIODS: { value: HistoryPeriod; label: string }[] = [
   { value: "1mo", label: "1m" },

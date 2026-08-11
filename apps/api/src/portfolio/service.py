@@ -1,4 +1,5 @@
 """Portfolio business logic — fetch positions, enrich with live prices, calculate summaries."""
+import asyncio
 import uuid
 import logging
 from datetime import date, timedelta
@@ -336,8 +337,7 @@ async def get_portfolio_performance(
     cache = get_cache(redis) if redis else None
     provider = get_provider(preferred_provider, brapi_key)
 
-    closes: dict[str, list[tuple[date, Decimal]]] = {}
-    for ticker in tickers:
+    async def _fetch_closes(ticker: str) -> list[tuple[date, Decimal]]:
         bars = None
         if cache:
             bars = await cache.get_historical(ticker, provider_period, "1d")
@@ -349,10 +349,16 @@ async def get_portfolio_performance(
                 bars = []
             if cache and bars:
                 await cache.set_historical(ticker, bars, provider_period, "1d")
-        closes[ticker] = sorted(
+        return sorted(
             ((bar.date.date() if hasattr(bar.date, "date") else bar.date, bar.close) for bar in bars),
             key=lambda item: item[0],
         )
+
+    # Um round-trip por ticker (cache ou provedor) — em série isso é a
+    # latência dominante da rota com uma carteira de 10+ ativos; em paralelo
+    # vira o tempo do mais lento, não a soma de todos.
+    closes_list = await asyncio.gather(*(_fetch_closes(t) for t in tickers))
+    closes: dict[str, list[tuple[date, Decimal]]] = dict(zip(tickers, closes_list))
 
     def close_at(ticker: str, day: date) -> Optional[Decimal]:
         """Most recent close on or before the given date."""
