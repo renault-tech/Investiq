@@ -93,7 +93,7 @@ export function ReportBuilder({ month, onDownload }: ReportBuilderProps) {
     setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   return (
-    <div className="border-t border-[var(--border)] mt-6 pt-5 flex flex-col gap-4">
+    <div data-tour="report-builder" className="border-t border-[var(--border)] mt-6 pt-5 flex flex-col gap-4">
       <div>
         <div className="text-[11.5px] font-medium text-[var(--text-secondary)] mb-2">Formato</div>
         <div className="flex gap-1.5">

@@ -72,6 +72,12 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
         working-directory: apps/web
+      # Falha quando uma tela nova entra sem tutorial. É o que impede a
+      # Central de ajuda e o tour de irem ficando desatualizados em silêncio
+      # a cada feature nova.
+      - name: Cobertura de tutoriais
+        run: node scripts/check-tutorials.mjs
+        working-directory: apps/web
       - name: Unit tests
         run: npm run test --workspace apps/web
       - name: Build

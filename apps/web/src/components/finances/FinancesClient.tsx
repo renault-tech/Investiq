@@ -172,6 +172,7 @@ export function FinancesClient() {
             <Tags size={15} /> Categorias
           </button>
           <button
+            data-tour="new-transaction"
             onClick={() => { setEditingTxn(undefined); setShowTransactionModal(true); }}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px] transition-colors"
             style={{ background: "var(--accent)", color: "#04120D" }}
@@ -212,9 +213,13 @@ export function FinancesClient() {
         </section>
       </div>
 
-      <AccountsBar holder={holder} onHolderChange={setHolder} />
+      <div data-tour="accounts-bar">
+        <AccountsBar holder={holder} onHolderChange={setHolder} />
+      </div>
 
-      <BudgetsSection categories={categories} />
+      <div data-tour="budgets-section">
+        <BudgetsSection categories={categories} />
+      </div>
 
       {/* Filtros + tabela */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6">
