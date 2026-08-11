@@ -156,8 +156,13 @@ export async function deleteTransaction(
   await apiClient.delete(`/finance/transactions/${id}`, { params: { scope } });
 }
 
-export async function getFinanceSummary(month: string): Promise<FinanceSummary> {
-  const res = await apiClient.get<FinanceSummary>("/finance/summary", { params: { month } });
+export async function getFinanceSummary(
+  month: string,
+  scope?: { accountId?: string | null; holder?: string | null }
+): Promise<FinanceSummary> {
+  const res = await apiClient.get<FinanceSummary>("/finance/summary", {
+    params: { month, account_id: scope?.accountId || undefined, holder: scope?.holder || undefined },
+  });
   const data = coerceNumbers(res.data, ["income", "expense", "net", "income_prev_pct", "expense_prev_pct"] as const);
   return {
     ...data,

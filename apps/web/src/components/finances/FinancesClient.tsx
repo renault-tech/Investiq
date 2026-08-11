@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText, Plus, Tags } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileText, Layers, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
 import { useForecast } from "@/hooks/useForecast";
+import { useAccounts } from "@/hooks/useAccounts";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SummaryCards } from "./SummaryCards";
@@ -43,10 +45,15 @@ export function FinancesClient() {
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
   // "" = todos os titulares. Escopa a tabela de transações junto com as contas.
   const [holder, setHolder] = useState("");
+  // Carteira ativa (clicada em AccountsBar) — escopa a página inteira, não só a tabela.
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const setActiveAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
+  const { data: accounts = [] } = useAccounts();
+  const activeAccount = accounts.find((a) => a.id === activeAccountId);
 
   const { data: categories = [] } = useCategories();
-  const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useFinanceSummary(month);
-  const { data: forecast, isLoading: forecastLoading, isError: forecastError } = useForecast(6);
+  const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useFinanceSummary(month, activeAccountId, holder || undefined);
+  const { data: forecast, isLoading: forecastLoading, isError: forecastError } = useForecast(6, activeAccountId, holder || undefined);
 
   const bounds = useMemo(() => monthBounds(month), [month]);
   const { data: txnList, isLoading: txnLoading, isError: txnError, refetch: refetchTxns } = useTransactions({
@@ -55,6 +62,7 @@ export function FinancesClient() {
     transaction_type: typeFilter || undefined,
     category_id: categoryFilter || undefined,
     search: search || undefined,
+    account_id: activeAccountId || undefined,
     holder: holder || undefined,
     per_page: 200,
   });
@@ -94,7 +102,10 @@ export function FinancesClient() {
 
   const handleExport = async (format: "csv" | "ofx") => {
     const res = await apiClient.get(`/finance/transactions/export${format === "ofx" ? ".ofx" : ""}`, {
-      params: { date_from: bounds.from, date_to: bounds.to },
+      params: {
+        date_from: bounds.from, date_to: bounds.to,
+        account_id: activeAccountId || undefined, holder: holder || undefined,
+      },
       responseType: "blob",
     });
     const url = window.URL.createObjectURL(res.data as Blob);
@@ -124,6 +135,16 @@ export function FinancesClient() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Finanças</h2>
+          {activeAccount && (
+            <button
+              onClick={() => setActiveAccountId(null)}
+              title="Clique para ver o consolidado"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-lg border transition-colors"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--glow)" }}
+            >
+              <Layers size={12} /> {activeAccount.name}
+            </button>
+          )}
           <div className="flex items-center gap-1 ml-2">
             <button onClick={() => shiftMonth(-1)} aria-label="Mês anterior" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <ChevronLeft size={18} />

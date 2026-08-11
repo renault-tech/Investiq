@@ -34,8 +34,13 @@ export interface Analytics {
   category_matrix: CategoryMatrixRow[];
 }
 
-export async function getAnalytics(months = 6): Promise<Analytics> {
-  const res = await apiClient.get<Analytics>("/finance/analytics", { params: { months } });
+export async function getAnalytics(
+  months = 6,
+  scope?: { accountId?: string | null; holder?: string | null }
+): Promise<Analytics> {
+  const res = await apiClient.get<Analytics>("/finance/analytics", {
+    params: { months, account_id: scope?.accountId || undefined, holder: scope?.holder || undefined },
+  });
   const data = coerceNumbers(res.data, ["burn_rate", "runway_months"] as const);
   return {
     ...data,

@@ -609,13 +609,21 @@ def _month_bounds(month: str) -> tuple[datetime, datetime]:
     return start, end - timedelta(microseconds=1)
 
 
-async def get_summary(user_id: uuid.UUID, month: str, db: AsyncSession) -> dict:
+async def get_summary(
+    user_id: uuid.UUID,
+    month: str,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = None,
+) -> dict:
     """Monthly totals + expenses by category + 12-month flow, recurrences included."""
     start, end = _month_bounds(month)
     series_start = (start - timedelta(days=365)).replace(day=1)
 
     listing = await list_transactions(
         user_id, db, date_from=series_start, date_to=end, per_page=100_000,
+        account_id=account_id, holder=holder,
     )
     items = listing["items"]
 

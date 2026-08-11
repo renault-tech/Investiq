@@ -142,6 +142,8 @@ async def export_transactions(
     date_to: Optional[datetime] = None,
     category_id: Optional[uuid.UUID] = None,
     transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -150,6 +152,7 @@ async def export_transactions(
         current_user.id, db,
         date_from=date_from, date_to=date_to,
         category_id=category_id, transaction_type=transaction_type,
+        account_id=account_id, holder=holder,
         per_page=100_000,
     )
     rows = [
@@ -179,6 +182,8 @@ async def export_transactions_ofx(
     date_to: Optional[datetime] = None,
     category_id: Optional[uuid.UUID] = None,
     transaction_type: Optional[str] = Query(None, pattern="^(income|expense|transfer)$"),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -187,6 +192,7 @@ async def export_transactions_ofx(
         current_user.id, db,
         date_from=date_from, date_to=date_to,
         category_id=category_id, transaction_type=transaction_type,
+        account_id=account_id, holder=holder,
         per_page=100_000,
     )
     content = build_ofx_export(listing["items"])
@@ -378,12 +384,14 @@ async def categorize_import_batch_with_ai(
 @router.get("/summary", response_model=FinanceSummaryResponse)
 async def get_summary(
     month: str = Query(..., description="YYYY-MM"),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not _MONTH_RE.match(month):
         raise HTTPException(status_code=422, detail="month deve estar no formato YYYY-MM")
-    return await service.get_summary(current_user.id, month, db)
+    return await service.get_summary(current_user.id, month, db, account_id=account_id, holder=holder)
 
 
 # ---------------------------------------------------------------------------
@@ -394,13 +402,14 @@ async def get_summary(
 async def get_forecast(
     months: int = Query(6, ge=1, le=24),
     account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Projeção de saldo mês a mês, separando o que já é conhecido (recorrência,
     parcela futura, fatura de cartão em aberto) do que é estimativa (mediana
     dos últimos 6 meses por categoria sem essa cobertura)."""
-    return await forecast.get_forecast(current_user.id, db, months=months, account_id=account_id)
+    return await forecast.get_forecast(current_user.id, db, months=months, account_id=account_id, holder=holder)
 
 
 # ---------------------------------------------------------------------------
@@ -410,12 +419,14 @@ async def get_forecast(
 @router.get("/analytics", response_model=AnalyticsResponse)
 async def get_analytics(
     months: int = Query(6, ge=3, le=24),
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = Query(None, max_length=80),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Burn rate, taxa de poupança, fôlego e tendência por categoria — tudo
     derivado das mesmas transações que resumo e projeção já consultam."""
-    return await analytics.get_analytics(current_user.id, db, months=months)
+    return await analytics.get_analytics(current_user.id, db, months=months, account_id=account_id, holder=holder)
 
 
 # ---------------------------------------------------------------------------

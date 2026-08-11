@@ -31,10 +31,10 @@ export function useTransactions(filters: TransactionFilters) {
   });
 }
 
-export function useFinanceSummary(month: string) {
+export function useFinanceSummary(month: string, accountId?: string | null, holder?: string | null) {
   return useQuery({
-    queryKey: ["finance", "summary", month],
-    queryFn: () => getFinanceSummary(month),
+    queryKey: ["finance", "summary", month, accountId, holder],
+    queryFn: () => getFinanceSummary(month, { accountId, holder }),
     staleTime: 30_000,
   });
 }

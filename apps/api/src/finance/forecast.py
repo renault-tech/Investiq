@@ -62,6 +62,7 @@ async def get_forecast(
     *,
     months: int = 6,
     account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = None,
 ) -> dict:
     now = datetime.now(timezone.utc)
     this_month_start = _month_start(now)
@@ -71,23 +72,25 @@ async def get_forecast(
     listing = await finance_service.list_transactions(
         user_id, db,
         date_from=baseline_start, date_to=horizon_end,
-        account_id=account_id, per_page=100_000,
+        account_id=account_id, holder=holder, per_page=100_000,
     )
     items = listing["items"]
 
-    # Saldo de partida: da conta escolhida, ou o total das contas somadas no
-    # consolidado (mesma regra de include_in_total do cartão de saldos).
+    # Saldo de partida: da conta escolhida, das contas do titular escolhido,
+    # ou o total das contas somadas no consolidado (mesma regra de
+    # include_in_total do cartão de saldos).
     balances = await finance_service._account_balances(user_id, db)
     if account_id:
         current_balance = balances.get(account_id, _ZERO)
     else:
-        accounts_result = await db.execute(
-            select(BankAccount.id).where(
-                BankAccount.user_id == user_id,
-                BankAccount.is_active.is_(True),
-                BankAccount.include_in_total.is_(True),
-            )
+        accounts_query = select(BankAccount.id).where(
+            BankAccount.user_id == user_id,
+            BankAccount.is_active.is_(True),
+            BankAccount.include_in_total.is_(True),
         )
+        if holder:
+            accounts_query = accounts_query.where(BankAccount.holder == holder)
+        accounts_result = await db.execute(accounts_query)
         included_ids = {row[0] for row in accounts_result.all()}
         current_balance = sum((balances.get(aid, _ZERO) for aid in included_ids), _ZERO)
 

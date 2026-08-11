@@ -29,7 +29,14 @@ def _month_start(dt: datetime) -> datetime:
     return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
-async def get_analytics(user_id: uuid.UUID, db: AsyncSession, *, months: int = 6) -> dict:
+async def get_analytics(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    months: int = 6,
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = None,
+) -> dict:
     now = datetime.now(timezone.utc)
     this_month_start = _month_start(now)
     window_months = max(months, _TREND_BASELINE_MONTHS)
@@ -37,6 +44,7 @@ async def get_analytics(user_id: uuid.UUID, db: AsyncSession, *, months: int = 6
 
     listing = await finance_service.list_transactions(
         user_id, db, date_from=date_from, date_to=now, per_page=100_000,
+        account_id=account_id, holder=holder,
     )
     items = [i for i in listing["items"] if i["transaction_type"] != "transfer"]
 
@@ -88,15 +96,20 @@ async def get_analytics(user_id: uuid.UUID, db: AsyncSession, *, months: int = 6
         rate = ((income - expense) / income) if income > _ZERO else None
         savings_series.append({"month": m, "income": income, "expense": expense, "savings_rate": rate})
 
-    # Fôlego: saldo total das contas do consolidado ÷ burn rate.
+    # Fôlego: saldo das contas do escopo ativo (uma conta, um titular, ou o
+    # consolidado inteiro) ÷ burn rate — precisa acompanhar o mesmo filtro
+    # que já reduziu `listing`, senão a projeção mistura contas de fora.
     balances = await finance_service._account_balances(user_id, db)
-    accounts_result = await db.execute(
-        select(BankAccount.id).where(
-            BankAccount.user_id == user_id,
-            BankAccount.is_active.is_(True),
-            BankAccount.include_in_total.is_(True),
-        )
+    accounts_query = select(BankAccount.id).where(
+        BankAccount.user_id == user_id,
+        BankAccount.is_active.is_(True),
+        BankAccount.include_in_total.is_(True),
     )
+    if account_id:
+        accounts_query = accounts_query.where(BankAccount.id == account_id)
+    elif holder:
+        accounts_query = accounts_query.where(BankAccount.holder == holder)
+    accounts_result = await db.execute(accounts_query)
     included_ids = {row[0] for row in accounts_result.all()}
     total_balance = sum((balances.get(aid, _ZERO) for aid in included_ids), _ZERO)
     runway_months = (total_balance / burn_rate) if burn_rate > _ZERO else None
