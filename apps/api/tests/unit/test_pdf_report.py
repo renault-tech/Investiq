@@ -40,7 +40,8 @@ def test_generate_report_with_data_produces_valid_pdf():
         "total_pnl_percent": Decimal("15.00"),
     }]
     pdf_bytes = generate_monthly_report_pdf(
-        user_name="Teste", month="2026-07", finance_summary=finance_summary, portfolios=portfolios
+        user_name="Teste", month="2026-07",
+        finance_sections=[("Consolidado", finance_summary)], portfolios=portfolios,
     )
     assert pdf_bytes[:5] == b"%PDF-"
     assert len(pdf_bytes) > 1000
@@ -49,6 +50,29 @@ def test_generate_report_with_data_produces_valid_pdf():
 def test_generate_report_with_no_data_still_produces_valid_pdf():
     finance_summary = {"income": Decimal("0"), "expense": Decimal("0"), "net": Decimal("0"), "by_category": []}
     pdf_bytes = generate_monthly_report_pdf(
-        user_name="Teste", month="2026-07", finance_summary=finance_summary, portfolios=[]
+        user_name="Teste", month="2026-07",
+        finance_sections=[("Consolidado", finance_summary)], portfolios=[],
     )
     assert pdf_bytes[:5] == b"%PDF-"
+
+
+def test_uma_secao_por_carteira_selecionada():
+    """Duas carteiras selecionadas geram duas seções — consolidar sempre
+    esconderia justamente a comparação que motiva escolhê-las."""
+    def _summary(income: str, expense: str) -> dict:
+        return {
+            "income": Decimal(income), "expense": Decimal(expense),
+            "net": Decimal(income) - Decimal(expense), "by_category": [],
+        }
+
+    one = generate_monthly_report_pdf(
+        user_name="Teste", month="2026-07",
+        finance_sections=[("Nubank", _summary("5000", "3000"))], portfolios=[],
+    )
+    two = generate_monthly_report_pdf(
+        user_name="Teste", month="2026-07",
+        finance_sections=[("Nubank", _summary("5000", "3000")), ("Itau", _summary("2000", "800"))],
+        portfolios=[],
+    )
+    assert two[:5] == b"%PDF-"
+    assert len(two) > len(one)

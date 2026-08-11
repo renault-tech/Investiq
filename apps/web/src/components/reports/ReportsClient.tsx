@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
+import { ReportBuilder } from "./ReportBuilder";
 import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioIncome } from "@/hooks/usePortfolioIncome";
@@ -77,13 +78,6 @@ export function ReportsClient() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => downloadBlob("/reports/monthly", `relatorio-${month}.pdf`, { month })}
-              className="flex items-center gap-1.5 px-4 h-[38px] rounded-xl text-[12.5px] font-semibold"
-              style={{ background: "var(--accent)", color: "#04120D" }}
-            >
-              <Download size={14} /> Exportar PDF
-            </button>
-            <button
               onClick={() => downloadBlob("/finance/transactions/export", `transacoes-${month}.csv`)}
               className="px-4 h-[38px] rounded-xl border border-[var(--border-strong)] text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
@@ -91,6 +85,18 @@ export function ReportsClient() {
             </button>
           </div>
         </div>
+
+        <ReportBuilder
+          month={month}
+          onDownload={({ month: m, format, accountIds, portfolioIds }) =>
+            downloadBlob("/reports/monthly", `relatorio-${m}.${format}`, {
+              month: m,
+              format,
+              ...(accountIds.length ? { account_ids: accountIds.join(",") } : {}),
+              ...(portfolioIds.length ? { portfolio_ids: portfolioIds.join(",") } : {}),
+            })
+          }
+        />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-[18px] mt-6">
           {metrics.map((m) => (
             <div key={m.label} className="border-l border-[var(--border)] pl-4">

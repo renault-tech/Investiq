@@ -77,12 +77,14 @@ def generate_monthly_report_pdf(
     *,
     user_name: str,
     month: str,
-    finance_summary: dict,
+    finance_sections: list[tuple[str, dict]],
     portfolios: list[dict],
 ) -> bytes:
     """Render the report to PDF bytes.
 
-    finance_summary: shape returned by finance.service.get_summary().
+    finance_sections: (rótulo da carteira, resumo) — uma seção por carteira
+    selecionada, ou uma única "Consolidado" quando nenhuma foi escolhida.
+    Cada resumo tem o shape de finance.service.get_summary().
     portfolios: list of {portfolio_name, currency, ...totals} — one dict per
     portfolio, each shaped like portfolio.service.get_portfolio_summary()'s
     top-level totals (total_invested_brl, total_market_value_brl,
@@ -102,34 +104,36 @@ def generate_monthly_report_pdf(
     pdf.ln(4)
 
     # --- Finanças pessoais -------------------------------------------------
-    pdf.section_title("Finanças pessoais")
-    income = finance_summary["income"]
-    expense = finance_summary["expense"]
-    net = finance_summary["net"]
-    pdf.stat_row([
-        ("Receitas", _fmt_brl(income), _ACCENT),
-        ("Despesas", _fmt_brl(expense), _DANGER),
-        ("Saldo", _fmt_brl(net), _ACCENT if net >= 0 else _DANGER),
-    ])
+    for label, finance_summary in finance_sections:
+        title = "Finanças pessoais" if label == "Consolidado" else f"Finanças pessoais - {label}"
+        pdf.section_title(title)
+        income = finance_summary["income"]
+        expense = finance_summary["expense"]
+        net = finance_summary["net"]
+        pdf.stat_row([
+            ("Receitas", _fmt_brl(income), _ACCENT),
+            ("Despesas", _fmt_brl(expense), _DANGER),
+            ("Saldo", _fmt_brl(net), _ACCENT if net >= 0 else _DANGER),
+        ])
 
-    by_category = finance_summary.get("by_category") or []
-    if by_category:
-        pdf.set_font("helvetica", "B", 9)
-        pdf.set_text_color(*_NAVY)
-        with pdf.table(col_widths=(90, 50, 50), text_align=("LEFT", "RIGHT", "RIGHT")) as table:
-            header = table.row()
-            for text in ("Categoria", "Valor", "% do mês"):
-                header.cell(text)
-            pdf.set_font("helvetica", "", 9)
-            for cat in by_category:
-                row = table.row()
-                row.cell(cat["category_name"])
-                row.cell(_fmt_brl(cat["value"]))
-                row.cell(_fmt_pct(cat["pct"]))
-    else:
-        pdf.set_font("helvetica", "I", 9)
-        pdf.set_text_color(*_MUTED)
-        pdf.cell(0, 6, "Nenhuma despesa registrada neste mês.", new_x="LMARGIN", new_y="NEXT")
+        by_category = finance_summary.get("by_category") or []
+        if by_category:
+            pdf.set_font("helvetica", "B", 9)
+            pdf.set_text_color(*_NAVY)
+            with pdf.table(col_widths=(90, 50, 50), text_align=("LEFT", "RIGHT", "RIGHT")) as table:
+                header = table.row()
+                for text in ("Categoria", "Valor", "% do mês"):
+                    header.cell(text)
+                pdf.set_font("helvetica", "", 9)
+                for cat in by_category:
+                    row = table.row()
+                    row.cell(cat["category_name"])
+                    row.cell(_fmt_brl(cat["value"]))
+                    row.cell(_fmt_pct(cat["pct"]))
+        else:
+            pdf.set_font("helvetica", "I", 9)
+            pdf.set_text_color(*_MUTED)
+            pdf.cell(0, 6, "Nenhuma despesa registrada neste mês.", new_x="LMARGIN", new_y="NEXT")
 
     # --- Investimentos -------------------------------------------------
     pdf.section_title("Investimentos")
@@ -162,6 +166,6 @@ def generate_monthly_report_pdf(
     else:
         pdf.set_font("helvetica", "I", 9)
         pdf.set_text_color(*_MUTED)
-        pdf.cell(0, 6, "Nenhuma carteira de investimentos cadastrada.", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 6, "Nenhuma carteira de investimentos selecionada.", new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())
