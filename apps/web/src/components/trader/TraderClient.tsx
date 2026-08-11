@@ -6,10 +6,10 @@ import { AlertsManager } from "./AlertsManager";
 
 export function TraderClient() {
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px]">
+    <div className="p-[26px_30px_60px]">
       <MarketOverviewStrip />
 
-      <div className="grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section
           className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
           style={{ animationDelay: ".05s" }}

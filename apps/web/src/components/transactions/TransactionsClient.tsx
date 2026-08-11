@@ -62,7 +62,7 @@ export function TransactionsClient() {
   };
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex gap-[18px] items-start">
+    <div className="p-[26px_30px_60px] flex flex-col md:flex-row gap-[18px] items-start">
       <section className="flex-1 min-w-0 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-[22px] shadow-[var(--shadow)] animate-rise-up">
         <div className="flex items-center gap-2.5 flex-wrap mb-4">
           <div className="flex-1 min-w-[200px] flex items-center gap-2.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3.5 py-2">
@@ -108,7 +108,7 @@ export function TransactionsClient() {
       </section>
 
       {selected && (
-        <aside className="w-[340px] flex-shrink-0 sticky top-[92px] border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-slide-in">
+        <aside className="w-full md:w-[340px] flex-shrink-0 md:sticky md:top-[92px] border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-slide-in">
           <div className="flex justify-between items-start">
             <div className="w-[46px] h-[46px] rounded-2xl bg-[var(--surface-3)] flex items-center justify-center text-[15px] font-semibold text-[var(--text-secondary)]">
               {(selected.description ?? selected.category_name ?? "?").slice(0, 2).toUpperCase()}

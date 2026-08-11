@@ -91,7 +91,7 @@ export function AssetClient({ ticker }: AssetClientProps) {
   };
 
   return (
-    <div className="p-[26px_30px_60px] max-w-6xl mx-auto w-full space-y-5 min-w-[1180px]">
+    <div className="p-[26px_30px_60px] max-w-6xl mx-auto w-full space-y-5">
       <Link
         href="/investments"
         className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"

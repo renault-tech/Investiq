@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   listCards,
   createCard,
+  updateCard,
   deleteCard,
   listInvoices,
   getInvoice,
@@ -45,6 +46,18 @@ export function useCreateCard() {
       queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
     onError: () => toast.error("Falha ao cadastrar cartão."),
+  });
+}
+
+export function useUpdateCard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<CardInput> }) => updateCard(id, input),
+    onSuccess: () => {
+      toast.success("Cartão atualizado.");
+      queryClient.invalidateQueries({ queryKey: ["cards"] });
+    },
+    onError: () => toast.error("Falha ao atualizar cartão."),
   });
 }
 

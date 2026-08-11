@@ -131,7 +131,7 @@ export function FinancesClient() {
   };
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ export function FinancesClient() {
         <SummaryCards summary={summary} isLoading={summaryLoading} />
       )}
 
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
           <div className="flex items-center justify-between">
             <div>

@@ -119,6 +119,23 @@ body {
 .animate-ring { animation: ring 1.2s cubic-bezier(.5,0,.2,1) both; }
 .animate-pulse-dot { animation: pulseDot 2.4s infinite; }
 
+/* As grades de 12 colunas das telas principais fixam `gridTemplateColumns`
+   e o `gridColumn: span N` de cada card via inline style (calculado a
+   partir de dados, não dá para virar classe Tailwind estática) — e inline
+   style vence qualquer classe, inclusive `md:grid-cols-1`. Em telas
+   estreitas isso forçava layout de 1180px de largura mínima, exigindo
+   rolagem horizontal na tela inteira. `!important` numa regra externa é a
+   única forma de vencer um inline style sem reescrever cada componente. */
+@media (max-width: 767px) {
+  .responsive-grid-12 {
+    grid-template-columns: 1fr !important;
+    min-width: 0 !important;
+  }
+  .responsive-grid-12 > * {
+    grid-column: 1 / -1 !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

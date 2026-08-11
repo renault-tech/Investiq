@@ -69,7 +69,7 @@ export function ReportsClient() {
   ];
 
   return (
-    <div className="p-[26px_30px_60px] min-w-[1180px] flex flex-col gap-[18px]">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-[26px] shadow-[var(--shadow)] animate-rise-up">
         <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
@@ -107,7 +107,7 @@ export function ReportsClient() {
         </div>
       </section>
 
-      <div className="grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
           <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
           <div className="flex items-end gap-3 h-[190px] mt-5.5">
