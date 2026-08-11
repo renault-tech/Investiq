@@ -73,6 +73,25 @@ export function useDeleteCard() {
   });
 }
 
+/** `detail` de um erro da API pode ser uma string (exceções nossas), um
+ * {message} (mesmo formato) ou — num 422 de validação automática do FastAPI —
+ * uma lista de objetos {loc, msg, type}. Passar esse objeto/array direto pro
+ * toast.error faz o React tentar renderizá-lo como filho e quebra a página
+ * inteira ("Objects are not valid as a React child"); sempre normaliza pra
+ * string antes de exibir. */
+function uploadErrorMessage(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (detail && typeof detail === "object" && "message" in detail && typeof (detail as { message?: unknown }).message === "string") {
+    return (detail as { message: string }).message;
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0];
+    if (first && typeof first === "object" && "msg" in first) return String((first as { msg: unknown }).msg);
+  }
+  return fallback;
+}
+
 export function useUploadInvoice(cardId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -87,8 +106,7 @@ export function useUploadInvoice(cardId: string | null) {
       }
     },
     onError: (err: unknown) => {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(detail ?? "Falha no upload da fatura.");
+      toast.error(uploadErrorMessage(err, "Falha no upload da fatura."));
     },
   });
 }
