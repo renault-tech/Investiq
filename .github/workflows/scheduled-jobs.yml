@@ -12,6 +12,7 @@ name: Scheduled jobs
 on:
   schedule:
     - cron: "*/5 * * * *" # price_refresh (market hours only, checked internally) + alert_checker
+    - cron: "0 9 * * *"   # bill_due_checker — matches the old APScheduler time
     - cron: "0 18 * * *"  # fx_update — matches the old APScheduler time
     - cron: "0 21 * * *"  # snapshot — matches the old APScheduler time
   workflow_dispatch: # manual run from the Actions tab, for testing
@@ -25,6 +26,7 @@ jobs:
         run: |
           case "${{ github.event.schedule }}" in
             "*/5 * * * *") echo "jobs=price_refresh,alert_checker" >> "$GITHUB_OUTPUT" ;;
+            "0 9 * * *") echo "jobs=bill_due_checker" >> "$GITHUB_OUTPUT" ;;
             "0 18 * * *") echo "jobs=fx_update" >> "$GITHUB_OUTPUT" ;;
             "0 21 * * *") echo "jobs=snapshot" >> "$GITHUB_OUTPUT" ;;
             *) echo "jobs=all" >> "$GITHUB_OUTPUT" ;;

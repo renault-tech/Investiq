@@ -259,6 +259,11 @@ def _txn_to_dict(txn: FinancialTransaction, *, virtual_date: Optional[datetime] 
         "to_bank_account_id": txn.to_bank_account_id,
         "to_bank_account_name": txn.to_bank_account.name if txn.to_bank_account else None,
         "transaction_date": virtual_date or txn.transaction_date,
+        # Ocorrência virtual não é uma linha real — não há o que "pagar" nela,
+        # então ela sai sempre como já paga (esconde o botão "Pagar" na UI).
+        "due_date": virtual_date or txn.due_date,
+        "is_paid": True if virtual_date else txn.is_paid,
+        "paid_at": None if virtual_date else txn.paid_at,
         "is_recurring": txn.is_recurring,
         "recurrence_rule": txn.recurrence_rule,
         "installment_no": txn.installment_no,
@@ -464,10 +469,22 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
     amounts = _split_installments(data["amount"], count) if count > 1 else [data["amount"]]
     group_id = uuid.uuid4() if count > 1 else None
     base_date = data["transaction_date"]
+    base_due = data.get("due_date") or base_date
+    if base_due.tzinfo is None:
+        base_due = base_due.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     source = data.get("source") or ("installment" if count > 1 else "manual")
 
     created: list[FinancialTransaction] = []
     for index, part in enumerate(amounts):
+        # Cada parcela vence um mês depois da anterior, igual à data de
+        # lançamento — só a primeira herda um vencimento diferente da data
+        # de lançamento quando o usuário informa um.
+        due = base_due + relativedelta(months=index)
+        # Vencimento no futuro fica pendente até o botão "Pagar" (ou o
+        # worker de vencimento, no dia certo) confirmar — nunca marcado
+        # pago sozinho só porque a linha foi criada.
+        paid = due <= now
         txn = FinancialTransaction(
             user_id=user_id,
             transaction_type=txn_type,
@@ -481,6 +498,9 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
             bank_account_id=data.get("bank_account_id"),
             to_bank_account_id=to_account_id,
             transaction_date=base_date + relativedelta(months=index),
+            due_date=due,
+            is_paid=paid,
+            paid_at=now if paid else None,
             # Parcelas nunca são recorrentes: é o que as mantém fora de
             # expand_recurring e elimina qualquer contagem em dobro.
             is_recurring=bool(data.get("recurrence_rule")) and count == 1,
@@ -562,6 +582,19 @@ async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dic
         await categorizer.learn_from_correction(user_id, txn.description, new_category_id, db)
         await db.commit()
 
+    return _txn_to_dict(txn)
+
+
+async def mark_transaction_paid(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Botão "Pagar" — confirma que o vencimento lançado antecipadamente
+    foi efetivamente pago hoje. Idempotente: clicar de novo numa transação
+    já paga só devolve o estado atual."""
+    txn = await _get_transaction(txn_id, user_id, db)
+    if not txn.is_paid:
+        txn.is_paid = True
+        txn.paid_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
     return _txn_to_dict(txn)
 
 

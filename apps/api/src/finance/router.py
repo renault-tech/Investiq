@@ -224,6 +224,15 @@ async def update_transaction(
     )
 
 
+@router.post("/transactions/{txn_id}/pay", response_model=TransactionResponse)
+async def pay_transaction(
+    txn_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.mark_transaction_paid(txn_id, current_user.id, db)
+
+
 @router.delete("/transactions/{txn_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(
     txn_id: uuid.UUID,

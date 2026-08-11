@@ -25,6 +25,9 @@ export interface FinanceTransaction {
   to_bank_account_id: string | null;
   to_bank_account_name: string | null;
   transaction_date: string;
+  due_date: string;
+  is_paid: boolean;
+  paid_at: string | null;
   is_recurring: boolean;
   recurrence_rule: string | null;
   installment_no: number | null;
@@ -96,6 +99,8 @@ export interface CreateTransactionInput {
   bank_account_id?: string;
   to_bank_account_id?: string;
   transaction_date: string;
+  /** Vencimento, se diferente da data de lançamento. Ausente = pago no ato. */
+  due_date?: string;
   recurrence_rule?: string;
   /** >1 materializa N parcelas mensais; `amount` é o total da compra. */
   installments?: number;
@@ -144,6 +149,13 @@ export async function updateTransaction(
   input: Partial<CreateTransactionInput>
 ): Promise<FinanceTransaction> {
   const res = await apiClient.patch<FinanceTransaction>(`/finance/transactions/${id}`, input);
+  return res.data;
+}
+
+/** Confirma o pagamento de um lançamento cujo vencimento foi lançado antes
+ * do pagamento em si — o botão "Pagar" da linha. */
+export async function payTransaction(id: string): Promise<FinanceTransaction> {
+  const res = await apiClient.post<FinanceTransaction>(`/finance/transactions/${id}/pay`);
   return res.data;
 }
 

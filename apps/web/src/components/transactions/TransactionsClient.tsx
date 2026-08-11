@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search, X, Pencil, ArrowLeftRight } from "lucide-react";
-import { useCategories, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
+import { useCategories, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
@@ -44,6 +44,7 @@ export function TransactionsClient() {
   });
   const { data: analytics } = useAnalytics(6);
   const deleteMutation = useDeleteTransaction();
+  const payMutation = usePayTransaction();
 
   const items = txPage?.items ?? [];
   const selected = items.find((t) => t.id === selectedId);
@@ -99,6 +100,7 @@ export function TransactionsClient() {
             isLoading={isLoading}
             onEdit={(txn) => { setEditingTxn(txn); setShowModal(true); }}
             onDelete={handleDelete}
+            onPay={(txn) => payMutation.mutate(txn.id)}
             onRowClick={(txn) => setSelectedId(txn.id === selectedId ? null : txn.id)}
             selectedId={selectedId}
           />

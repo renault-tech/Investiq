@@ -51,6 +51,9 @@ class TransactionCreate(BaseModel):
     bank_account_id: Optional[uuid.UUID] = None
     to_bank_account_id: Optional[uuid.UUID] = None   # obrigatório quando type='transfer'
     transaction_date: datetime
+    # Vencimento, se diferente da data de lançamento. Ausente = mesma data
+    # (pago no ato, o comportamento de sempre).
+    due_date: Optional[datetime] = None
     recurrence_rule: Optional[str] = Field(None, max_length=100)
     # Parcelamento: N>1 materializa N lançamentos mensais a partir da data.
     # `amount` é o total da compra, não o valor da parcela.
@@ -67,6 +70,7 @@ class TransactionUpdate(BaseModel):
     bank_account_id: Optional[uuid.UUID] = None
     to_bank_account_id: Optional[uuid.UUID] = None
     transaction_date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
     recurrence_rule: Optional[str] = Field(None, max_length=100)
     tags: Optional[list[str]] = None
 
@@ -86,6 +90,9 @@ class TransactionResponse(BaseModel):
     to_bank_account_id: Optional[uuid.UUID] = None
     to_bank_account_name: Optional[str] = None
     transaction_date: datetime
+    due_date: datetime
+    is_paid: bool
+    paid_at: Optional[datetime] = None
     is_recurring: bool
     recurrence_rule: Optional[str]
     installment_no: Optional[int] = None

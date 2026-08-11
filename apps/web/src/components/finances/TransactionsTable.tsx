@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, Pencil, Repeat, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CircleDollarSign, Pencil, Repeat, Trash2 } from "lucide-react";
 import { FinanceTransaction, TransactionSource } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 
@@ -17,13 +17,14 @@ interface TransactionsTableProps {
   isLoading: boolean;
   onEdit: (txn: FinanceTransaction) => void;
   onDelete: (txn: FinanceTransaction) => void;
+  onPay: (txn: FinanceTransaction) => void;
   /** Drill-down opcional: quando presente, a linha vira clicável (fora dos
    * botões de ação) e destaca a transação selecionada. */
   onRowClick?: (txn: FinanceTransaction) => void;
   selectedId?: string | null;
 }
 
-export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, onRowClick, selectedId }: TransactionsTableProps) {
+export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, onPay, onRowClick, selectedId }: TransactionsTableProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -89,6 +90,15 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                         {txn.installment_no}/{txn.installment_total}
                       </span>
                     )}
+                    {!txn.is_paid && !txn.is_virtual && (
+                      <span
+                        className="text-[10px] rounded px-1 border"
+                        style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                        title={`Vence em ${new Date(txn.due_date).toLocaleDateString("pt-BR")}`}
+                      >
+                        Vence {new Date(txn.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                      </span>
+                    )}
                     {txn.source === "manual" ? (
                       <span
                         className="text-[10px] text-[var(--text-muted)] border border-[var(--border)] rounded px-1"
@@ -140,6 +150,16 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                 <td className="px-2 py-2 text-right whitespace-nowrap">
                   {!txn.is_virtual && (
                     <>
+                      {!txn.is_paid && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onPay(txn); }}
+                          className="inline-flex items-center gap-1 px-1.5 py-1 mr-1 text-[11px] font-medium rounded-md"
+                          style={{ color: "var(--accent)", background: "var(--glow)" }}
+                          aria-label={`Marcar ${txn.description ?? "transação"} como paga`}
+                        >
+                          <CircleDollarSign size={13} /> Pagar
+                        </button>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); onEdit(txn); }}
                         className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"

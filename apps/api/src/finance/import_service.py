@@ -254,6 +254,7 @@ async def confirm_import_batch(batch_id: uuid.UUID, user_id: uuid.UUID, db: Asyn
             category_id=row.category_id,
             bank_account_id=batch.bank_account_id,
             transaction_date=row.transaction_date,
+            due_date=row.transaction_date,  # extrato importado já é dinheiro movimentado
             source=source,
             external_id=row.external_id,
         )

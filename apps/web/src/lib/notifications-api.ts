@@ -2,7 +2,7 @@ import { apiClient } from "./api-client";
 
 export interface Notification {
   id: string;
-  type: "price_alert" | "budget_exceeded" | "system";
+  type: "price_alert" | "budget_exceeded" | "bill_due" | "system";
   title: string;
   body: string | null;
   read_at: string | null;

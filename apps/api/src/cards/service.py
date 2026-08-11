@@ -259,6 +259,11 @@ async def confirm_invoice(invoice_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSe
                 time(12, 0),
                 tzinfo=timezone.utc,
             ),
+            # Vencimento da fatura, não da compra — é quando o cartão de fato
+            # debita, ainda que a fatura já confirmada conte como paga.
+            due_date=datetime.combine(
+                invoice.due_date or invoice.reference_month, time(12, 0), tzinfo=timezone.utc
+            ),
             # A fatura já traz a parcela que vence neste mês. Os campos são
             # rótulo — materializar as futuras aqui contaria em dobro quando a
             # próxima fatura chegasse.

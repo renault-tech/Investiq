@@ -42,6 +42,14 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
   const [date, setDate] = useState(
     editing ? editing.transaction_date.slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
+  // Vazio = vence na data de lançamento (pago no ato). Só populamos se o
+  // vencimento gravado já for diferente — editar um lançamento "normal" não
+  // deve fazer os dois campos aparecerem preenchidos com a mesma data.
+  const [dueDate, setDueDate] = useState(
+    editing && editing.due_date.slice(0, 10) !== editing.transaction_date.slice(0, 10)
+      ? editing.due_date.slice(0, 10)
+      : ""
+  );
   const [recurrence, setRecurrence] = useState(editing?.recurrence_rule ?? "");
   const [installments, setInstallments] = useState("1");
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +95,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
       bank_account_id: accountId || undefined,
       to_bank_account_id: isTransfer ? toAccountId : undefined,
       transaction_date: `${date}T12:00:00Z`,
+      due_date: dueDate ? `${dueDate}T12:00:00Z` : undefined,
       recurrence_rule: canSplit && parcelCount > 1 ? undefined : recurrence || undefined,
       installments: canSplit ? parcelCount : undefined,
     };
@@ -234,6 +243,18 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
             </Select>
           )}
         </div>
+
+        <Input
+          label="Vencimento (se diferente da data de lançamento)"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+        />
+        <p className="text-xs text-[var(--text-muted)] -mt-2.5">
+          Deixe em branco para "pago no ato". Preenchendo com uma data futura, o lançamento
+          fica pendente até você clicar em "Pagar" na tabela — ou até o vencimento chegar,
+          quando você recebe uma notificação.
+        </p>
 
         {canSplit && parcelCount === 1 && (
           <Select

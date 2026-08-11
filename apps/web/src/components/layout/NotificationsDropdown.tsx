@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Check, TrendingUp, Wallet, Info } from "lucide-react";
+import { Bell, Check, TrendingUp, Wallet, CircleDollarSign, Info } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/useNotifications";
 import { Notification } from "@/lib/notifications-api";
 
 const ICONS: Record<Notification["type"], typeof Bell> = {
   price_alert: TrendingUp,
   budget_exceeded: Wallet,
+  bill_due: CircleDollarSign,
   system: Info,
 };
 

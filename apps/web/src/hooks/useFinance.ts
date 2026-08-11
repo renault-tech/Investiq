@@ -9,6 +9,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  payTransaction,
   getFinanceSummary,
   TransactionFilters,
   CreateTransactionInput,
@@ -66,6 +67,18 @@ export function useUpdateTransaction() {
       invalidate();
     },
     onError: () => toast.error("Falha ao atualizar transação."),
+  });
+}
+
+export function usePayTransaction() {
+  const invalidate = useInvalidateFinance();
+  return useMutation({
+    mutationFn: (id: string) => payTransaction(id),
+    onSuccess: () => {
+      toast.success("Pagamento confirmado.");
+      invalidate();
+    },
+    onError: () => toast.error("Falha ao confirmar pagamento."),
   });
 }
 

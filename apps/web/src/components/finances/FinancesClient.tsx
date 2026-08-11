@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, FileText, Layers, Plus, Tags } from "lucide-react";
-import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction } from "@/hooks/useFinance";
+import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
 import { FinanceTransaction } from "@/lib/finance-api";
@@ -67,6 +67,7 @@ export function FinancesClient() {
     per_page: 200,
   });
   const deleteMutation = useDeleteTransaction();
+  const payMutation = usePayTransaction();
 
   const shiftMonth = (delta: number) => {
     const [year, mon] = month.split("-").map(Number);
@@ -269,6 +270,7 @@ export function FinancesClient() {
             isLoading={txnLoading}
             onEdit={(txn) => { setEditingTxn(txn); setShowTransactionModal(true); }}
             onDelete={handleDelete}
+            onPay={(txn) => payMutation.mutate(txn.id)}
           />
         )}
       </div>
