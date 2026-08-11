@@ -18,7 +18,24 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
   await page.getByRole("button", { name: "Criar conta" }).click();
 
   await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });
+  // Um usuário recém-criado ainda não viu nenhum tour — o balão abre
+  // sozinho na primeira tela e seu backdrop (fixed inset-0) cobre a
+  // página inteira, bloqueando cliques em qualquer outro elemento até
+  // ser fechado. "Não mostrar mais" desativa o tour pro resto da sessão
+  // (persistido em localStorage), então os testes não precisam lidar com
+  // ele de novo a cada navegação.
+  await dismissTourIfPresent(page);
   return { email };
+}
+
+/** Fecha o balão de tour guiado se ele estiver aberto na tela atual,
+ * desativando-o pro resto da sessão. Sem alvo pra clicar nesse cenário —
+ * um balão que nunca abriu não é erro, só não há nada a fazer. */
+export async function dismissTourIfPresent(page: Page): Promise<void> {
+  const dismissAllBtn = page.getByRole("button", { name: "Não mostrar mais" });
+  if (await dismissAllBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    await dismissAllBtn.click();
+  }
 }
 
 /**
