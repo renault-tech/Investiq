@@ -70,3 +70,32 @@ async def test_lote_que_funciona_nao_gera_requisicao_extra():
 
     assert len(quotes) == 2
     assert client.requested == [["WEGE3", "PETR4"]]
+
+
+class _UnreachableClient:
+    """Simula a Brapi fora do ar / timeout — a conexão em si nunca conclui."""
+
+    def __init__(self):
+        self.requested: list[list[str]] = []
+
+    async def get(self, url: str, params=None):
+        self.requested.append(url.rsplit("/", 1)[-1].split(","))
+        raise httpx.ConnectTimeout("timed out")
+
+
+@pytest.mark.asyncio
+async def test_falha_de_rede_nao_multiplica_tentativas_por_ticker():
+    """Reconsultar um a um só faz sentido quando a Brapi respondeu com erro
+    para o lote — se a conexão falhou, repetir N vezes só multiplica o mesmo
+    timeout, podendo transformar uma falha de segundos numa espera de
+    minutos (foi exatamente isso que travou a suíte de CI: cada ticker
+    reconsultado esperava o timeout inteiro de novo)."""
+    provider = BrapiProvider(api_key="tok")
+    client = _UnreachableClient()
+    provider._client = client
+
+    quotes = await provider.get_quotes(["WEGE3", "PETR4", "VALE3"])
+
+    assert quotes == {}
+    # Uma tentativa só — nada de retentar ticker por ticker numa rede fora do ar.
+    assert client.requested == [["WEGE3", "PETR4", "VALE3"]]
