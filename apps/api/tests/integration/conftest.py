@@ -122,6 +122,56 @@ async def db_session():
         yield session
 
 
+class _NullMarketDataProvider:
+    """Devolve "sem cotação" para tudo, na hora — nunca toca rede de verdade.
+
+    Sem isso, todo teste que passa por resumo de carteira (dezenas na
+    suíte) tenta uma chamada real ao Yahoo/Brapi antes de degradar. Neste
+    sandbox local ela falha rápido (proxy sem egress rejeita em <1s), mas
+    num runner de CI com internet de verdade o Yahoo bloqueia IP de
+    datacenter de forma lenta em vez de rejeitar na hora — cada teste paga
+    o timeout inteiro (mesmo limitado) antes de cair no fallback, e a
+    soma disso é o que travava a suíte de integração por 15+ minutos.
+    Testes que precisam de um preço específico já seedam `asset.last_price`
+    direto no banco (o mesmo fallback que get_portfolio_summary usa quando
+    a cotação ao vivo não está disponível), então nenhum deles depende de
+    uma resposta real daqui.
+    """
+
+    name = "null"
+
+    async def get_quote(self, ticker: str):
+        return None
+
+    async def get_quotes(self, tickers: list[str]) -> dict:
+        return {}
+
+    async def get_historical(self, ticker: str, period: str = "1y", interval: str = "1d") -> list:
+        return []
+
+    async def get_fundamentals(self, ticker: str):
+        return None
+
+    async def get_fund_composition(self, ticker: str):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _no_real_market_data(monkeypatch):
+    """Substitui get_provider nos cinco módulos que o importam diretamente
+    (import direto vincula o nome no namespace de cada um — não basta
+    remendar src.market_data.factory)."""
+    fake = lambda *args, **kwargs: _NullMarketDataProvider()  # noqa: E731
+    for module in (
+        "src.portfolio.service",
+        "src.watchlist.service",
+        "src.portfolio.look_through",
+        "src.market_data.router",
+        "src.workers.price_refresh",
+    ):
+        monkeypatch.setattr(f"{module}.get_provider", fake)
+
+
 def unique_email(prefix: str = "user") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}@example.com"
 
