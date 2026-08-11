@@ -7,6 +7,7 @@ import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSett
 import { ApiKeysUpdate } from "@/lib/settings-api";
 import { useUserStore } from "@/store/useUserStore";
 import { useUIStore } from "@/store/useUIStore";
+import { ACCENT_PALETTE } from "@/lib/accentPalette";
 import { SessionsSection } from "./SessionsSection";
 
 const LLM_OPTIONS = [
@@ -75,7 +76,7 @@ export function SettingsClient() {
   const keysMutation = useUpdateApiKeys();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
-  const { fontScale, setFontScale } = useUIStore();
+  const { fontScale, setFontScale, accentColorId, setAccentColor } = useUIStore();
 
   if (isLoading || !settings) {
     return (
@@ -140,6 +141,32 @@ export function SettingsClient() {
             >
               <ZoomIn size={14} />
             </button>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+          <span className="text-xs text-[var(--text-secondary)]">Cor de destaque</span>
+          <div className="flex items-center gap-2.5 mt-2">
+            {ACCENT_PALETTE.map((option) => {
+              const active = accentColorId === option.id;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => setAccentColor(option.id)}
+                  aria-label={option.label}
+                  aria-pressed={active}
+                  title={option.label}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-transform"
+                  style={{
+                    background: option.dark,
+                    outline: active ? "2px solid var(--text-primary)" : "2px solid transparent",
+                    outlineOffset: "2px",
+                    transform: active ? "scale(1.1)" : "scale(1)",
+                  }}
+                >
+                  {active && <Check size={13} className="text-white" strokeWidth={3} />}
+                </button>
+              );
+            })}
           </div>
         </div>
       </Section>
