@@ -145,6 +145,8 @@ class FinanceSummaryResponse(BaseModel):
 class BudgetUpsert(BaseModel):
     category_id: uuid.UUID
     amount: Decimal = Field(..., gt=0)
+    # Vazio = orçamento consolidado, valendo para o total de todas as carteiras.
+    bank_account_id: Optional[uuid.UUID] = None
 
 
 class BudgetResponse(BaseModel):
@@ -152,6 +154,7 @@ class BudgetResponse(BaseModel):
     category_id: uuid.UUID
     category_name: str
     category_color: Optional[str]
+    bank_account_id: Optional[uuid.UUID]
     amount: Decimal
     period: str
     spent: Decimal   # gasto no mês corrente na categoria

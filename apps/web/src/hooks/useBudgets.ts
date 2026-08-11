@@ -1,16 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { listBudgets, upsertBudget, deleteBudget } from "@/lib/budgets-api";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 
+/** Orçamentos da carteira ativa — ou os consolidados, quando nenhuma está
+ * selecionada. O escopo entra na queryKey, senão trocar de carteira serviria
+ * o cache da anterior. */
 export function useBudgets() {
-  return useQuery({ queryKey: ["finance", "budgets"], queryFn: listBudgets, staleTime: 30_000 });
+  const accountId = useFinanceScopeStore((s) => s.activeAccountId);
+  return useQuery({
+    queryKey: ["finance", "budgets", accountId],
+    queryFn: () => listBudgets(accountId),
+    staleTime: 30_000,
+  });
 }
 
 export function useUpsertBudget() {
   const queryClient = useQueryClient();
+  const accountId = useFinanceScopeStore((s) => s.activeAccountId);
   return useMutation({
     mutationFn: ({ categoryId, amount }: { categoryId: string; amount: number }) =>
-      upsertBudget(categoryId, amount),
+      upsertBudget(categoryId, amount, accountId),
     onSuccess: () => {
       toast.success("Orçamento salvo.");
       queryClient.invalidateQueries({ queryKey: ["finance", "budgets"] });
@@ -21,8 +31,9 @@ export function useUpsertBudget() {
 
 export function useDeleteBudget() {
   const queryClient = useQueryClient();
+  const accountId = useFinanceScopeStore((s) => s.activeAccountId);
   return useMutation({
-    mutationFn: (categoryId: string) => deleteBudget(categoryId),
+    mutationFn: (categoryId: string) => deleteBudget(categoryId, accountId),
     onSuccess: () => {
       toast.success("Orçamento removido.");
       queryClient.invalidateQueries({ queryKey: ["finance", "budgets"] });

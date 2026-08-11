@@ -521,7 +521,8 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
 
     if first.transaction_type == "expense" and first.category_id:
         await _notify_if_budget_just_exceeded(
-            user_id, first.category_id, first.amount_brl, first.transaction_date, db
+            user_id, first.category_id, first.amount_brl, first.transaction_date, db,
+            account_id=first.bank_account_id,
         )
 
     # Digitar uma transação com descrição e categoria é o sinal de treino mais
@@ -728,7 +729,14 @@ async def get_summary(
 # Budgets
 # ---------------------------------------------------------------------------
 
-async def _month_spend_for_category(user_id: uuid.UUID, category_id: uuid.UUID, on_date: datetime, db: AsyncSession) -> Decimal:
+async def _month_spend_for_category(
+    user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    on_date: datetime,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
+) -> Decimal:
     """Gasto do mês na categoria, em BRL — via `list_transactions` (não SQL
     puro) para enxergar ocorrências recorrentes virtuais, do mesmo jeito que
     `get_summary` já faz. Antes disso divergiam: o orçamento não via uma
@@ -737,27 +745,54 @@ async def _month_spend_for_category(user_id: uuid.UUID, category_id: uuid.UUID, 
     listing = await list_transactions(
         user_id, db, date_from=start, date_to=end,
         category_id=category_id, transaction_type="expense", per_page=100_000,
+        account_id=account_id,
     )
     return sum((item["amount_brl"] for item in listing["items"]), _ZERO)
 
 
 async def _notify_if_budget_just_exceeded(
-    user_id: uuid.UUID, category_id: uuid.UUID, txn_amount: Decimal, txn_date: datetime, db: AsyncSession,
+    user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    txn_amount: Decimal,
+    txn_date: datetime,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
 ) -> None:
     """Fire a notification the moment a category's monthly spend crosses its
-    budget — not on every subsequent transaction once already over."""
-    result = await db.execute(
-        select(FinanceBudget).where(FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id)
+    budget — not on every subsequent transaction once already over.
+
+    A despesa conta para dois tetos ao mesmo tempo: o da carteira em que ela
+    caiu e o consolidado. Cada um é medido contra o gasto do seu próprio
+    escopo, senão o orçamento da carteira estouraria com gasto de outra."""
+    query = select(FinanceBudget).where(
+        FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id
     )
-    budget = result.scalar_one_or_none()
-    if not budget:
+    if account_id is None:
+        query = query.where(FinanceBudget.bank_account_id.is_(None))
+    else:
+        query = query.where(
+            or_(
+                FinanceBudget.bank_account_id.is_(None),
+                FinanceBudget.bank_account_id == account_id,
+            )
+        )
+    budgets = (await db.execute(query)).scalars().all()
+    if not budgets:
         return
 
-    spend_after = await _month_spend_for_category(user_id, category_id, txn_date, db)
-    spend_before = spend_after - txn_amount
-    if spend_before <= budget.amount < spend_after:
+    category = None
+    for budget in budgets:
+        scope = budget.bank_account_id
+        spend_after = await _month_spend_for_category(
+            user_id, category_id, txn_date, db, account_id=scope
+        )
+        spend_before = spend_after - txn_amount
+        if not (spend_before <= budget.amount < spend_after):
+            continue
         from src.notifications.service import create_notification
-        category = await _get_category(category_id, user_id, db)
+        if category is None:
+            category = await _get_category(category_id, user_id, db)
         await create_notification(
             user_id, "budget_exceeded",
             f"Orçamento de {category.name} estourado",
@@ -766,13 +801,28 @@ async def _notify_if_budget_just_exceeded(
         )
 
 
-async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
-    result = await db.execute(
+async def list_budgets(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
+    holder: Optional[str] = None,
+) -> list[dict]:
+    """Orçamentos da carteira escolhida — ou os consolidados, quando nenhuma
+    está ativa. Um teto por categoria valia para todas as contas somadas, o
+    que inviabiliza administrar duas carteiras (a própria e a de outra
+    pessoa) com limites independentes."""
+    query = (
         select(FinanceBudget, FinanceCategory)
         .join(FinanceCategory, FinanceCategory.id == FinanceBudget.category_id)
         .where(FinanceBudget.user_id == user_id)
         .order_by(FinanceCategory.name)
     )
+    query = query.where(
+        FinanceBudget.bank_account_id == account_id if account_id
+        else FinanceBudget.bank_account_id.is_(None)
+    )
+    result = await db.execute(query)
     rows = result.all()
     now = datetime.now(timezone.utc)
     start, end = _month_bounds(f"{now.year:04d}-{now.month:02d}")
@@ -781,6 +831,7 @@ async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
     # despesas recorrentes que ainda não viraram linha, como get_summary.
     listing = await list_transactions(
         user_id, db, date_from=start, date_to=end, transaction_type="expense", per_page=100_000,
+        account_id=account_id, holder=holder,
     )
     spend_by_category: dict[uuid.UUID, Decimal] = {}
     for item in listing["items"]:
@@ -796,6 +847,7 @@ async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
             "category_id": category.id,
             "category_name": category.name,
             "category_color": category.color,
+            "bank_account_id": budget.bank_account_id,
             "amount": budget.amount,
             "period": budget.period,
             "spent": spent,
@@ -804,23 +856,43 @@ async def list_budgets(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
     return budgets
 
 
-async def upsert_budget(user_id: uuid.UUID, category_id: uuid.UUID, amount: Decimal, db: AsyncSession) -> dict:
+async def upsert_budget(
+    user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    amount: Decimal,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
+) -> dict:
     await _get_category(category_id, user_id, db)  # 404 if not owned
+    if account_id is not None:
+        await _validate_account(account_id, user_id, db)  # 404 if not owned
     stmt = pg_insert(FinanceBudget).values(
-        user_id=user_id, category_id=category_id, amount=amount,
+        user_id=user_id, category_id=category_id, bank_account_id=account_id, amount=amount,
     ).on_conflict_do_update(
         constraint="uq_finance_budgets_user_category", set_={"amount": amount},
     )
     await db.execute(stmt)
     await db.commit()
-    budgets = await list_budgets(user_id, db)
+    budgets = await list_budgets(user_id, db, account_id=account_id)
     return next(b for b in budgets if b["category_id"] == category_id)
 
 
-async def delete_budget(user_id: uuid.UUID, category_id: uuid.UUID, db: AsyncSession) -> None:
-    result = await db.execute(
-        select(FinanceBudget).where(FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id)
+async def delete_budget(
+    user_id: uuid.UUID,
+    category_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    account_id: Optional[uuid.UUID] = None,
+) -> None:
+    query = select(FinanceBudget).where(
+        FinanceBudget.user_id == user_id, FinanceBudget.category_id == category_id
     )
+    query = query.where(
+        FinanceBudget.bank_account_id == account_id if account_id
+        else FinanceBudget.bank_account_id.is_(None)
+    )
+    result = await db.execute(query)
     budget = result.scalar_one_or_none()
     if not budget:
         raise NotFoundError("Orçamento não encontrado")
