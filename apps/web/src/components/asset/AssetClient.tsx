@@ -80,7 +80,7 @@ export function AssetClient({ ticker }: AssetClientProps) {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
+    <div className="p-[26px_30px_60px] max-w-6xl mx-auto w-full space-y-5 min-w-[1180px]">
       <Link
         href="/investments"
         className="inline-flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -96,18 +96,18 @@ export function AssetClient({ ticker }: AssetClientProps) {
         analyzing={aiStreaming}
       />
 
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+      <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+          <div className="flex rounded-[11px] border border-[var(--border)] overflow-hidden">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriod(p.value)}
-                className={`px-2.5 py-1 text-xs transition-colors ${
-                  period === p.value
-                    ? "bg-[var(--navy)] text-white"
-                    : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
+                className="px-2.5 py-1 text-xs transition-colors"
+                style={{
+                  background: period === p.value ? "var(--surface-3)" : "transparent",
+                  color: period === p.value ? "var(--text-primary)" : "var(--text-secondary)",
+                }}
               >
                 {p.label}
               </button>
@@ -117,7 +117,7 @@ export function AssetClient({ ticker }: AssetClientProps) {
         </div>
 
         {historyLoading ? (
-          <div className="h-[360px] rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+          <div className="h-[360px] rounded-[var(--radius-card-sm)] bg-[var(--surface-2)] animate-pulse" />
         ) : historyError || !history || history.bars.length === 0 ? (
           <div className="h-[360px] flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
             <p className="font-medium">Nenhum dado encontrado para {ticker}.</p>

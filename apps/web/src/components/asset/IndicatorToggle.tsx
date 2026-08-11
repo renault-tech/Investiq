@@ -37,11 +37,12 @@ export function IndicatorToggle({ state, onChange }: IndicatorToggleProps) {
           key={key}
           onClick={() => onChange({ ...state, [key]: !state[key] })}
           aria-pressed={state[key]}
-          className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-            state[key]
-              ? "bg-[var(--navy)] text-white border-[var(--navy)]"
-              : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
+          className="px-2.5 py-1 text-xs rounded-[9px] border transition-colors"
+          style={{
+            background: state[key] ? "var(--accent)" : "transparent",
+            borderColor: state[key] ? "var(--accent)" : "var(--border)",
+            color: state[key] ? "#04120D" : "var(--text-secondary)",
+          }}
         >
           {label}
         </button>

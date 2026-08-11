@@ -3,6 +3,7 @@ import {
   getAssetHistory,
   getAssetIndicators,
   getAssetFundamentals,
+  getMarketQuotes,
   HistoryPeriod,
 } from "@/lib/market-api";
 
@@ -32,6 +33,17 @@ export function useAssetFundamentals(ticker: string) {
     queryFn: () => getAssetFundamentals(ticker),
     enabled: !!ticker,
     staleTime: 60 * 60_000,
+    retry: 1,
+  });
+}
+
+export function useMarketQuotes(tickers: string[]) {
+  return useQuery({
+    queryKey: ["market-quotes", ...tickers],
+    queryFn: () => getMarketQuotes(tickers),
+    enabled: tickers.length > 0,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
     retry: 1,
   });
 }

@@ -69,7 +69,7 @@ _DATA_TABLES = [
     "invoice_items", "card_invoices", "credit_cards",
     "analysis_messages", "portfolio_analyses",
     "portfolio_snapshots", "investment_transactions", "portfolio_positions",
-    "price_alerts", "bank_accounts", "portfolios", "assets", "fx_rates",
+    "price_alerts", "watchlist_items", "bank_accounts", "portfolios", "assets", "fx_rates",
     "audit_logs", "financial_transactions", "finance_categories",
 ]
 

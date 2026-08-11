@@ -50,11 +50,11 @@ export function FundamentalsGrid({ fundamentals, isLoading }: FundamentalsGridPr
         {cells.map((cell) => (
           <div
             key={cell.label}
-            className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-3"
+            className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-3"
           >
             <p className="text-xs text-[var(--text-muted)]">{cell.label}</p>
             {isLoading ? (
-              <div className="h-5 w-16 mt-1 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              <div className="h-5 w-16 mt-1 rounded bg-[var(--surface-2)] animate-pulse" />
             ) : (
               <p className={`text-sm font-mono mt-1 ${cell.value ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
                 {cell.value ?? "indisponível"}

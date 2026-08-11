@@ -15,6 +15,7 @@ const PAGE_TITLES: { prefix: string; title: string; sub: string }[] = [
   { prefix: "/finances/cards", title: "Cartões de crédito", sub: "Faturas e limites dos seus cartões" },
   { prefix: "/finances", title: "Finanças pessoais", sub: "Fluxo de caixa, categorias e projeção de saldo" },
   { prefix: "/investments", title: "Investimentos", sub: "Carteira consolidada" },
+  { prefix: "/trader", title: "Trader", sub: "Mercado ao vivo, watchlist e alertas" },
   { prefix: "/transactions", title: "Transações", sub: "Todos os seus lançamentos" },
   { prefix: "/goals", title: "Metas e planejamento", sub: "Seus objetivos financeiros" },
   { prefix: "/reports", title: "Relatórios", sub: "Exportação e histórico patrimonial" },

@@ -31,14 +31,14 @@ export function AssetAlerts({ ticker }: AssetAlertsProps) {
   };
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+    <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)]">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
           <Bell size={15} /> Alertas de preço
         </h3>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-1 text-xs text-[var(--navy)] dark:text-[var(--accent)] hover:underline"
+          className="flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
         >
           <Plus size={13} /> Novo alerta
         </button>
@@ -51,7 +51,7 @@ export function AssetAlerts({ ticker }: AssetAlertsProps) {
             <select
               value={alertType}
               onChange={(e) => setAlertType(e.target.value as typeof alertType)}
-              className="px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)]"
+              className="px-2 py-1.5 text-xs border border-[var(--border)] rounded-[9px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             >
               <option value="price_above">Subir acima de</option>
               <option value="price_below">Cair abaixo de</option>
@@ -65,13 +65,14 @@ export function AssetAlerts({ ticker }: AssetAlertsProps) {
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
               placeholder="0,00"
-              className="w-24 px-2 py-1.5 text-xs border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)] font-mono"
+              className="w-24 px-2 py-1.5 text-xs border border-[var(--border)] rounded-[9px] bg-[var(--surface-2)] text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
           </div>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            className="px-3 py-1.5 text-xs bg-[var(--navy)] text-white rounded-md hover:opacity-90 disabled:opacity-50"
+            className="px-3 py-1.5 text-xs rounded-[9px] hover:opacity-90 disabled:opacity-50"
+            style={{ background: "var(--accent)", color: "#04120D" }}
           >
             Criar
           </button>
@@ -89,6 +90,7 @@ export function AssetAlerts({ ticker }: AssetAlertsProps) {
                 checked={alert.is_active}
                 onChange={(e) => updateMutation.mutate({ id: alert.id, input: { is_active: e.target.checked } })}
                 aria-label={alert.is_active ? "Desativar alerta" : "Ativar alerta"}
+                className="accent-[var(--accent)]"
               />
               <span className="text-[var(--text-secondary)]">
                 {alert.alert_type === "price_above" ? "Acima de" : "Abaixo de"}{" "}

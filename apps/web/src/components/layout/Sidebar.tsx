@@ -18,6 +18,7 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  TrendingUp,
 } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/overview", label: "Visão geral", icon: LayoutDashboard },
   { href: "/finances", label: "Finanças", icon: BarChart2 },
   { href: "/investments", label: "Investimentos", icon: LineChart },
+  { href: "/trader", label: "Trader", icon: TrendingUp },
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
   { href: "/goals", label: "Metas", icon: Target },
