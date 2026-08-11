@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export interface ForecastMonth {
   month: string;              // "2026-09"
@@ -16,9 +17,19 @@ export interface Forecast {
   negative_from: string | null;
 }
 
-export async function getForecast(months = 6, accountId?: string): Promise<Forecast> {
+const FORECAST_MONTH_NUMERIC = [
+  "committed_income", "committed_expense", "estimated_income", "estimated_expense",
+  "balance_committed", "balance_realistic",
+] as const;
+
+export async function getForecast(
+  months = 6,
+  accountId?: string | null,
+  holder?: string | null
+): Promise<Forecast> {
   const res = await apiClient.get<Forecast>("/finance/forecast", {
-    params: { months, account_id: accountId },
+    params: { months, account_id: accountId || undefined, holder: holder || undefined },
   });
-  return res.data;
+  const data = coerceNumbers(res.data, ["current_balance"] as const);
+  return { ...data, months: coerceNumbersInList(data.months ?? [], FORECAST_MONTH_NUMERIC) };
 }

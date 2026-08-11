@@ -21,8 +21,11 @@ export interface PositionSummary {
   broker: string | null;
   quantity: number;
   avg_cost: number;
+  currency: string;
   current_price: number | null;
+  current_price_native: number | null;
   market_value_brl: number;
+  market_value_native: number;
   cost_basis_brl: number;
   pnl_absolute: number;
   pnl_percent: number;
@@ -121,7 +124,8 @@ const SUMMARY_NUMERIC = [
   "total_invested_brl", "total_market_value_brl", "total_pnl_absolute", "total_pnl_percent",
 ] as const;
 const POSITION_NUMERIC = [
-  "quantity", "avg_cost", "current_price", "market_value_brl", "cost_basis_brl",
+  "quantity", "avg_cost", "current_price", "current_price_native", "market_value_brl",
+  "market_value_native", "cost_basis_brl",
   "pnl_absolute", "pnl_percent", "weight", "target_weight", "rebalance_delta_units",
 ] as const;
 const ALLOCATION_NUMERIC = ["value", "weight"] as const;

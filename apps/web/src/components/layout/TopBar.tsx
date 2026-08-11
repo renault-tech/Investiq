@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, Search, ChevronDown, LogOut, LayoutGrid, Check } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
 import { useRouter, usePathname } from "next/navigation";
@@ -25,7 +26,16 @@ const PAGE_TITLES: { prefix: string; title: string; sub: string }[] = [
 ];
 
 export function TopBar() {
-  const { privacy, togglePrivacy, period, setPeriod, customize, toggleCustomize } = useUIStore();
+  const { privacy, togglePrivacy, period, setPeriod, customize, toggleCustomize } = useUIStore(
+    useShallow((s) => ({
+      privacy: s.privacy,
+      togglePrivacy: s.togglePrivacy,
+      period: s.period,
+      setPeriod: s.setPeriod,
+      customize: s.customize,
+      toggleCustomize: s.toggleCustomize,
+    }))
+  );
   const user = useUserStore((s) => s.user);
   const setUser = useUserStore((s) => s.setUser);
   const router = useRouter();

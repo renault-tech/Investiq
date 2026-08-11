@@ -1,4 +1,5 @@
 """Market data API — per-asset history, technical indicators and fundamentals."""
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,6 +16,7 @@ from src.market_data.schemas import (
     MaSeries,
     FundamentalsResponse,
     QuoteResponse,
+    SparklineResponse,
     FixedIncomeCompareRequest,
     FixedIncomeComparisonResult,
 )
@@ -180,6 +182,42 @@ async def get_quotes(
         for t in ticker_list
         if t in quotes
     ]
+
+
+@router.get("/sparklines", response_model=list[SparklineResponse])
+async def get_sparklines(
+    tickers: str = Query(..., description="Tickers separados por vírgula"),
+    period: str = Query(default="1mo"),
+    current_user: User = Depends(get_current_user),
+    redis=Depends(get_redis),
+    provider_settings: dict = Depends(get_user_provider_settings),
+):
+    """Fechamentos diários recentes por ticker — mini-gráfico da watchlist.
+
+    Reaproveita o mesmo cache-first de /assets/{ticker}/history por trás
+    (chave por ticker+period+interval), só que em lote e devolvendo apenas
+    os closes, que é tudo que um sparkline precisa.
+    """
+    if period not in _ALLOWED_PERIODS:
+        raise HTTPException(status_code=422, detail=f"period must be one of {sorted(_ALLOWED_PERIODS)}")
+
+    ticker_list = list(dict.fromkeys(t.strip().upper() for t in tickers.split(",") if t.strip()))
+    if not ticker_list:
+        return []
+
+    results = await asyncio.gather(
+        *(_fetch_history(t, period, "1d", redis, provider_settings) for t in ticker_list),
+        return_exceptions=True,
+    )
+
+    sparklines = []
+    for ticker, bars in zip(ticker_list, results):
+        if isinstance(bars, Exception):
+            logger.warning("Sparkline fetch failed for %s: %s", ticker, bars)
+            continue
+        if bars:
+            sparklines.append(SparklineResponse(ticker=ticker, closes=[b.close for b in bars]))
+    return sparklines
 
 
 @router.get("/assets/{ticker}/fundamentals", response_model=FundamentalsResponse)

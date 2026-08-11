@@ -13,6 +13,7 @@ import { useCards } from "@/hooks/useCards";
 import { useGoals } from "@/hooks/useGoals";
 import { useTransactions, useFinanceSummary } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period, maskValue } from "@/store/useUIStore";
 import { assetTypeLabel, formatBRLExact, formatBRLCompact, CATEGORICAL } from "@/components/charts/chartTheme";
 import { AreaLineChart } from "@/components/charts/AreaLineChart";
@@ -96,7 +97,9 @@ function Widget({ id, customize, dragged, onDragStart, onDrop, onHide, order, de
 }
 
 export function OverviewClient() {
-  const { period, privacy, customize } = useUIStore();
+  const { period, privacy, customize } = useUIStore(
+    useShallow((s) => ({ period: s.period, privacy: s.privacy, customize: s.customize }))
+  );
   const perfPeriod = PERIOD_MAP[period];
 
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);

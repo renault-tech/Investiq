@@ -9,6 +9,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  payTransaction,
   getFinanceSummary,
   TransactionFilters,
   CreateTransactionInput,
@@ -31,10 +32,10 @@ export function useTransactions(filters: TransactionFilters) {
   });
 }
 
-export function useFinanceSummary(month: string) {
+export function useFinanceSummary(month: string, accountId?: string | null, holder?: string | null) {
   return useQuery({
-    queryKey: ["finance", "summary", month],
-    queryFn: () => getFinanceSummary(month),
+    queryKey: ["finance", "summary", month, accountId, holder],
+    queryFn: () => getFinanceSummary(month, { accountId, holder }),
     staleTime: 30_000,
   });
 }
@@ -66,6 +67,18 @@ export function useUpdateTransaction() {
       invalidate();
     },
     onError: () => toast.error("Falha ao atualizar transação."),
+  });
+}
+
+export function usePayTransaction() {
+  const invalidate = useInvalidateFinance();
+  return useMutation({
+    mutationFn: (id: string) => payTransaction(id),
+    onSuccess: () => {
+      toast.success("Pagamento confirmado.");
+      invalidate();
+    },
+    onError: () => toast.error("Falha ao confirmar pagamento."),
   });
 }
 

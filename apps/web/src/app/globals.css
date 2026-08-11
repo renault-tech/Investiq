@@ -26,11 +26,17 @@
      Vira verde-escuro da mesma família do accent — mantém contraste com
      texto branco (~5.8:1) sem precisar editar cada um desses arquivos. */
   --navy:          #0E6E53;
-  --accent:        #0FA97C;
+  /* --accent-override-light/dark: setadas via JS (useUIStore) quando o
+     usuário escolhe uma cor em Configurações → Aparência. Sem override,
+     caem no fallback (o verde padrão) — a troca de tema não precisa saber
+     qual cor está selecionada, só resolve a variável certa por cascata. */
+  --accent:        var(--accent-override-light, #0FA97C);
   --accent-2:      #5A6BF0;
   --danger:        #E1495C;
   --warning:       #C77A17;
-  --glow:          rgba(15,169,124,.12);
+  /* Derivado de --accent (não um literal fixo) — trocar a cor de destaque
+     nas Configurações atualiza o glow junto, em qualquer tela, sem JS. */
+  --glow:          color-mix(in srgb, var(--accent) 12%, transparent);
 
   --text-primary:  #0B0E14;
   --text-secondary:#666D7A;
@@ -54,11 +60,11 @@
   --border-strong: rgba(255,255,255,.14);
 
   --navy:          #12876A;
-  --accent:        #37D6A6;
+  --accent:        var(--accent-override-dark, #37D6A6);
   --accent-2:      #7C8CFF;
   --danger:        #FF6B7A;
   --warning:       #FFB35C;
-  --glow:          rgba(55,214,166,.16);
+  --glow:          color-mix(in srgb, var(--accent) 16%, transparent);
 
   --text-primary:  #EDEFF3;
   --text-secondary:#8B929E;

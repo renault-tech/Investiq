@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Flame, PiggyBank, Timer } from "lucide-react";
+import { Flame, Layers, PiggyBank, Timer } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAccounts } from "@/hooks/useAccounts";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatBRLExact, formatPct } from "@/components/charts/chartTheme";
@@ -43,24 +45,41 @@ function StatCard({
 
 export function AnalyticsClient() {
   const [months, setMonths] = useState<(typeof HORIZONS)[number]>(6);
-  const { data, isLoading, isError, refetch } = useAnalytics(months);
+  // Mesma carteira ativa de /finances — trocar lá também muda a análise aqui.
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const setActiveAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
+  const { data: accounts = [] } = useAccounts();
+  const activeAccount = accounts.find((a) => a.id === activeAccountId);
+  const { data, isLoading, isError, refetch } = useAnalytics(months, activeAccountId);
 
   const latestSavingsRate = data?.savings_series.at(-1)?.savings_rate ?? null;
 
   return (
     <div className="p-6 max-w-6xl mx-auto w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Análise financeira</h1>
-        <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">Análise financeira</h1>
+          {activeAccount && (
+            <button
+              onClick={() => setActiveAccountId(null)}
+              title="Clique para ver o consolidado"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-lg border transition-colors"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--glow)" }}
+            >
+              <Layers size={12} /> {activeAccount.name}
+            </button>
+          )}
+        </div>
+        <div className="flex rounded-[9px] border border-[var(--border)] overflow-hidden">
           {HORIZONS.map((h) => (
             <button
               key={h}
               onClick={() => setMonths(h)}
-              className={`px-3 py-1.5 text-xs transition-colors ${
-                months === h
-                  ? "bg-[var(--navy)] text-white"
-                  : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
+              className="px-3 py-1.5 text-xs transition-colors"
+              style={{
+                background: months === h ? "var(--surface-3)" : "transparent",
+                color: months === h ? "var(--text-primary)" : "var(--text-secondary)",
+              }}
             >
               {h} meses
             </button>

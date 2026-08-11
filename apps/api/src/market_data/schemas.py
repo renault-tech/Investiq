@@ -100,6 +100,11 @@ class QuoteResponse(BaseModel):
     change_pct: Optional[Decimal]
 
 
+class SparklineResponse(BaseModel):
+    ticker: str
+    closes: list[Decimal]
+
+
 class FundamentalsResponse(BaseModel):
     ticker: str
     name: Optional[str]

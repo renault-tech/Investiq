@@ -48,6 +48,14 @@ class FinancialTransaction(Base):
     description = Column(String(255), nullable=True)
     notes = Column(Text(), nullable=True)
     transaction_date = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
+    # Vencimento — pode ficar no futuro em relação a transaction_date, quando
+    # o usuário lança a conta antes de ela ser efetivamente paga.
+    due_date = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
+    is_paid = Column(Boolean(), nullable=False, default=True, server_default=text("TRUE"))
+    paid_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    # Marca que o worker de vencimento já notificou esta conta — evita
+    # notificar de novo a cada execução enquanto ela seguir não paga.
+    bill_notified_at = Column(TIMESTAMP(timezone=True), nullable=True)
     is_recurring = Column(Boolean(), nullable=False, default=False, server_default=text("FALSE"))
     recurrence_rule = Column(String(100), nullable=True)
     # Parcelamento: N linhas materializadas com is_recurring=False, para

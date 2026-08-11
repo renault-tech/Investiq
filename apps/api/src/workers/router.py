@@ -21,6 +21,7 @@ from src.workers.price_refresh import price_refresh_job
 from src.workers.alert_checker import alert_checker_job
 from src.workers.fx_updater import fx_update_job
 from src.workers.snapshot_worker import snapshot_job
+from src.workers.bill_due_checker import bill_due_checker_job
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ _JOBS = {
     "alert_checker": alert_checker_job,
     "fx_update": fx_update_job,
     "snapshot": snapshot_job,
+    "bill_due_checker": bill_due_checker_job,
 }
 
 

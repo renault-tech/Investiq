@@ -106,6 +106,12 @@ async def test_summary_converts_usd_market_value_to_brl(client, db_session, monk
     # pnl vs BRL cost basis: (660 - 500 avg_cost) * 10 = 1600
     assert pos["pnl_absolute"] == "1600.00"
 
+    # Patrimônio internacional: valor na moeda nativa (sem a taxa de câmbio
+    # aplicada) também sai na resposta, para a UI mostrar USD ao lado de BRL.
+    assert pos["currency"] == "USD"
+    assert pos["current_price_native"] == "120.00000000"
+    assert pos["market_value_native"] == "1200.00"          # 10 * 120
+
     allocation = summary.json()["allocation_by_type"]
     assert allocation[0]["value"] == "6600.00"
 
@@ -136,4 +142,7 @@ async def test_summary_falls_back_to_1to1_when_fx_rate_missing(client, db_sessio
 
     summary = await client.get(f"/portfolios/{portfolio_id}/summary", headers=headers)
     assert summary.status_code == 200
-    assert summary.json()["positions"][0]["current_price"] == "60.00000000"  # 1:1 fallback
+    pos = summary.json()["positions"][0]
+    assert pos["current_price"] == "60.00000000"  # 1:1 fallback
+    assert pos["current_price_native"] == "60.00000000"
+    assert pos["market_value_native"] == "60.00"

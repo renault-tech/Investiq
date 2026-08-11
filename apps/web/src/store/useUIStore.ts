@@ -1,39 +1,48 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { DEFAULT_ACCENT_ID, getAccentOption } from "@/lib/accentPalette";
 
-type Theme = "dark" | "light";
 export type Period = "1M" | "6M" | "1A" | "Tudo";
 
 interface UIStore {
-  theme: Theme;
   fontScale: number;
   sidebarCollapsed: boolean;
   privacy: boolean;
   period: Period;
   customize: boolean;
-  setTheme: (theme: Theme) => void;
+  accentColorId: string;
   setFontScale: (scale: number) => void;
   toggleSidebar: () => void;
   togglePrivacy: () => void;
   setPeriod: (period: Period) => void;
   toggleCustomize: () => void;
+  setAccentColor: (id: string) => void;
+}
+
+/** Aplica as duas variantes (claro/escuro) da cor escolhida — ou remove o
+ * override e volta ao verde padrão do design system, se for a opção "green". */
+function applyAccentColor(id: string) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement.style;
+  if (id === DEFAULT_ACCENT_ID) {
+    root.removeProperty("--accent-override-light");
+    root.removeProperty("--accent-override-dark");
+    return;
+  }
+  const option = getAccentOption(id);
+  root.setProperty("--accent-override-light", option.light);
+  root.setProperty("--accent-override-dark", option.dark);
 }
 
 export const useUIStore = create<UIStore>()(
   persist(
     (set) => ({
-      theme: "dark",
       fontScale: 1.0,
       sidebarCollapsed: false,
       privacy: false,
       period: "6M",
       customize: false,
-      setTheme: (theme) => {
-        set({ theme });
-        if (typeof document !== "undefined") {
-          document.documentElement.classList.toggle("dark", theme === "dark");
-        }
-      },
+      accentColorId: DEFAULT_ACCENT_ID,
       setFontScale: (scale) => {
         const clamped = Math.min(1.5, Math.max(0.75, scale));
         set({ fontScale: clamped });
@@ -45,6 +54,10 @@ export const useUIStore = create<UIStore>()(
       togglePrivacy: () => set((s) => ({ privacy: !s.privacy })),
       setPeriod: (period) => set({ period }),
       toggleCustomize: () => set((s) => ({ customize: !s.customize })),
+      setAccentColor: (id) => {
+        set({ accentColorId: id });
+        applyAccentColor(id);
+      },
     }),
     {
       name: "investiq-ui",
@@ -59,10 +72,12 @@ export const useUIStore = create<UIStore>()(
         sidebarCollapsed: s.sidebarCollapsed,
         privacy: s.privacy,
         period: s.period,
+        accentColorId: s.accentColorId,
       }),
       onRehydrateStorage: () => (state) => {
         if (state && typeof document !== "undefined") {
           document.documentElement.style.setProperty("--font-scale", String(state.fontScale));
+          applyAccentColor(state.accentColorId);
         }
       },
     }

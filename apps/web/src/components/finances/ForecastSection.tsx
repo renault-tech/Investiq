@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { AlertTriangle } from "lucide-react";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -24,12 +25,15 @@ function monthLabel(month: string): string {
 
 export function ForecastSection() {
   const [months, setMonths] = useState<(typeof HORIZONS)[number]>(6);
-  const [accountId, setAccountId] = useState("");
+  // Compartilhada com AccountsBar (tela /finances) — escolher a conta aqui
+  // ou lá é a mesma "carteira ativa", não dois filtros desencontrados.
+  const accountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const setAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
   const { data: accounts = [] } = useAccounts();
-  const { data: forecast, isLoading, isError, refetch } = useForecast(months, accountId || undefined);
+  const { data: forecast, isLoading, isError, refetch } = useForecast(months, accountId);
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+    <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)]">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div>
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Projeção de fluxo de caixa</h2>
@@ -41,8 +45,8 @@ export function ForecastSection() {
         <div className="flex items-center gap-2">
           {accounts.length > 0 && (
             <Select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              value={accountId ?? ""}
+              onChange={(e) => setAccountId(e.target.value || null)}
               aria-label="Escopo da projeção"
               className="!py-1.5 text-xs"
             >
@@ -55,16 +59,16 @@ export function ForecastSection() {
               ))}
             </Select>
           )}
-          <div className="flex rounded-md border border-[var(--border)] overflow-hidden">
+          <div className="flex rounded-[9px] border border-[var(--border)] overflow-hidden">
             {HORIZONS.map((h) => (
               <button
                 key={h}
                 onClick={() => setMonths(h)}
-                className={`px-2 py-1 text-xs transition-colors ${
-                  months === h
-                    ? "bg-[var(--navy)] text-white"
-                    : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
+                className="px-2 py-1 text-xs transition-colors"
+                style={{
+                  background: months === h ? "var(--surface-3)" : "transparent",
+                  color: months === h ? "var(--text-primary)" : "var(--text-secondary)",
+                }}
               >
                 {h}m
               </button>
@@ -74,7 +78,7 @@ export function ForecastSection() {
       </div>
 
       {forecast?.negative_from && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 text-xs rounded-md bg-[var(--danger)]/10 text-[var(--danger)]">
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 text-xs rounded-[9px] bg-[var(--danger)]/10 text-[var(--danger)]">
           <AlertTriangle size={14} className="shrink-0" />
           Na projeção realista, o saldo fica negativo a partir de{" "}
           <span className="font-medium capitalize">{monthLabel(forecast.negative_from)}</span>.
