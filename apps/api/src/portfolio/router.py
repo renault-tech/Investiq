@@ -24,8 +24,10 @@ from src.portfolio.schemas import (
     PortfolioIncomeResponse,
     PortfolioLookThroughResponse,
     TransactionCreate,
+    TransactionUpdate,
     TransactionResponse,
     AddPositionRequest,
+    UpdatePositionRequest,
     PositionResponse,
 )
 
@@ -238,3 +240,71 @@ async def add_position_to_portfolio(
         target_weight=body.target_weight,
         db=db,
     )
+
+
+@router.get("/positions/{position_id}/transactions", response_model=list[TransactionResponse])
+async def list_position_transactions(
+    position_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Histórico de transações de uma posição, mais recente primeiro."""
+    return await service.list_position_transactions(position_id, current_user.id, db)
+
+
+@router.patch("/positions/{position_id}", response_model=PositionResponse)
+async def update_position(
+    position_id: uuid.UUID,
+    body: UpdatePositionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edita corretora e/ou peso-alvo de uma posição. Quantidade e preço
+    médio são derivados das transações — edite ou apague a transação para
+    mudá-los."""
+    fields = body.model_fields_set
+    return await service.update_position(
+        position_id=position_id,
+        user_id=current_user.id,
+        broker=body.broker,
+        target_weight=body.target_weight,
+        db=db,
+        broker_set="broker" in fields,
+        target_weight_set="target_weight" in fields,
+    )
+
+
+@router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_position(
+    position_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove um ativo da carteira — apaga a posição e todo o histórico de
+    transações dela junto."""
+    await service.delete_position(position_id, current_user.id, db)
+
+
+@router.patch("/transactions/{transaction_id}", response_model=TransactionResponse)
+async def update_transaction(
+    transaction_id: uuid.UUID,
+    body: TransactionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Corrige uma transação lançada errada (quantidade, preço, data...). A
+    posição (quantidade, preço médio) é recalculada a partir do histórico
+    inteiro depois da edição."""
+    updates = body.model_dump(exclude_unset=True)
+    return await service.update_transaction(transaction_id, current_user.id, updates, db)
+
+
+@router.delete("/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_transaction(
+    transaction_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apaga uma transação lançada por engano. A posição é recalculada a
+    partir do histórico restante."""
+    await service.delete_transaction(transaction_id, current_user.id, db)

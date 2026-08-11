@@ -178,6 +178,16 @@ class TransactionCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TransactionUpdate(BaseModel):
+    transaction_type: Optional[str] = Field(None, pattern="^(buy|sell|dividend|split|bonus)$")
+    quantity: Optional[Decimal] = Field(None, gt=0)
+    unit_price: Optional[Decimal] = Field(None, gt=0)
+    fees: Optional[Decimal] = Field(None, ge=0)
+    fx_rate: Optional[Decimal] = Field(None, gt=0)
+    transaction_date: Optional[datetime] = None
+    notes: Optional[str] = None
+
+
 class TransactionResponse(BaseModel):
     id: uuid.UUID
     position_id: uuid.UUID
@@ -200,6 +210,12 @@ class TransactionResponse(BaseModel):
 
 class AddPositionRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=20)
+    broker: Optional[str] = Field(None, max_length=100)
+    target_weight: Optional[Decimal] = Field(None, ge=0, le=1)
+
+
+class UpdatePositionRequest(BaseModel):
+    """Só corretora e peso-alvo — quantidade e preço médio vêm das transações."""
     broker: Optional[str] = Field(None, max_length=100)
     target_weight: Optional[Decimal] = Field(None, ge=0, le=1)
 

@@ -106,6 +106,15 @@ export interface CreateTransactionInput {
   notes?: string;
 }
 
+export interface UpdatePositionInput {
+  broker?: string | null;
+  target_weight?: number | null;
+}
+
+/** Mesmos campos de CreateTransactionInput, todos opcionais — só o que
+ * mudar é enviado. */
+export type UpdateTransactionInput = Partial<Omit<CreateTransactionInput, "position_id">>;
+
 // ─── Funções de API ──────────────────────────────────────────────────────────
 
 export async function listPortfolios(): Promise<Portfolio[]> {
@@ -197,4 +206,44 @@ export async function deletePortfolio(portfolioId: string): Promise<void> {
 
 export async function updatePortfolio(portfolioId: string, name: string): Promise<void> {
   await apiClient.put(`/portfolios/${portfolioId}`, { name });
+}
+
+export async function updatePosition(positionId: string, input: UpdatePositionInput): Promise<unknown> {
+  const res = await apiClient.patch(`/portfolios/positions/${positionId}`, input);
+  return res.data;
+}
+
+export async function deletePosition(positionId: string): Promise<void> {
+  await apiClient.delete(`/portfolios/positions/${positionId}`);
+}
+
+export async function updateTransaction(
+  transactionId: string,
+  input: UpdateTransactionInput
+): Promise<unknown> {
+  const res = await apiClient.patch(`/portfolios/transactions/${transactionId}`, input);
+  return res.data;
+}
+
+export async function deleteTransaction(transactionId: string): Promise<void> {
+  await apiClient.delete(`/portfolios/transactions/${transactionId}`);
+}
+
+export interface InvestmentTransaction {
+  id: string;
+  position_id: string;
+  transaction_type: "buy" | "sell" | "dividend" | "split" | "bonus";
+  quantity: number;
+  unit_price: number;
+  fees: number;
+  fx_rate: number;
+  total_amount: number;
+  transaction_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function listPositionTransactions(positionId: string): Promise<InvestmentTransaction[]> {
+  const res = await apiClient.get<InvestmentTransaction[]>(`/portfolios/positions/${positionId}/transactions`);
+  return coerceNumbersInList(res.data, ["quantity", "unit_price", "fees", "fx_rate", "total_amount"] as const);
 }
