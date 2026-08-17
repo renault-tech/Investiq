@@ -73,8 +73,12 @@ async def test_benchmark_aligns_portfolio_cdi_and_ibov(client, db_session, monke
     first, last = points[0], points[-1]
     assert first["cdi_pct"] == "0.00"
     assert first["ibov_pct"] == "0.00"
+    assert first["nasdaq_pct"] == "0.00"
+    assert first["sp500_pct"] == "0.00"
     assert last["cdi_pct"] is not None and Decimal(last["cdi_pct"]) > Decimal("0")
     assert last["ibov_pct"] is not None and Decimal(last["ibov_pct"]) > Decimal("0")
+    assert last["nasdaq_pct"] is not None and Decimal(last["nasdaq_pct"]) > Decimal("0")
+    assert last["sp500_pct"] is not None and Decimal(last["sp500_pct"]) > Decimal("0")
 
 
 @pytest.mark.asyncio

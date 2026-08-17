@@ -431,6 +431,26 @@ def _value_at(series: list[tuple[date, Decimal]], day: date) -> Optional[Decimal
     return best
 
 
+async def _fetch_index_series(ticker: str, provider_period: str, cache, provider) -> list[tuple[date, Decimal]]:
+    """Sorted (date, close) history for an index ticker (^BVSP/^IXIC/^GSPC).
+    Same cache-then-provider fallback for every index — a fetch failure here
+    degrades to an empty series (the benchmark column shows null) rather than
+    breaking the whole comparison."""
+    try:
+        bars = await cache.get_historical(ticker, provider_period, "1d") if cache else None
+        if not bars:
+            bars = await provider.get_historical(ticker, provider_period, "1d")
+            if cache and bars:
+                await cache.set_historical(ticker, bars, provider_period, "1d")
+        return sorted(
+            ((b.date.date() if hasattr(b.date, "date") else b.date, b.close) for b in bars),
+            key=lambda item: item[0],
+        )
+    except Exception as exc:
+        logger.warning("%s history fetch failed: %s", ticker, exc)
+        return []
+
+
 async def get_portfolio_benchmark(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -448,10 +468,10 @@ async def get_portfolio_benchmark(
     adjusted. Good enough for a quick visual "how am I doing vs. CDI/Ibov"
     comparison, not for precise performance attribution.
 
-    CDI (BCB SGS série 12) and Ibovespa (^BVSP via the configured market data
-    provider) each degrade independently to null for dates where their data
-    isn't available — a fetch failure on one benchmark never blocks the other
-    or the portfolio leg.
+    CDI (BCB SGS série 12) and each index benchmark (Ibovespa/Nasdaq/S&P 500,
+    via the configured market data provider) degrade independently to null
+    for dates where their data isn't available — a fetch failure on one
+    benchmark never blocks the others or the portfolio leg.
     """
     series = await get_portfolio_performance(
         portfolio_id, user_id, period, db, redis, preferred_provider, brapi_key
@@ -467,23 +487,15 @@ async def get_portfolio_benchmark(
     cdi_index = _compound_index(cdi_rates)
     cdi_base = cdi_index[0][1] if cdi_index else None
 
-    ibov_bars: list[tuple[date, Decimal]] = []
-    try:
-        provider_period = _PERIOD_TO_PROVIDER.get(period, "max")
-        cache = get_cache(redis) if redis else None
-        bars = await cache.get_historical("^BVSP", provider_period, "1d") if cache else None
-        if not bars:
-            provider = get_provider(preferred_provider, brapi_key)
-            bars = await provider.get_historical("^BVSP", provider_period, "1d")
-            if cache and bars:
-                await cache.set_historical("^BVSP", bars, provider_period, "1d")
-        ibov_bars = sorted(
-            ((b.date.date() if hasattr(b.date, "date") else b.date, b.close) for b in bars),
-            key=lambda item: item[0],
-        )
-    except Exception as exc:
-        logger.warning("Ibovespa history fetch failed: %s", exc)
+    provider_period = _PERIOD_TO_PROVIDER.get(period, "max")
+    cache = get_cache(redis) if redis else None
+    provider = get_provider(preferred_provider, brapi_key)
+    ibov_bars = await _fetch_index_series("^BVSP", provider_period, cache, provider)
+    nasdaq_bars = await _fetch_index_series("^IXIC", provider_period, cache, provider)
+    sp500_bars = await _fetch_index_series("^GSPC", provider_period, cache, provider)
     ibov_base = ibov_bars[0][1] if ibov_bars else None
+    nasdaq_base = nasdaq_bars[0][1] if nasdaq_bars else None
+    sp500_base = sp500_bars[0][1] if sp500_bars else None
 
     result = []
     for point in series:
@@ -499,11 +511,23 @@ async def get_portfolio_benchmark(
         ibov_val = _value_at(ibov_bars, day)
         ibov_pct = round_financial(pct_change(ibov_val, ibov_base)) if ibov_base and ibov_val is not None else None
 
+        nasdaq_val = _value_at(nasdaq_bars, day)
+        nasdaq_pct = (
+            round_financial(pct_change(nasdaq_val, nasdaq_base)) if nasdaq_base and nasdaq_val is not None else None
+        )
+
+        sp500_val = _value_at(sp500_bars, day)
+        sp500_pct = (
+            round_financial(pct_change(sp500_val, sp500_base)) if sp500_base and sp500_val is not None else None
+        )
+
         result.append({
             "date": day,
             "portfolio_pct": portfolio_pct,
             "cdi_pct": cdi_pct,
             "ibov_pct": ibov_pct,
+            "nasdaq_pct": nasdaq_pct,
+            "sp500_pct": sp500_pct,
         })
     return result
 

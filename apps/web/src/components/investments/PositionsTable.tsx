@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Settings2, Wallet } from "lucide-react";
 import { RebalanceTag } from "./RebalanceTag";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatBRLExact } from "@/components/charts/chartTheme";
+import { formatBRLExact, formatCurrencyExact } from "@/components/charts/chartTheme";
 import type { PositionSummary } from "@/lib/portfolio-api";
 
 interface PositionsTableProps {
@@ -15,6 +15,15 @@ interface PositionsTableProps {
 function fmtBRL(v: number | string | null): string {
   if (v == null) return "—";
   return formatBRLExact(Number(v));
+}
+
+/** Linha auxiliar em moeda nativa, abaixo do valor em BRL — só para ativos
+ * internacionais (a conversão automática de câmbio já acontece no backend,
+ * mas até aqui só o valor convertido aparecia; sem o valor nativo junto, não
+ * dá pra conferir contra a corretora/o preço que o próprio mercado mostra). */
+function fmtNative(v: number | string | null, currency: string): string | null {
+  if (currency === "BRL" || v == null) return null;
+  return formatCurrencyExact(Number(v), currency);
 }
 
 function fmtPct(v: number | string | null): string {
@@ -95,8 +104,22 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                 </td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{Number(pos.quantity).toFixed(4)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{fmtBRL(pos.avg_cost)}</td>
-                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{fmtBRL(pos.current_price)}</td>
-                <td className="px-2.5 py-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{fmtBRL(pos.market_value_brl)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
+                  {fmtBRL(pos.current_price)}
+                  {fmtNative(pos.current_price_native, pos.currency) && (
+                    <span className="block text-[10.5px] text-[var(--text-muted)]">
+                      {fmtNative(pos.current_price_native, pos.currency)}
+                    </span>
+                  )}
+                </td>
+                <td className="px-2.5 py-3 text-right tabular-nums font-medium text-[var(--text-primary)]">
+                  {fmtBRL(pos.market_value_brl)}
+                  {fmtNative(pos.market_value_native, pos.currency) && (
+                    <span className="block text-[10.5px] font-normal text-[var(--text-muted)]">
+                      {fmtNative(pos.market_value_native, pos.currency)}
+                    </span>
+                  )}
+                </td>
                 <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtBRL(pos.pnl_absolute)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtPct(pos.pnl_percent)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{(Number(pos.weight) * 100).toFixed(1)}%</td>

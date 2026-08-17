@@ -128,7 +128,7 @@ async def get_portfolio_benchmark(
     redis=Depends(_get_redis),
     provider_settings: dict = Depends(_get_user_provider_settings),
 ):
-    """Portfolio cumulative return vs. CDI and Ibovespa over the same window."""
+    """Portfolio cumulative return vs. CDI, Ibovespa, Nasdaq and S&P 500 over the same window."""
     return await service.get_portfolio_benchmark(
         portfolio_id=portfolio_id,
         user_id=current_user.id,
