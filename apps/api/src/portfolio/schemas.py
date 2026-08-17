@@ -131,14 +131,16 @@ class PerformancePoint(BaseModel):
 class BenchmarkPoint(BaseModel):
     """Cumulative % return since the start of the window, for chart overlay.
 
-    cdi_pct/ibov_pct are null wherever the corresponding benchmark data
-    wasn't available yet (e.g. before the first CDI/Ibovespa data point in
+    cdi_pct/ibov_pct/nasdaq_pct/sp500_pct are null wherever the corresponding
+    benchmark data wasn't available yet (e.g. before the first data point in
     range), never a fabricated zero.
     """
     date: dt_date
     portfolio_pct: Decimal
     cdi_pct: Optional[Decimal] = None
     ibov_pct: Optional[Decimal] = None
+    nasdaq_pct: Optional[Decimal] = None
+    sp500_pct: Optional[Decimal] = None
 
 
 # ---------------------------------------------------------------------------

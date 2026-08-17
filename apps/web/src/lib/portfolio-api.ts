@@ -66,6 +66,8 @@ export interface BenchmarkPoint {
   portfolio_pct: number;
   cdi_pct: number | null;
   ibov_pct: number | null;
+  nasdaq_pct: number | null;
+  sp500_pct: number | null;
 }
 
 export interface LookThroughBucket {

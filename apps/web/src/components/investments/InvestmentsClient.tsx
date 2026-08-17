@@ -408,15 +408,15 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
             {/* Benchmark */}
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
-              <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Rentabilidade vs. CDI e Ibovespa</div>
+              <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Rentabilidade da carteira</div>
               <ChartCard
                 title="" bare
                 isLoading={isBenchmarkLoading}
                 isError={isBenchmarkError}
                 onRetry={refetchBenchmark}
                 isEmpty={!benchmark || benchmark.length === 0}
-                emptyMessage="Registre transações para comparar a carteira com CDI e Ibovespa."
-                height={260}
+                emptyMessage="Registre transações para comparar a carteira com CDI, Ibovespa, Nasdaq e S&P 500."
+                height={300}
               >
                 <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>

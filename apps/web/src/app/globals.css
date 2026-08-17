@@ -48,6 +48,21 @@
   --radius-card-sm:20px;
   --radius-pill:   11px;
 
+  /* Paleta categórica fixa para o gráfico de comparação de carteira x
+     benchmarks — deliberadamente independente de --accent. --accent é
+     personalizável em Configurações (6 opções, incluindo azul), e a
+     "Carteira" nesse gráfico usava --accent enquanto o CDI usava --accent-2
+     (#5A6BF0, um azul-índigo fixo) — quem escolhesse a cor "Azul" via
+     accentPalette.ts via a própria carteira sumir contra o CDI. Ordem e
+     tons validados com o script da skill de dataviz (CVD ΔE ≥ 8, contraste
+     de texto/legenda cobre o WARN abaixo de 3:1 no tema claro).
+  */
+  --chart-portfolio: #2A78D6;
+  --chart-cdi:        #EB6834;
+  --chart-ibov:        #1BAF7A;
+  --chart-nasdaq:      #EDA100;
+  --chart-sp500:       #E87BA4;
+
   --font-scale: 1.0;
 }
 
@@ -72,6 +87,12 @@
 
   --shadow:        0 24px 60px -24px rgba(0,0,0,.75);
   --grid-line:      rgba(255,255,255,.055);
+
+  --chart-portfolio: #3987E5;
+  --chart-cdi:        #D95926;
+  --chart-ibov:        #199E70;
+  --chart-nasdaq:      #C98500;
+  --chart-sp500:       #D55181;
 }
 
 /* Tailwind v4 utility-generating theme — without this, font-sans/font-mono
