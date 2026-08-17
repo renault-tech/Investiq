@@ -27,7 +27,9 @@ dependencies = [
   # sem ele, um build sem lockfile pode saltar pra uma major nova (aconteceu
   # com openai 1.x -> 3.x) e quase dobrar o peso instalado da SDK.
   "openai>=1.30.0,<2.0.0",
-  "google-genai>=1.0.0,<2.0.0",
+  # google-genai também engorda bastante dentro da própria 1.x — travado
+  # num ponto mais cedo pra caber no limite de função do Vercel.
+  "google-genai>=1.0.0,<1.35.0",
   "python-dateutil>=2.9.0",
   "pdfplumber>=0.11.0",
   "fpdf2>=2.7.0",

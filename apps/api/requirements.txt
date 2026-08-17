@@ -42,7 +42,12 @@ anthropic>=0.28.0
 # 225MB de função do Vercel num deploy sem nenhuma dependência nova —
 # o código foi escrito e testado contra a API 1.x de ambas.
 openai>=1.30.0,<2.0.0
-google-genai>=1.0.0,<2.0.0
+# google-genai também engordou bastante dentro da própria 1.x (1.0.0 tem
+# ~1.9MB instalado, 1.75.0 já tem ~7MB — o SDK foi ganhando módulos de
+# API que este app não usa a cada patch). Mesmo com o teto de major acima
+# (<2.0.0), o build ainda estourava por ~0.8MB; travar num ponto mais
+# cedo da 1.x recupera ~4.5MB de sobra.
+google-genai>=1.0.0,<1.35.0
 python-dateutil>=2.9.0
 fpdf2>=2.7.0
 openpyxl>=3.1.0
