@@ -20,6 +20,7 @@ import { AreaLineChart } from "@/components/charts/AreaLineChart";
 import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { formatDecimal, formatPercent } from "@/lib/number-format";
 
 const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", "1A": "1y", Tudo: "max" };
 
@@ -285,7 +286,7 @@ export function OverviewClient() {
                       <div key={a.asset_type} className="flex items-center gap-2 text-[12.5px]">
                         <span className="w-2 h-2 rounded-[3px] flex-shrink-0" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
                         <span className="flex-1 text-[var(--text-secondary)] truncate">{assetTypeLabel(a.asset_type)}</span>
-                        <b className="font-semibold text-[var(--text-primary)]">{(a.weight * 100).toFixed(0)}%</b>
+                        <b className="font-semibold text-[var(--text-primary)]">{formatPercent(a.weight * 100, 0)}</b>
                       </div>
                     ))}
                   </div>
@@ -293,7 +294,7 @@ export function OverviewClient() {
                 <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
                   <span className="text-[var(--text-secondary)]">Rentabilidade da carteira</span>
                   <b className="font-semibold" style={{ color: totalPnlPercent >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                    {totalPnlPercent >= 0 ? "+" : ""}{totalPnlPercent.toFixed(1)}%
+                    {formatPercent(totalPnlPercent, 1, { signed: true })}
                   </b>
                 </div>
               </>
@@ -341,7 +342,7 @@ export function OverviewClient() {
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Taxa de poupança</div>
                     <div className="text-base font-semibold mt-0.5 text-[var(--text-primary)]">
-                      {lastSavings?.savings_rate != null ? `${(savingsFraction * 100).toFixed(1)}%` : "—"}
+                      {lastSavings?.savings_rate != null ? formatPercent(savingsFraction * 100) : "—"}
                     </div>
                   </div>
                   <div>
@@ -487,7 +488,7 @@ export function OverviewClient() {
               <div className="flex justify-between">
                 <span className="text-[var(--text-secondary)]">Reserva de emergência</span>
                 <b className="font-semibold text-[var(--text-primary)]">
-                  {runwayMonths != null ? `${runwayMonths.toFixed(1)} meses` : "—"}
+                  {runwayMonths != null ? `${formatDecimal(runwayMonths, 1)} meses` : "—"}
                 </b>
               </div>
               <div className="flex justify-between">

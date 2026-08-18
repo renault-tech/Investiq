@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Download } from "lucide-react";
+import { LayoutDashboard, Download, FileText } from "lucide-react";
 import { listPortfolios, type Portfolio, type PerformancePeriod, type PositionSummary } from "@/lib/portfolio-api";
 import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
@@ -25,6 +25,8 @@ import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
 import { ManagePositionModal } from "./modals/ManagePositionModal";
+import { formatPercent } from "@/lib/number-format";
+import { ExportReportModal } from "@/components/reports/ExportReportModal";
 
 const AllocationDonut = dynamic(
   () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
@@ -57,6 +59,11 @@ interface Props {
   initialPortfolios: Portfolio[];
 }
 
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function InvestmentsClient({ initialPortfolios }: Props) {
   const [activePortfolioId, setActivePortfolioId] = useState<string | null>(
     initialPortfolios[0]?.id ?? null
@@ -64,6 +71,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [showNewPortfolio, setShowNewPortfolio] = useState(false);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [showNewTransaction, setShowNewTransaction] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [defaultTransactionPositionId, setDefaultTransactionPositionId] = useState<
     string | undefined
   >(undefined);
@@ -222,7 +230,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                     </span>
                     <span className="text-[var(--text-muted)]">·</span>
                     <span className="text-[var(--text-secondary)]">
-                      {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}% desde o início
+                      {formatPercent(pnlPercent, 1, { signed: true })} desde o início
                     </span>
                   </div>
                 </div>
@@ -440,12 +448,20 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={handleExport}
-                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                >
-                  <Download size={13} /> Exportar CSV
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <Download size={13} /> Exportar CSV
+                  </button>
+                  <button
+                    onClick={() => setShowExport(true)}
+                    className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <FileText size={13} /> Exportar relatório
+                  </button>
+                </div>
               </div>
 
               {activeTab === "positions" ? (
@@ -492,6 +508,16 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
           portfolioId={activePortfolioId}
           position={managingPosition}
           onClose={() => setManagingPosition(null)}
+        />
+      )}
+      {showExport && (
+        <ExportReportModal
+          month={currentMonth()}
+          origin="investments"
+          // A carteira aberta na tela já vem marcada — exportar daqui quase
+          // sempre significa "esta carteira", não todas.
+          defaultPortfolioIds={activePortfolioId ? [activePortfolioId] : []}
+          onClose={() => setShowExport(false)}
         />
       )}
     </div>

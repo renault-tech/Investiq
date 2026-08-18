@@ -6,6 +6,7 @@ import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useMask } from "@/hooks/useMask";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
+import { formatPercent } from "@/lib/number-format";
 
 interface SummaryCardsProps {
   summary?: FinanceSummary;
@@ -56,7 +57,7 @@ export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
     },
     {
       label: "Taxa de poupança",
-      value: lastRate != null ? `${(Number(lastRate) * 100).toFixed(1)}%` : "—",
+      value: lastRate != null ? formatPercent(Number(lastRate) * 100) : "—",
       sub: <span className="text-xs text-[var(--text-secondary)]">Últimos meses</span>,
       color: "var(--text-primary)",
     },

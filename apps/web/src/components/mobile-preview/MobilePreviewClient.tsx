@@ -9,6 +9,7 @@ import { useTransactions } from "@/hooks/useFinance";
 import { formatBRLCompact, formatBRLExact } from "@/components/charts/chartTheme";
 import { AreaLineChart } from "@/components/charts/AreaLineChart";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
+import { formatPercent, formatQuantity } from "@/lib/number-format";
 
 function PhoneFrame({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
@@ -86,7 +87,7 @@ export function MobilePreviewClient() {
             <div className="text-[11px] text-[var(--text-secondary)]">Total investido</div>
             <div className="text-2xl font-semibold tracking-[-.04em] mt-1 text-[var(--text-primary)]">{formatBRLCompact(invested)}</div>
             <div className="text-xs mt-1" style={{ color: (summary?.total_pnl_percent ?? 0) >= 0 ? "var(--accent)" : "var(--danger)" }}>
-              {Number(summary?.total_pnl_percent ?? 0) >= 0 ? "+" : ""}{Number(summary?.total_pnl_percent ?? 0).toFixed(1)}%
+              {formatPercent(Number(summary?.total_pnl_percent ?? 0), 1, { signed: true })}
             </div>
           </div>
           <div className="text-xs text-[var(--text-secondary)] my-4.5">Posições</div>
@@ -100,12 +101,12 @@ export function MobilePreviewClient() {
                 </div>
                 <div className="flex-1">
                   <div className="text-xs font-semibold text-[var(--text-primary)]">{p.ticker}</div>
-                  <div className="text-[10.5px] text-[var(--text-muted)]">{Number(p.quantity).toFixed(0)}</div>
+                  <div className="text-[10.5px] text-[var(--text-muted)]">{formatQuantity(Number(p.quantity), 0)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-semibold text-[var(--text-primary)]">{formatBRLCompact(p.current_price ?? 0)}</div>
                   <div className="text-[10.5px]" style={{ color: p.pnl_percent >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                    {Number(p.pnl_percent) >= 0 ? "+" : ""}{Number(p.pnl_percent).toFixed(1)}%
+                    {formatPercent(Number(p.pnl_percent), 1, { signed: true })}
                   </div>
                 </div>
               </div>

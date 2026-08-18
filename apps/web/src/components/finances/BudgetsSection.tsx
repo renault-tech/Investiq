@@ -10,6 +10,7 @@ import { formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
+import { parseBRNumber } from "@/lib/number-format";
 
 interface BudgetsSectionProps {
   categories: FinanceCategory[];
@@ -40,7 +41,7 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const value = Number(amount.replace(",", "."));
+    const value = parseBRNumber(amount);
     if (!categoryId || !value || value <= 0) return;
     await upsertMutation.mutateAsync({ categoryId, amount: value });
     setCategoryId("");

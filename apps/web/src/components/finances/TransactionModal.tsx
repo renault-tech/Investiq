@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { formatBRLExact } from "@/components/charts/chartTheme";
+import { parseBRNumber } from "@/lib/number-format";
 
 const RECURRENCE_OPTIONS = [
   { value: "", label: "Não se repete" },
@@ -66,7 +67,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
   // existente mexe naquela linha, não na série.
   const canSplit = !editing && type === "expense";
   const parcelCount = Math.max(1, Number(installments) || 1);
-  const parsedAmount = Number(amount.replace(",", ".").replace(/\s/g, ""));
+  const parsedAmount = parseBRNumber(amount) ?? 0;
   const showParcelPreview = canSplit && parcelCount > 1 && parsedAmount > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -223,8 +224,8 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
           {canSplit ? (
             <Input
               label="Parcelas"
-              type="number"
-              min={1}
+              type="text"
+              inputMode="decimal"
               max={120}
               value={installments}
               onChange={(e) => setInstallments(e.target.value)}

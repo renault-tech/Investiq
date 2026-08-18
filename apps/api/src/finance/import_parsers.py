@@ -151,11 +151,19 @@ def _normalize_header(raw: str) -> str:
 
 
 def _parse_amount(raw: str) -> Decimal:
+    """Valor monetário de um CSV, no padrão brasileiro.
+
+    Mesma regra de desempate do `parseBRNumber` do frontend, para o mesmo
+    texto virar o mesmo número nos dois lados: com os dois separadores, o
+    último é o decimal; só vírgula é decimal ("15,600" = 15,6); só ponto é
+    milhar quando separa grupos de exatamente 3 dígitos ("15.600" = 15600)
+    e decimal caso contrário ("15.6" = 15,6).
+    """
     s = raw.strip().replace("R$", "").replace("r$", "").strip()
     negative = s.startswith("(") and s.endswith(")")
     if negative:
         s = s[1:-1]
-    s = s.replace(" ", "")
+    s = s.replace(" ", "").replace(" ", "")
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             s = s.replace(".", "").replace(",", ".")   # pt-BR: 1.234,56
@@ -163,6 +171,13 @@ def _parse_amount(raw: str) -> Decimal:
             s = s.replace(",", "")                       # en: 1,234.56
     elif "," in s:
         s = s.replace(",", ".")
+    elif "." in s:
+        # Ponto sozinho é ambíguo. "15.600" num extrato brasileiro é quinze
+        # mil e seiscentos, não quinze e seis — a leitura decimal aqui
+        # dividia o lançamento por mil silenciosamente.
+        parts = s.lstrip("-+").split(".")
+        if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]) and parts[0]:
+            s = s.replace(".", "")
     value = Decimal(s)
     return -value if negative else value
 

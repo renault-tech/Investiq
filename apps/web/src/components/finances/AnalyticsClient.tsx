@@ -12,6 +12,7 @@ import { formatBRLExact, formatPct } from "@/components/charts/chartTheme";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { CategoryTrendList } from "./CategoryTrendList";
 import { CategoryMatrix } from "./CategoryMatrix";
+import { formatDecimal } from "@/lib/number-format";
 
 const SavingsRateChart = dynamic(
   () => import("./SavingsRateChart").then((m) => m.SavingsRateChart),
@@ -113,7 +114,7 @@ export function AnalyticsClient() {
             <StatCard
               icon={Timer}
               label="Fôlego"
-              value={data.runway_months === null ? "—" : `${Number(data.runway_months).toFixed(1)} meses`}
+              value={data.runway_months === null ? "—" : `${formatDecimal(Number(data.runway_months), 1)} meses`}
               hint="saldo consolidado ÷ burn rate"
             />
           </div>

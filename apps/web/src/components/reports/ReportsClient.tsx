@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
-import { ReportBuilder } from "./ReportBuilder";
+import { Download, FileText } from "lucide-react";
+import { ExportReportModal } from "./ExportReportModal";
 import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioIncome } from "@/hooks/usePortfolioIncome";
@@ -10,6 +11,7 @@ import { useFinanceSummary } from "@/hooks/useFinance";
 import { apiClient } from "@/lib/api-client";
 import { formatBRLCompact } from "@/components/charts/chartTheme";
 import { useMask } from "@/hooks/useMask";
+import { formatPercent } from "@/lib/number-format";
 
 function currentMonth(): string {
   const d = new Date();
@@ -31,6 +33,7 @@ async function downloadBlob(url: string, filename: string, params?: Record<strin
 }
 
 export function ReportsClient() {
+  const [showExport, setShowExport] = useState(false);
   const mask = useMask();
   const month = currentMonth();
   const year = new Date().getFullYear();
@@ -60,7 +63,7 @@ export function ReportsClient() {
   const metrics = [
     {
       label: "Variação patrimonial",
-      value: `${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(1)}%`,
+      value: formatPercent(pnlPercent, 1, { signed: true }),
       color: pnlPercent >= 0 ? "var(--accent)" : "var(--danger)",
     },
     { label: "Total investido", value: mask(formatBRLCompact(investedTotal)), color: "var(--text-primary)" },
@@ -83,20 +86,17 @@ export function ReportsClient() {
             >
               CSV
             </button>
+            <button
+              data-tour="report-builder"
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-1.5 px-4 h-[38px] rounded-xl text-[12.5px] font-semibold"
+              style={{ background: "var(--accent)", color: "#04120D" }}
+            >
+              <Download size={14} /> Exportar relatório
+            </button>
           </div>
         </div>
 
-        <ReportBuilder
-          month={month}
-          onDownload={({ month: m, format, accountIds, portfolioIds }) =>
-            downloadBlob("/reports/monthly", `relatorio-${m}.${format}`, {
-              month: m,
-              format,
-              ...(accountIds.length ? { account_ids: accountIds.join(",") } : {}),
-              ...(portfolioIds.length ? { portfolio_ids: portfolioIds.join(",") } : {}),
-            })
-          }
-        />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-[18px] mt-6">
           {metrics.map((m) => (
             <div key={m.label} className="border-l border-[var(--border)] pl-4">
@@ -147,6 +147,10 @@ export function ReportsClient() {
           ))}
         </section>
       </div>
+
+      {showExport && (
+        <ExportReportModal month={month} origin="reports" onClose={() => setShowExport(false)} />
+      )}
     </div>
   );
 }

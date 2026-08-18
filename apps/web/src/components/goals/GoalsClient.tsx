@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useMask } from "@/hooks/useMask";
+import { parseBRNumber } from "@/lib/number-format";
 
 function currentMonth(): string {
   const d = new Date();
@@ -49,7 +50,7 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
 
   const handleContribute = async (e: React.FormEvent) => {
     e.preventDefault();
-    const value = Number(contribution.replace(",", "."));
+    const value = parseBRNumber(contribution);
     if (!value) return;
     await contributeMutation.mutateAsync({ goalId: goal.id, amount: value });
     setContribution("");
@@ -132,7 +133,7 @@ export function GoalsClient() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const value = Number(targetAmount.replace(",", "."));
+    const value = parseBRNumber(targetAmount);
     if (!name.trim() || !value || value <= 0) return;
     await createMutation.mutateAsync({ name: name.trim(), target_amount: value, target_date: targetDate || undefined });
     setName(""); setTargetAmount(""); setTargetDate(""); setShowForm(false);

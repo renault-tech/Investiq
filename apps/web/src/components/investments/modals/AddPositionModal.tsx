@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { addPosition, createTransaction } from "@/lib/portfolio-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { parseBRNumber, sanitizeNumericInput } from "@/lib/number-format";
 
 interface AddPositionModalProps {
   portfolioId: string;
@@ -30,13 +31,13 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
       const position = await addPosition(portfolioId, {
         ticker: ticker.toUpperCase().trim(),
         broker: broker.trim() || undefined,
-        target_weight: targetPct ? parseFloat(targetPct) / 100 : undefined,
+        target_weight: parseBRNumber(targetPct) != null ? parseBRNumber(targetPct)! / 100 : undefined,
       }) as { id: string };
 
       // 2. Registra transação inicial se qty+preço informados
-      const numQty = parseFloat(quantity);
-      const numPrice = parseFloat(price);
-      if (!isNaN(numQty) && !isNaN(numPrice) && numQty > 0) {
+      const numQty = parseBRNumber(quantity);
+      const numPrice = parseBRNumber(price);
+      if (numQty != null && numPrice != null && numQty > 0) {
         await createTransaction({
           position_id: position.id,
           transaction_type: "buy",
@@ -120,11 +121,10 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
             <label htmlFor="pos-qty" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade</label>
             <input
               id="pos-qty"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              min={0}
-              step={1}
+              onChange={(e) => setQuantity(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
               placeholder="Opcional"
             />
@@ -133,11 +133,10 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
             <label htmlFor="pos-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Atual</label>
             <input
               id="pos-price"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              min={0}
-              step={0.01}
+              onChange={(e) => setPrice(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
               placeholder="R$ Opcional"
             />
@@ -149,12 +148,11 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
             <label htmlFor="position-target-weight" className="block text-[10px] text-[var(--text-muted)] mb-1">Alvo na carteira %</label>
             <input
               id="position-target-weight"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={targetPct}
-              onChange={(e) => setTargetPct(e.target.value)}
-              min={0}
+              onChange={(e) => setTargetPct(sanitizeNumericInput(e.target.value))}
               max={100}
-              step={0.1}
               className={fieldClass}
               placeholder="Ex: 5%"
             />

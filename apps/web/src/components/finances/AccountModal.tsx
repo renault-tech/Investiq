@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/useAccounts";
 import { ACCOUNT_TYPE_LABELS, type Account, type AccountType } from "@/lib/accounts-api";
+import { parseBRNumber } from "@/lib/number-format";
 
 interface Props {
   editing?: Account;
@@ -35,8 +36,10 @@ export function AccountModal({ editing, onClose }: Props) {
       setError("Dê um nome para a conta.");
       return;
     }
-    const balance = Number(openingBalance.replace(",", "."));
-    if (Number.isNaN(balance)) {
+    // Campo vazio é saldo zero; texto que não vira número é erro. Saldo
+    // negativo é legítimo (conta no vermelho), então não filtra por sinal.
+    const balance = openingBalance.trim() ? parseBRNumber(openingBalance) : 0;
+    if (balance == null) {
       setError("Saldo inicial inválido.");
       return;
     }

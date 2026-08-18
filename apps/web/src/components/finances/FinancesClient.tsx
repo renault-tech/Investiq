@@ -17,6 +17,7 @@ import { TransactionModal } from "./TransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
+import { ExportReportModal } from "@/components/reports/ExportReportModal";
 import { ForecastChart } from "./ForecastChart";
 
 function monthKey(date: Date): string {
@@ -42,6 +43,7 @@ export function FinancesClient() {
   const [search, setSearch] = useState("");
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
   // "" = todos os titulares. Escopa a tabela de transações junto com as contas.
   const [holder, setHolder] = useState("");
@@ -117,19 +119,6 @@ export function FinancesClient() {
     window.URL.revokeObjectURL(url);
   };
 
-  const handleDownloadReport = async () => {
-    const res = await apiClient.get("/reports/monthly", {
-      params: { month },
-      responseType: "blob",
-    });
-    const url = window.URL.createObjectURL(res.data as Blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `relatorio-${month}.pdf`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       {/* Header */}
@@ -160,10 +149,10 @@ export function FinancesClient() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={handleDownloadReport}
+            onClick={() => setShowExport(true)}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] rounded-[11px] hover:text-[var(--text-primary)] transition-colors"
           >
-            <FileText size={15} /> Relatório PDF
+            <FileText size={15} /> Exportar relatório
           </button>
           <button
             onClick={() => setShowCategoryManager(true)}
@@ -289,6 +278,9 @@ export function FinancesClient() {
       )}
       {showCategoryManager && (
         <CategoryManager categories={categories} onClose={() => setShowCategoryManager(false)} />
+      )}
+      {showExport && (
+        <ExportReportModal month={month} origin="finances" onClose={() => setShowExport(false)} />
       )}
     </div>
   );

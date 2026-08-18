@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { useMask } from "@/hooks/useMask";
 import { Sparkline } from "./Sparkline";
+import { formatPercent } from "@/lib/number-format";
 
 function formatPrice(price: number | null, currency: string): string {
   if (price == null) return "indisponível";
@@ -83,7 +84,7 @@ export function WatchlistTable() {
                     style={{ color: item.change_pct == null ? "var(--text-muted)" : positive ? "var(--accent)" : "var(--danger)" }}
                   >
                     {item.change_pct != null && (positive ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />)}
-                    {item.change_pct != null ? `${positive ? "+" : ""}${item.change_pct.toFixed(2)}%` : "—"}
+                    {item.change_pct != null ? formatPercent(item.change_pct, 2, { signed: true }) : "—"}
                   </div>
                 </div>
                 <button
