@@ -14,6 +14,7 @@ import { SummaryCards } from "./SummaryCards";
 import { CategoryBars } from "./CategoryBars";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
+import { DeleteTransactionModal, type DeleteScope } from "./DeleteTransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
@@ -45,6 +46,7 @@ export function FinancesClient() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
+  const [deletingTxn, setDeletingTxn] = useState<FinanceTransaction | undefined>(undefined);
   // "" = todos os titulares. Escopa a tabela de transações junto com as contas.
   const [holder, setHolder] = useState("");
   // Carteira ativa (clicada em AccountsBar) — escopa a página inteira, não só a tabela.
@@ -76,31 +78,14 @@ export function FinancesClient() {
     setMonth(monthKey(new Date(year, mon - 1 + delta, 1)));
   };
 
-  const handleDelete = (txn: FinanceTransaction) => {
-    const isSeries = (txn.installment_total ?? 0) > 1;
-    if (isSeries) {
-      // Parcelamento tem três desfechos possíveis; confirm() só tem dois
-      // botões, então a pergunta é encadeada em vez de adivinhar a intenção.
-      const all = window.confirm(
-        `"${txn.description ?? "Transação"}" é a parcela ${txn.installment_no}/${txn.installment_total}.\n\n` +
-          "OK apaga a série inteira. Cancelar deixa você escolher apagar só esta parcela."
-      );
-      if (all) {
-        deleteMutation.mutate({ id: txn.id, scope: "all" });
-        return;
-      }
-      if (window.confirm("Apagar somente esta parcela?")) {
-        deleteMutation.mutate({ id: txn.id, scope: "one" });
-      }
-      return;
-    }
-    if (
-      window.confirm(
-        `Excluir "${txn.description ?? "transação"}"?${txn.is_recurring ? " A série recorrente inteira será encerrada." : ""}`
-      )
-    ) {
-      deleteMutation.mutate({ id: txn.id });
-    }
+  const handleDelete = (txn: FinanceTransaction) => setDeletingTxn(txn);
+
+  const confirmDelete = (scope: DeleteScope) => {
+    if (!deletingTxn) return;
+    deleteMutation.mutate(
+      { id: deletingTxn.id, scope },
+      { onSuccess: () => setDeletingTxn(undefined) }
+    );
   };
 
   const handleExport = async (format: "csv" | "ofx") => {
@@ -281,6 +266,14 @@ export function FinancesClient() {
       )}
       {showExport && (
         <ExportReportModal month={month} origin="finances" onClose={() => setShowExport(false)} />
+      )}
+      {deletingTxn && (
+        <DeleteTransactionModal
+          txn={deletingTxn}
+          isPending={deleteMutation.isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeletingTxn(undefined)}
+        />
       )}
     </div>
   );

@@ -20,6 +20,7 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { useMask } from "@/hooks/useMask";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
@@ -221,29 +222,45 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               <div className="relative flex justify-between items-start flex-wrap gap-4">
                 <div>
                   <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Carteira total</div>
-                  <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
-                    {mask(formatBRLExact(marketValue))}
-                  </div>
-                  <div className="flex items-center gap-2.5 mt-2 text-[13px]">
-                    <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {mask(`${pnlAbsolute >= 0 ? "+" : ""}${formatBRLCompact(pnlAbsolute)}`)}
-                    </span>
-                    <span className="text-[var(--text-muted)]">·</span>
-                    <span className="text-[var(--text-secondary)]">
-                      {formatPercent(pnlPercent, 1, { signed: true })} desde o início
-                    </span>
-                  </div>
+                  {isSummaryLoading ? (
+                    <Skeleton className="h-9 w-48 mt-1.5" />
+                  ) : (
+                    <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
+                      {mask(formatBRLExact(marketValue))}
+                    </div>
+                  )}
+                  {isSummaryLoading ? (
+                    <Skeleton className="h-4 w-40 mt-2.5" />
+                  ) : (
+                    <div className="flex items-center gap-2.5 mt-2 text-[13px]">
+                      <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                        {mask(`${pnlAbsolute >= 0 ? "+" : ""}${formatBRLCompact(pnlAbsolute)}`)}
+                      </span>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <span className="text-[var(--text-secondary)]">
+                        {formatPercent(pnlPercent, 1, { signed: true })} desde o início
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-6">
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Total investido</div>
-                    <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{mask(formatBRLCompact(investedValue))}</div>
+                    {isSummaryLoading ? (
+                      <Skeleton className="h-[17px] w-16 mt-1" />
+                    ) : (
+                      <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{mask(formatBRLCompact(investedValue))}</div>
+                    )}
                   </div>
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Resultado</div>
-                    <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {mask(formatBRLCompact(pnlAbsolute))}
-                    </div>
+                    {isSummaryLoading ? (
+                      <Skeleton className="h-[17px] w-16 mt-1" />
+                    ) : (
+                      <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                        {mask(formatBRLCompact(pnlAbsolute))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

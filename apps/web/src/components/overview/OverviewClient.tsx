@@ -19,6 +19,7 @@ import { assetTypeLabel, formatBRLExact, formatBRLCompact, CATEGORICAL } from "@
 import { AreaLineChart } from "@/components/charts/AreaLineChart";
 import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
 
@@ -133,13 +134,15 @@ export function OverviewClient() {
   const handleRestore = (id: string) => setHidden((h) => h.filter((x) => x !== id));
 
   // ── Dados ────────────────────────────────────────────────────────────────
-  const { data: portfolios = [] } = useQuery<Portfolio[]>({ queryKey: ["portfolios"], queryFn: listPortfolios, staleTime: 30_000 });
+  const { data: portfolios = [], isLoading: portfoliosLoading } = useQuery<Portfolio[]>({
+    queryKey: ["portfolios"], queryFn: listPortfolios, staleTime: 30_000,
+  });
   const portfolioId = portfolios.find((p) => p.is_default)?.id ?? portfolios[0]?.id ?? null;
 
-  const { data: summary } = usePortfolioSummary(portfolioId);
+  const { data: summary, isLoading: summaryLoading } = usePortfolioSummary(portfolioId);
   const { data: performance = [] } = usePortfolioPerformance(portfolioId, perfPeriod);
-  const { data: accounts = [] } = useAccounts();
-  const { data: cards = [] } = useCards();
+  const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+  const { data: cards = [], isLoading: cardsLoading } = useCards();
   const { data: goals = [] } = useGoals();
   const { data: txPage } = useTransactions({ per_page: 6, page: 1 });
   const { data: finSummary } = useFinanceSummary(currentMonth());
@@ -163,6 +166,14 @@ export function OverviewClient() {
   const liquid = accounts.filter((a) => a.include_in_total).reduce((sum, a) => sum + Number(a.balance), 0);
   const invested = Number(summary?.total_market_value_brl ?? 0);
   const netWorth = liquid + invested - billTotal;
+
+  // A carteira de investimentos passa por duas requisições em série
+  // (portfolios -> summary), então "sem posição" só é verdade depois das
+  // duas resolverem. Sem essa distinção, quem tem patrimônio real via a
+  // tela dizer "R$ 0,00" e "Sem posições ainda" só porque a segunda
+  // requisição ainda não voltou — no 4G isso passa vários segundos.
+  const investmentsLoading = portfoliosLoading || (portfolioId !== null && summaryLoading);
+  const netWorthLoading = accountsLoading || cardsLoading || investmentsLoading;
 
   const perfValues = performance.map((p) => Number(p.total_value));
   const netDeltaFraction = perfValues.length >= 2 && perfValues[0] !== 0
@@ -227,27 +238,43 @@ export function OverviewClient() {
               <div className="flex-1">
                 <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Patrimônio líquido</div>
                 <div className="flex items-baseline gap-3.5 mt-2">
-                  <div className="text-[44px] font-semibold tracking-[-.045em] tabular-nums whitespace-nowrap text-[var(--text-primary)]">
-                    {mask(formatBRLExact(netWorth))}
-                  </div>
-                  <DeltaPill fraction={netDeltaFraction} />
+                  {netWorthLoading ? (
+                    <Skeleton className="h-[44px] w-56" />
+                  ) : (
+                    <div className="text-[44px] font-semibold tracking-[-.045em] tabular-nums whitespace-nowrap text-[var(--text-primary)]">
+                      {mask(formatBRLExact(netWorth))}
+                    </div>
+                  )}
+                  {!netWorthLoading && <DeltaPill fraction={netDeltaFraction} />}
                 </div>
                 <div className="text-[12.5px] text-[var(--text-secondary)] mt-1.5">Contas, investimentos e faturas em aberto</div>
               </div>
               <div className="flex gap-6 pt-1.5 flex-wrap">
                 <div>
                   <div className="text-[11.5px] text-[var(--text-secondary)]">Líquido</div>
-                  <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(liquid))}</div>
+                  {netWorthLoading ? (
+                    <Skeleton className="h-[17px] w-16 mt-1" />
+                  ) : (
+                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(liquid))}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[11.5px] text-[var(--text-secondary)]">Investido</div>
-                  <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
+                  {netWorthLoading ? (
+                    <Skeleton className="h-[17px] w-16 mt-1" />
+                  ) : (
+                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-[11.5px] text-[var(--text-secondary)]">Passivos</div>
-                  <div className="text-[17px] font-semibold mt-0.5 tabular-nums" style={{ color: billTotal > 0 ? "var(--danger)" : "var(--text-primary)" }}>
-                    {mask(formatBRLCompact(billTotal))}
-                  </div>
+                  {netWorthLoading ? (
+                    <Skeleton className="h-[17px] w-16 mt-1" />
+                  ) : (
+                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums" style={{ color: billTotal > 0 ? "var(--danger)" : "var(--text-primary)" }}>
+                      {mask(formatBRLCompact(billTotal))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -272,7 +299,16 @@ export function OverviewClient() {
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-[var(--text-primary)]">Alocação</div>
             </div>
-            {allocation.length === 0 ? (
+            {investmentsLoading ? (
+              <div className="flex items-center gap-5.5 mt-4">
+                <Skeleton className="h-[120px] w-[120px] rounded-full flex-shrink-0" />
+                <div className="flex-1 flex flex-col gap-2.5">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-3.5 w-full" />
+                  ))}
+                </div>
+              </div>
+            ) : allocation.length === 0 ? (
               <EmptyState icon={Landmark} title="Sem posições ainda" description="Adicione ativos em Investimentos para ver a alocação." />
             ) : (
               <>

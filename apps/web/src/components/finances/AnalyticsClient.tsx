@@ -129,7 +129,7 @@ export function AnalyticsClient() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+            <div className="min-w-0 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
               <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Tendência por categoria</h2>
               <p className="text-xs text-[var(--text-muted)] mb-2">
                 Gasto do mês contra a mediana dos últimos 6 meses fechados.
@@ -137,7 +137,7 @@ export function AnalyticsClient() {
               <CategoryTrendList trends={data.category_trends} />
             </div>
 
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
+            <div className="min-w-0 bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4">
               <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Comparativo mês a mês</h2>
               <CategoryMatrix months={data.months} rows={data.category_matrix} />
             </div>
