@@ -31,7 +31,7 @@ dependencies = [
   # num ponto mais cedo pra caber no limite de função do Vercel.
   "google-genai>=1.0.0,<1.35.0",
   "python-dateutil>=2.9.0",
-  "pdfplumber>=0.11.0",
+  "pypdf>=5.0.0,<7.0.0",
   "fpdf2>=2.7.0",
   "openpyxl>=3.1.0",
 ]

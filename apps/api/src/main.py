@@ -28,13 +28,13 @@ from src.cards.router import router as cards_router
 from src.reports.router import router as reports_router
 from src.watchlist.router import router as watchlist_router
 
-# cards only needs pdfplumber for PDF invoice upload specifically, and that
-# import is lazy (src/cards/parser.py::_parse_pdf) — the router itself and
-# CSV invoice upload work fine without it. requirements.txt deliberately
-# omits pdfplumber (its fontTools/pypdfium2 chain is ~45MB, not worth paying
-# for every deploy just for PDF parsing); PDF upload fails with a clear
-# message on Vercel instead of the whole module disappearing. fpdf2 (reports)
-# is pure Python and small, so it ships unconditionally.
+# cards' PDF invoice upload (src/cards/parser.py::_parse_pdf) imports pypdf
+# lazily rather than at module level, purely as a defensive fallback: if it
+# were ever missing from requirements.txt, the router and CSV invoice upload
+# would still work, and PDF upload would fail with a clear message instead
+# of the whole module disappearing. In practice pypdf ships unconditionally
+# (pure Python, ~4MB installed, no native dependency chain like the
+# pdfplumber it replaced), so that fallback shouldn't ever trigger.
 
 
 @asynccontextmanager

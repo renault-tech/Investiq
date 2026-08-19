@@ -5,15 +5,16 @@
 #   runs a uvicorn server process, so it's dead weight in the function
 #   bundle (uvicorn[standard]'s httptools/uvloop/watchfiles/websockets
 #   extras only matter for the Docker/local entrypoint).
-# - pdfplumber: only src/cards/parser.py needs it, and only for PDF invoice
-#   upload specifically — that import is lazy (inside _parse_pdf, guarded by
-#   a friendly error), so the cards module loads and CSV invoice upload works
-#   fine without it. Its fontTools/pypdfium2 chain alone is ~45MB, which
-#   would push the Vercel function past the 225MB bundle cap for a feature
-#   (PDF parsing) most uploads don't even use. Stays available in Docker/local.
-# fpdf2 (unlike pdfplumber) IS included below: reports/pdf_report.py imports
-# it at module level, it's pure Python with no heavy binary chain, and the
-# monthly PDF report is worth the ~1MB it adds.
+# pypdf and fpdf2 ARE included below (PDF invoice upload and the monthly PDF
+# report, respectively): both are pure Python with no native/binary chain —
+# pypdf installs at ~4MB, fpdf2 at ~1MB — cheap enough to ship unconditionally.
+# This used to run pdfplumber instead of pypdf for invoice parsing, which was
+# excluded from this file for exactly the opposite reason: its fontTools +
+# pypdfium2 chain alone is ~45MB, which pushed the Vercel function past the
+# 225MB bundle cap and made PDF invoice upload production-only-in-Docker.
+# pypdf gives up pdfplumber's table/layout reconstruction, but the extracted
+# text goes straight into an LLM to pull out line items, so raw text is all
+# this needs.
 fastapi>=0.111.0
 sqlalchemy[asyncio]>=2.0.0
 asyncpg>=0.29.0
@@ -49,5 +50,6 @@ openai>=1.30.0,<2.0.0
 # cedo da 1.x recupera ~4.5MB de sobra.
 google-genai>=1.0.0,<1.35.0
 python-dateutil>=2.9.0
+pypdf>=5.0.0,<7.0.0
 fpdf2>=2.7.0
 openpyxl>=3.1.0
