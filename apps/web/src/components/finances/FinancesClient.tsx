@@ -27,7 +27,10 @@ function monthKey(date: Date): string {
 
 function monthLabel(month: string): string {
   const [year, mon] = month.split("-").map(Number);
-  return new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  // "agosto de 2026" — a classe `capitalize` do CSS maiuscularia cada
+  // palavra ("Agosto De 2026"); em português só a inicial é maiúscula.
+  const label = new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -124,7 +127,7 @@ export function FinancesClient() {
             <button onClick={() => shiftMonth(-1)} aria-label="Mês anterior" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <ChevronLeft size={18} />
             </button>
-            <span className="text-sm text-[var(--text-secondary)] capitalize min-w-36 text-center">
+            <span className="text-sm text-[var(--text-secondary)] min-w-36 text-center">
               {monthLabel(month)}
             </span>
             <button onClick={() => shiftMonth(1)} aria-label="Próximo mês" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -229,13 +232,13 @@ export function FinancesClient() {
           />
           <button
             onClick={() => handleExport("csv")}
-            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
           >
             <Download size={13} /> Exportar CSV
           </button>
           <button
             onClick={() => handleExport("ofx")}
-            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
           >
             <Download size={13} /> Exportar OFX
           </button>

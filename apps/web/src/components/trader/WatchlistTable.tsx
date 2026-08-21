@@ -90,7 +90,10 @@ export function WatchlistTable() {
                 <button
                   onClick={() => removeMutation.mutate(item.id)}
                   aria-label={`Remover ${item.ticker} da watchlist`}
-                  className="text-[var(--text-muted)] hover:text-[var(--danger)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                  // Como no AccountsBar: opacity-0 até md pra não desaparecer
+                  // no toque (sem :hover), padding + margem negativa pra dar
+                  // área de toque sem empurrar o layout.
+                  className="text-[var(--text-muted)] hover:text-[var(--danger)] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 p-2 -m-2"
                 >
                   <Trash2 size={14} />
                 </button>

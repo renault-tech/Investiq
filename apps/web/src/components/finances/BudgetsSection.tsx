@@ -65,7 +65,7 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
         {availableCategories.length > 0 && (
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1 text-xs text-[var(--navy)] dark:text-[var(--accent)] hover:underline"
+            className="flex items-center gap-1 py-1.5 text-xs text-[var(--navy)] dark:text-[var(--accent)] hover:underline"
           >
             <Plus size={13} /> Novo orçamento
           </button>

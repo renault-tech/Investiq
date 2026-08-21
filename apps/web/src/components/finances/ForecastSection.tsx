@@ -20,7 +20,10 @@ const HORIZONS = [3, 6, 12] as const;
 
 function monthLabel(month: string): string {
   const [year, mon] = month.split("-").map(Number);
-  return new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  // "agosto de 2026" — a classe `capitalize` do CSS maiuscularia cada
+  // palavra ("Agosto De 2026"); em português só a inicial é maiúscula.
+  const label = new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function ForecastSection() {
@@ -81,7 +84,7 @@ export function ForecastSection() {
         <div className="flex items-center gap-2 mb-3 px-3 py-2 text-xs rounded-[9px] bg-[var(--danger)]/10 text-[var(--danger)]">
           <AlertTriangle size={14} className="shrink-0" />
           Na projeção realista, o saldo fica negativo a partir de{" "}
-          <span className="font-medium capitalize">{monthLabel(forecast.negative_from)}</span>.
+          <span className="font-medium">{monthLabel(forecast.negative_from)}</span>.
         </div>
       )}
 

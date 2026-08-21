@@ -468,13 +468,13 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleExport}
-                    className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <Download size={13} /> Exportar CSV
                   </button>
                   <button
                     onClick={() => setShowExport(true)}
-                    className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <FileText size={13} /> Exportar relatório
                   </button>

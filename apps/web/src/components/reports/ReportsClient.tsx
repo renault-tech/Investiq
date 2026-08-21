@@ -22,6 +22,14 @@ function monthShort(month: string): string {
   return new Date(`${month}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "short" });
 }
 
+function monthLongCapitalized(month: string): string {
+  // "agosto de 2026" — só a inicial vira maiúscula. A classe `capitalize`
+  // do CSS, quando aplicada a um bloco de texto inteiro, maiusculariza toda
+  // palavra ("Relatório Mensal · Agosto De 2026"), não só a que precisa.
+  const label = new Date(`${month}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 async function downloadBlob(url: string, filename: string, params?: Record<string, string>) {
   const res = await apiClient.get(url, { params, responseType: "blob" });
   const blobUrl = window.URL.createObjectURL(res.data as Blob);
@@ -131,8 +139,8 @@ export function ReportsClient() {
                 <FileText size={15} />
               </div>
               <div className="flex-1">
-                <div className="text-[12.5px] font-medium capitalize text-[var(--text-primary)]">
-                  Relatório mensal · {new Date(`${m}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                  Relatório mensal · {monthLongCapitalized(m)}
                 </div>
                 <div className="text-[11px] text-[var(--text-muted)]">PDF · gerado na hora</div>
               </div>

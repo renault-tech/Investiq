@@ -42,7 +42,10 @@ const CARD_GRADIENTS = [
 
 function monthLabel(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
-  return d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+  // "ago. de 2026" — a classe `capitalize` do CSS maiuscularia cada palavra
+  // ("Ago. De 2026"); em português só a inicial deveria virar maiúscula.
+  const label = d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 function monthShort(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
@@ -230,7 +233,7 @@ export function CardsClient() {
                       className="w-full flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-[var(--surface-2)]"
                       style={{ background: invoice.id === activeInvoiceId ? "var(--surface-2)" : "transparent" }}
                     >
-                      <span className="capitalize text-[var(--text-primary)] font-medium">
+                      <span className="text-[var(--text-primary)] font-medium">
                         {monthLabel(invoice.reference_month)}
                       </span>
                       <span className={`text-xs ${statusInfo(invoice.status).className}`}>
