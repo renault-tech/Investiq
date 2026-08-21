@@ -21,6 +21,29 @@ async def test_login_wrong_password_rejected(client):
 
 
 @pytest.mark.asyncio
+async def test_invalid_email_error_is_in_portuguese_not_the_raw_validator_text(client):
+    """Um e-mail com domínio reservado (.local) batia no validador do
+    Pydantic/email-validator, que devolvia o `msg` em inglês direto na
+    resposta ("value is not a valid email address: The part after the
+    @-sign..."). O handler global em main.py traduz antes de responder."""
+    res = await client.post(
+        "/auth/register", json={"email": "teste@investiq.local", "password": "senhaSegura123"}
+    )
+    assert res.status_code == 422
+    detail = res.json()["detail"]
+    assert detail["code"] == "validation.error"
+    assert "valid email address" not in detail["message"]
+    assert "E-mail" in detail["message"]
+
+
+@pytest.mark.asyncio
+async def test_missing_field_error_is_in_portuguese(client):
+    res = await client.post("/auth/register", json={"password": "senhaSegura123"})
+    assert res.status_code == 422
+    assert res.json()["detail"]["message"] == "E-mail é obrigatório."
+
+
+@pytest.mark.asyncio
 async def test_duplicate_email_rejected(client):
     email = unique_email()
     first = await client.post("/auth/register", json={"email": email, "password": "senhaSegura123"})
