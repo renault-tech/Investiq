@@ -27,7 +27,15 @@ python-multipart>=0.0.9
 cryptography>=42.0.0
 redis>=5.0.0
 httpx>=0.27.0
-yfinance>=0.2.40
+# Teto: yfinance 0.2.58 passou a exigir curl_cffi (~38MB instalado, pra
+# imitar navegador e driblar bloqueio anti-bot do Yahoo) + protobuf +
+# websockets, e a 1.x (lançada bem depois do >=0.2.40 original) carrega o
+# mesmo trio. Sozinho, esse pulo é maior que a folga inteira do limite de
+# 225MB do Vercel — nenhuma dessas três libs é usada em lugar nenhum deste
+# código fora do que o próprio yfinance importa. yahoo.py só usa
+# fast_info/Tickers/Ticker.get_info/funds_data/yf.download, estáveis desde
+# bem antes de 0.2.40.
+yfinance>=0.2.40,<0.2.58
 pandas>=2.2.0
 apscheduler>=3.10.4
 tzdata>=2024.1

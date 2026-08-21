@@ -16,7 +16,9 @@ dependencies = [
   "cryptography>=42.0.0",
   "redis>=5.0.0",
   "httpx>=0.27.0",
-  "yfinance>=0.2.40",
+  # Teto: yfinance 0.2.58+ (e toda a 1.x) exige curl_cffi+protobuf+websockets
+  # — ver o comentário equivalente e mais detalhado em requirements.txt.
+  "yfinance>=0.2.40,<0.2.58",
   "pandas>=2.2.0",
   "apscheduler>=3.10.4",
   "tzdata>=2024.1",
