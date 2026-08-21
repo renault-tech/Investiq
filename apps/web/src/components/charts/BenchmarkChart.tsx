@@ -162,8 +162,9 @@ export function BenchmarkChart({ data }: BenchmarkChartProps) {
         </ResponsiveContainer>
       </div>
       <p className="pt-1.5 text-[11px] text-[var(--text-muted)]">
-        Retorno simplificado: aportes feitos durante o período aparecem como variação na
-        carteira, sem ajuste ponderado pelo tempo (TWR).
+        Retorno ponderado pelo tempo (TWR): aportes e saques durante o período não afetam a
+        linha da carteira, então a comparação com CDI/Ibovespa reflete só a performance dos
+        investimentos.
       </p>
     </div>
   );

@@ -74,6 +74,9 @@ enriquecido com conta, moeda, origem e parcela. `reports` (relatório PDF mensal
 `fpdf2`) e `cards` voltam a rodar na Vercel — só o `pdfplumber` do upload de PDF de fatura
 é pesado o bastante para estourar o teto de 225MB, e seu import já era preguiçoso.
 
+> Atualização: `pdfplumber` foi substituído por `pypdf` (puro Python, ~4MB, sem a
+> cadeia fontTools/pypdfium2) — o upload de PDF de fatura também funciona na Vercel agora.
+
 ### Bloco 9 — Gancho de multimoeda e acabamento
 
 Todas as agregações (`get_summary`, orçamento, projeção, análises) somam `amount_brl` em

@@ -153,7 +153,13 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
                       setShowModal(true);
                     }}
                     aria-label={`Editar ${account.name}`}
-                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
+                    // Revelar só no group-hover deixava o botão invisível no
+                    // toque (sem :hover, o dedo não tem como "passar por
+                    // cima" antes de tocar) — visível sempre até md, esconde
+                    // e revela por hover só a partir do desktop. -m-2 some
+                    // com o deslocamento visual que o padding (área de toque
+                    // maior, ~29px) causaria no ícone.
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 p-2 -m-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
                   >
                     <Pencil size={13} />
                   </button>

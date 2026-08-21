@@ -9,6 +9,7 @@ import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useUIStore, maskValue } from "@/store/useUIStore";
 import { TransactionsTable } from "@/components/finances/TransactionsTable";
 import { TransactionModal } from "@/components/finances/TransactionModal";
+import { DeleteTransactionModal, type DeleteScope } from "@/components/finances/DeleteTransactionModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 
@@ -35,6 +36,7 @@ export function TransactionsClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
   const [showModal, setShowModal] = useState(false);
+  const [deletingTxn, setDeletingTxn] = useState<FinanceTransaction | undefined>(undefined);
 
   const { data: categories = [] } = useCategories();
   const { data: txPage, isLoading, isError, refetch } = useTransactions({
@@ -54,11 +56,20 @@ export function TransactionsClient() {
     return analytics.category_matrix.find((row) => row.category_id === selected.category_id) ?? null;
   }, [selected, analytics]);
 
-  const handleDelete = (txn: FinanceTransaction) => {
-    if (window.confirm(`Excluir "${txn.description ?? "transação"}"?`)) {
-      deleteMutation.mutate({ id: txn.id });
-      if (selectedId === txn.id) setSelectedId(null);
-    }
+  const handleDelete = (txn: FinanceTransaction) => setDeletingTxn(txn);
+
+  const confirmDelete = (scope: DeleteScope) => {
+    if (!deletingTxn) return;
+    const txnId = deletingTxn.id;
+    deleteMutation.mutate(
+      { id: txnId, scope },
+      {
+        onSuccess: () => {
+          setDeletingTxn(undefined);
+          if (selectedId === txnId) setSelectedId(null);
+        },
+      }
+    );
   };
 
   return (
@@ -200,6 +211,14 @@ export function TransactionsClient() {
           categories={categories}
           editing={editingTxn}
           onClose={() => { setShowModal(false); setEditingTxn(undefined); }}
+        />
+      )}
+      {deletingTxn && (
+        <DeleteTransactionModal
+          txn={deletingTxn}
+          isPending={deleteMutation.isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeletingTxn(undefined)}
         />
       )}
     </div>

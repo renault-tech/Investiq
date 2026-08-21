@@ -86,3 +86,55 @@ def test_parser_rejects_oversized_file():
 def test_parser_reads_latin1_csv():
     text = parse_invoice_file("fatura.csv", "data;descrição;valor\n10/06;Café;15,50".encode("latin-1"))
     assert "descri" in text and "15,50" in text
+
+
+# --- PDF (pypdf) --------------------------------------------------------
+
+def _make_pdf(lines: list[str], *, password: str | None = None) -> bytes:
+    """PDF mínimo com texto real — fpdf2 já é dependência do projeto (relatórios),
+    então gerar o arquivo de teste não pede nenhuma lib nova."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    for line in lines:
+        pdf.cell(0, 8, line, new_x="LMARGIN", new_y="NEXT")
+    if password:
+        pdf.set_encryption(owner_password=password, user_password=password)
+    return bytes(pdf.output())
+
+
+def test_parser_extracts_text_from_a_real_pdf():
+    content = _make_pdf(["INVESTIQ FATURA TESTE", "10/06 SUPERMERCADO 123,45"])
+    text = parse_invoice_file("fatura.pdf", content)
+    assert "INVESTIQ FATURA TESTE" in text
+    assert "123,45" in text
+
+
+def test_parser_detects_pdf_by_content_even_without_pdf_extension():
+    # cards/upload.tsx (frontend) pode mandar um nome de arquivo genérico;
+    # o parser decide pelo cabeçalho %PDF quando a extensão não ajuda.
+    content = _make_pdf(["Conteúdo do teste"])
+    text = parse_invoice_file("upload.bin", content)
+    assert "Conteúdo do teste" in text
+
+
+def test_parser_rejects_pdf_with_no_extractable_text():
+    empty_pdf = _make_pdf([])
+    with pytest.raises(InvoiceParseError, match="sem texto extraível"):
+        parse_invoice_file("fatura.pdf", empty_pdf)
+
+
+def test_parser_rejects_corrupted_pdf():
+    with pytest.raises(InvoiceParseError, match="protegido ou corrompido"):
+        parse_invoice_file("fatura.pdf", b"%PDF-1.4\nnot actually a valid pdf body")
+
+
+def test_parser_reads_pdf_with_blank_owner_password():
+    # Muitos apps de banco exportam a fatura com senha de dono em branco
+    # (edição bloqueada, leitura livre) — extract_text() deve funcionar sem
+    # o chamador precisar informar senha nenhuma.
+    content = _make_pdf(["Fatura protegida", "05/07 FARMACIA 89,90"], password="")
+    text = parse_invoice_file("fatura.pdf", content)
+    assert "Fatura protegida" in text

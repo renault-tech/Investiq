@@ -230,9 +230,9 @@ export const TUTORIALS: Tutorial[] = [
       },
       {
         target: "report-builder",
-        title: "Escolher carteiras",
+        title: "Montar o relatório",
         body:
-          "Dá para incluir só algumas carteiras — cada uma vira uma seção própria no documento — ou deixar em \"Todas (consolidado)\" para somar tudo num retrato único.",
+          "Abre uma tela onde você escolhe período, formato e o que entra: finanças, investimentos e gráficos. Uma prévia mostra o que vai sair antes de gerar. Se as carteiras de investimento não são suas, é só desmarcar a seção. O mesmo botão existe nas telas de Finanças e de Investimentos.",
       },
     ],
   },

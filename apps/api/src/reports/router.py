@@ -29,6 +29,12 @@ async def get_monthly_report(
     format: str = Query("pdf", pattern="^(pdf|xlsx)$"),
     account_ids: Optional[str] = Query(None, description="IDs de contas separados por vírgula; vazio = consolidado"),
     portfolio_ids: Optional[str] = Query(None, description="IDs de carteiras de investimento; vazio = todas"),
+    include_finance: bool = Query(True, description="Incluir a seção de finanças pessoais"),
+    include_investments: bool = Query(
+        True,
+        description="Incluir a seção de investimentos; False omite a seção inteira",
+    ),
+    include_charts: bool = Query(True, description="Incluir gráficos"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis=Depends(_get_redis),
@@ -46,6 +52,9 @@ async def get_monthly_report(
         fmt=format,
         account_ids=_parse_ids(account_ids),
         portfolio_ids=_parse_ids(portfolio_ids),
+        include_finance=include_finance,
+        include_investments=include_investments,
+        include_charts=include_charts,
     )
     media_type, extension = service.FORMATS[format]
     return Response(

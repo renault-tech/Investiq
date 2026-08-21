@@ -410,6 +410,56 @@ async def get_portfolio_performance(
     return series
 
 
+def _compute_twr_series(series: list[dict]) -> list[dict]:
+    """Cumulative time-weighted return (%) from a portfolio value series.
+
+    `series` is `get_portfolio_performance`'s output: daily/weekly points of
+    `{date, total_value, total_invested}`. A naive `(value_t / value_0 - 1)`
+    reads a mid-period contribution as performance — deposit R$10.000 in
+    July and the line jumps, even though not a single real gain happened.
+    Comparing that line against CDI/Ibovespa, which never receive a
+    contribution, is comparing two different things.
+
+    Daily-linking TWR fixes this: treat each point-over-point change in
+    `total_invested` as an external cash flow that happened right before
+    that point's valuation, back it out of the sub-period return, then
+    chain the sub-period returns geometrically:
+
+        cash_flow_i = invested_i - invested_{i-1}
+        r_i         = (value_i - cash_flow_i) / value_{i-1} - 1
+        TWR         = prod(1 + r_i) - 1
+
+    This is the standard practical TWR when you have periodic valuations
+    instead of exact intraday cash-flow timestamps (the CFA Institute's own
+    "linked modified Dietz" approximation) — accurate as long as no more
+    than one contribution lands in the same grid step, which for the daily
+    grid this app uses everywhere except period=max is the common case.
+    """
+    if not series:
+        return []
+
+    out: list[dict] = [{"date": series[0]["date"], "twr_pct": _ZERO}]
+    cumulative = _ONE
+    prev_value = series[0]["total_value"]
+    prev_invested = series[0]["total_invested"]
+
+    for point in series[1:]:
+        value = point["total_value"]
+        invested = point["total_invested"]
+        cash_flow = invested - prev_invested
+        if prev_value > _ZERO:
+            sub_return = (value - cash_flow) / prev_value - _ONE
+            cumulative *= _ONE + sub_return
+        # prev_value <= 0 só acontece com a carteira zerada (sem posição
+        # nenhuma) — sem base pra medir retorno, o composto fica parado até
+        # a próxima janela com valor de fato.
+        out.append({"date": point["date"], "twr_pct": round_financial((cumulative - _ONE) * 100)})
+        prev_value = value
+        prev_invested = invested
+
+    return out
+
+
 def _compound_index(rates: list[tuple[date, Decimal]]) -> list[tuple[date, Decimal]]:
     """Turn daily % rates into a cumulative compounded index, sorted by date."""
     cum = _ONE
@@ -460,13 +510,14 @@ async def get_portfolio_benchmark(
     preferred_provider: str = "yahoo",
     brapi_key: Optional[str] = None,
 ) -> list[dict]:
-    """Portfolio cumulative % return vs. CDI and Ibovespa over the same window.
+    """Portfolio cumulative % return (time-weighted) vs. CDI and Ibovespa over
+    the same window.
 
-    Reuses get_portfolio_performance's value series as the portfolio leg. This
-    is a simplification, not a true time-weighted return: a contribution made
-    mid-window shows up as a jump in the line rather than being cash-flow
-    adjusted. Good enough for a quick visual "how am I doing vs. CDI/Ibov"
-    comparison, not for precise performance attribution.
+    The portfolio leg is TWR (see `_compute_twr_series`), not a naive
+    `value_t / value_0` — a contribution made mid-window would otherwise show
+    up as a jump in the line, inflating "performance" by the deposit itself.
+    CDI/Ibovespa never receive a contribution, so comparing them against a
+    contribution-inflated line was comparing two different things.
 
     CDI (BCB SGS série 12) and each index benchmark (Ibovespa/Nasdaq/S&P 500,
     via the configured market data provider) degrade independently to null
@@ -479,7 +530,7 @@ async def get_portfolio_benchmark(
     if not series:
         return []
 
-    base_value = series[0]["total_value"]
+    twr_series = _compute_twr_series(series)
     start_date = series[0]["date"]
     end_date = series[-1]["date"]
 
@@ -498,12 +549,9 @@ async def get_portfolio_benchmark(
     sp500_base = sp500_bars[0][1] if sp500_bars else None
 
     result = []
-    for point in series:
+    for point, twr_point in zip(series, twr_series):
         day = point["date"]
-        portfolio_pct = (
-            round_financial(pct_change(point["total_value"], base_value))
-            if base_value > _ZERO else round_financial(_ZERO)
-        )
+        portfolio_pct = twr_point["twr_pct"]
 
         cdi_val = _value_at(cdi_index, day)
         cdi_pct = round_financial(pct_change(cdi_val, cdi_base)) if cdi_base and cdi_val is not None else None

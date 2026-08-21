@@ -14,9 +14,11 @@ import { SummaryCards } from "./SummaryCards";
 import { CategoryBars } from "./CategoryBars";
 import { TransactionsTable } from "./TransactionsTable";
 import { TransactionModal } from "./TransactionModal";
+import { DeleteTransactionModal, type DeleteScope } from "./DeleteTransactionModal";
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
+import { ExportReportModal } from "@/components/reports/ExportReportModal";
 import { ForecastChart } from "./ForecastChart";
 
 function monthKey(date: Date): string {
@@ -25,7 +27,10 @@ function monthKey(date: Date): string {
 
 function monthLabel(month: string): string {
   const [year, mon] = month.split("-").map(Number);
-  return new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  // "agosto de 2026" — a classe `capitalize` do CSS maiuscularia cada
+  // palavra ("Agosto De 2026"); em português só a inicial é maiúscula.
+  const label = new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -42,7 +47,9 @@ export function FinancesClient() {
   const [search, setSearch] = useState("");
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
+  const [deletingTxn, setDeletingTxn] = useState<FinanceTransaction | undefined>(undefined);
   // "" = todos os titulares. Escopa a tabela de transações junto com as contas.
   const [holder, setHolder] = useState("");
   // Carteira ativa (clicada em AccountsBar) — escopa a página inteira, não só a tabela.
@@ -74,31 +81,14 @@ export function FinancesClient() {
     setMonth(monthKey(new Date(year, mon - 1 + delta, 1)));
   };
 
-  const handleDelete = (txn: FinanceTransaction) => {
-    const isSeries = (txn.installment_total ?? 0) > 1;
-    if (isSeries) {
-      // Parcelamento tem três desfechos possíveis; confirm() só tem dois
-      // botões, então a pergunta é encadeada em vez de adivinhar a intenção.
-      const all = window.confirm(
-        `"${txn.description ?? "Transação"}" é a parcela ${txn.installment_no}/${txn.installment_total}.\n\n` +
-          "OK apaga a série inteira. Cancelar deixa você escolher apagar só esta parcela."
-      );
-      if (all) {
-        deleteMutation.mutate({ id: txn.id, scope: "all" });
-        return;
-      }
-      if (window.confirm("Apagar somente esta parcela?")) {
-        deleteMutation.mutate({ id: txn.id, scope: "one" });
-      }
-      return;
-    }
-    if (
-      window.confirm(
-        `Excluir "${txn.description ?? "transação"}"?${txn.is_recurring ? " A série recorrente inteira será encerrada." : ""}`
-      )
-    ) {
-      deleteMutation.mutate({ id: txn.id });
-    }
+  const handleDelete = (txn: FinanceTransaction) => setDeletingTxn(txn);
+
+  const confirmDelete = (scope: DeleteScope) => {
+    if (!deletingTxn) return;
+    deleteMutation.mutate(
+      { id: deletingTxn.id, scope },
+      { onSuccess: () => setDeletingTxn(undefined) }
+    );
   };
 
   const handleExport = async (format: "csv" | "ofx") => {
@@ -113,19 +103,6 @@ export function FinancesClient() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `transacoes-${month}.${format}`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadReport = async () => {
-    const res = await apiClient.get("/reports/monthly", {
-      params: { month },
-      responseType: "blob",
-    });
-    const url = window.URL.createObjectURL(res.data as Blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `relatorio-${month}.pdf`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -150,7 +127,7 @@ export function FinancesClient() {
             <button onClick={() => shiftMonth(-1)} aria-label="Mês anterior" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <ChevronLeft size={18} />
             </button>
-            <span className="text-sm text-[var(--text-secondary)] capitalize min-w-36 text-center">
+            <span className="text-sm text-[var(--text-secondary)] min-w-36 text-center">
               {monthLabel(month)}
             </span>
             <button onClick={() => shiftMonth(1)} aria-label="Próximo mês" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
@@ -160,10 +137,10 @@ export function FinancesClient() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={handleDownloadReport}
+            onClick={() => setShowExport(true)}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] rounded-[11px] hover:text-[var(--text-primary)] transition-colors"
           >
-            <FileText size={15} /> Relatório PDF
+            <FileText size={15} /> Exportar relatório
           </button>
           <button
             onClick={() => setShowCategoryManager(true)}
@@ -255,13 +232,13 @@ export function FinancesClient() {
           />
           <button
             onClick={() => handleExport("csv")}
-            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
           >
             <Download size={13} /> Exportar CSV
           </button>
           <button
             onClick={() => handleExport("ofx")}
-            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2"
+            className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1.5"
           >
             <Download size={13} /> Exportar OFX
           </button>
@@ -289,6 +266,17 @@ export function FinancesClient() {
       )}
       {showCategoryManager && (
         <CategoryManager categories={categories} onClose={() => setShowCategoryManager(false)} />
+      )}
+      {showExport && (
+        <ExportReportModal month={month} origin="finances" onClose={() => setShowExport(false)} />
+      )}
+      {deletingTxn && (
+        <DeleteTransactionModal
+          txn={deletingTxn}
+          isPending={deleteMutation.isPending}
+          onConfirm={confirmDelete}
+          onClose={() => setDeletingTxn(undefined)}
+        />
       )}
     </div>
   );

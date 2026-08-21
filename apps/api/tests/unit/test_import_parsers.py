@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.finance.import_parsers import parse_csv, parse_ofx
+from src.finance.import_parsers import _parse_amount, parse_csv, parse_ofx
 from src.shared.exceptions import ValidationError
 
 OFX_1X_SGML = """OFXHEADER:100
@@ -111,6 +111,62 @@ def test_parse_csv_handles_ptbr_thousands_separator():
     content = "Data,Descricao,Valor\n01/06/2026,Aluguel,\"1.234,56\"\n"
     rows = parse_csv(content)
     assert rows[0].amount == Decimal("1234.56")
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Vírgula é sempre decimal no padrão brasileiro.
+        ("15,600", "15.6"),
+        ("1.234,56", "1234.56"),
+        ("1.234.567,89", "1234567.89"),
+        # Ponto sozinho separando grupos de 3 é milhar — ler como decimal
+        # dividia o lançamento por mil sem acusar erro.
+        ("15.600", "15600"),
+        ("1.234.567", "1234567"),
+        # Ponto sozinho com 1 ou 2 casas continua sendo decimal.
+        ("15.6", "15.6"),
+        ("0.05", "0.05"),
+        # en-US continua aceito quando o ponto vem depois da vírgula.
+        ("1,234.56", "1234.56"),
+        # Ruído de moeda.
+        ("R$ 1.234,56", "1234.56"),
+    ],
+)
+def test_parse_csv_number_separators_follow_ptbr(raw, expected):
+    content = f'Data,Descricao,Valor\n01/06/2026,Teste,"{raw}"\n'
+    rows = parse_csv(content)
+    assert rows[0].amount == Decimal(expected)
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("-15.600", "-15600"),
+        ("-1.234,56", "-1234.56"),
+        ("(1.234,56)", "-1234.56"),  # notação contábil
+        ("(R$ 50,00)", "-50"),
+    ],
+)
+def test_parse_amount_keeps_sign(raw, expected):
+    """O sinal só some no `parse_csv`, que o move para `transaction_type` e
+    guarda o módulo — na leitura do número ele tem que sobreviver."""
+    assert _parse_amount(raw) == Decimal(expected)
+
+
+@pytest.mark.parametrize(
+    "raw,transaction_type",
+    [
+        ("-15.600", "expense"),
+        ("(1.234,56)", "expense"),
+        ("1.234,56", "income"),
+    ],
+)
+def test_parse_csv_moves_sign_into_transaction_type(raw, transaction_type):
+    content = f'Data,Descricao,Valor\n01/06/2026,Teste,"{raw}"\n'
+    rows = parse_csv(content)
+    assert rows[0].transaction_type == transaction_type
+    assert rows[0].amount > 0
 
 
 def test_parse_csv_rejects_unrecognizable_format():

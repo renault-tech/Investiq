@@ -173,3 +173,116 @@ async def test_carteira_de_outro_usuario_e_rejeitada(client):
         headers=b["headers"],
     )
     assert resp.status_code == 422, resp.text
+
+
+# --- Seções opcionais ------------------------------------------------------
+
+async def _seed_finance_and_portfolio(client, headers, db_session):
+    """Uma despesa e uma carteira com posição precificada — o mínimo para as
+    duas seções do relatório terem conteúdo."""
+    categories = (await client.get("/finance/categories", headers=headers)).json()
+    category_id = next(c["id"] for c in categories if c["category_type"] == "expense")
+    await client.post(
+        "/finance/transactions",
+        json={
+            "transaction_type": "expense", "amount": 150, "category_id": category_id,
+            "transaction_date": "2026-07-05T12:00:00Z",
+        },
+        headers=headers,
+    )
+    portfolio = await client.post("/portfolios/", json={"name": "Principal", "currency": "BRL"}, headers=headers)
+    portfolio_id = portfolio.json()["id"]
+    position = await client.post(f"/portfolios/{portfolio_id}/positions", json={"ticker": "VALE3"}, headers=headers)
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position.json()["id"], "transaction_type": "buy",
+            "quantity": 10, "unit_price": 50, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-07-02",
+        },
+        headers=headers,
+    )
+    asset = (await db_session.execute(select(Asset).where(Asset.ticker == "VALE3"))).scalar_one()
+    asset.last_price = 60
+    await db_session.commit()
+    return portfolio_id
+
+
+@pytest.mark.asyncio
+async def test_relatorio_sem_investimentos_e_menor_e_ainda_e_pdf(client, db_session):
+    """Carteira pode ser de outra pessoa — o usuário precisa poder tirar a
+    seção inteira do documento."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+    await _seed_finance_and_portfolio(client, headers, db_session)
+
+    completo = await client.get("/reports/monthly", params={"month": "2026-07"}, headers=headers)
+    sem_inv = await client.get(
+        "/reports/monthly",
+        params={"month": "2026-07", "include_investments": "false"},
+        headers=headers,
+    )
+    assert completo.status_code == 200 and sem_inv.status_code == 200
+    assert sem_inv.content[:5] == b"%PDF-"
+    assert len(sem_inv.content) < len(completo.content)
+
+
+@pytest.mark.asyncio
+async def test_relatorio_so_de_investimentos(client, db_session):
+    session = await register_and_login(client)
+    headers = session["headers"]
+    await _seed_finance_and_portfolio(client, headers, db_session)
+
+    resp = await client.get(
+        "/reports/monthly",
+        params={"month": "2026-07", "include_finance": "false"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.content[:5] == b"%PDF-"
+
+
+@pytest.mark.asyncio
+async def test_relatorio_sem_nenhuma_secao_e_rejeitado(client):
+    """Um PDF só com cabeçalho não é um relatório — melhor recusar e dizer."""
+    session = await register_and_login(client)
+    resp = await client.get(
+        "/reports/monthly",
+        params={"month": "2026-07", "include_finance": "false", "include_investments": "false"},
+        headers=session["headers"],
+    )
+    # 422 é o status do ValidationError da aplicação (src/shared/exceptions.py).
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_graficos_podem_ser_desligados(client, db_session):
+    session = await register_and_login(client)
+    headers = session["headers"]
+    await _seed_finance_and_portfolio(client, headers, db_session)
+
+    com = await client.get("/reports/monthly", params={"month": "2026-07"}, headers=headers)
+    sem = await client.get(
+        "/reports/monthly", params={"month": "2026-07", "include_charts": "false"}, headers=headers
+    )
+    assert len(sem.content) < len(com.content)
+
+
+@pytest.mark.asyncio
+async def test_xlsx_sem_investimentos_nao_cria_a_aba(client, db_session):
+    import io
+    from openpyxl import load_workbook
+
+    session = await register_and_login(client)
+    headers = session["headers"]
+    await _seed_finance_and_portfolio(client, headers, db_session)
+
+    resp = await client.get(
+        "/reports/monthly",
+        params={"month": "2026-07", "format": "xlsx", "include_investments": "false"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert "Investimentos" not in wb.sheetnames
+    assert "Resumo" in wb.sheetnames

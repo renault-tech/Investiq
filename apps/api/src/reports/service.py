@@ -55,13 +55,35 @@ async def generate_monthly_report(
     fmt: str = "pdf",
     account_ids: Optional[Sequence[uuid.UUID]] = None,
     portfolio_ids: Optional[Sequence[uuid.UUID]] = None,
+    include_finance: bool = True,
+    include_investments: bool = True,
+    include_charts: bool = True,
 ) -> bytes:
     if not _MONTH_RE.match(month):
         raise ValidationError("month deve estar no formato YYYY-MM")
     if fmt not in FORMATS:
         raise ValidationError(f"format deve ser um de: {', '.join(FORMATS)}")
 
-    finance_sections = await _finance_sections(user_id, month, db, account_ids)
+    if not include_finance and not include_investments:
+        raise ValidationError("Selecione ao menos uma seção para o relatório.")
+
+    # Cada seção desmarcada é uma consulta a menos: montar finanças para
+    # depois descartar custaria o mesmo que gerar o relatório inteiro.
+    finance_sections = (
+        await _finance_sections(user_id, month, db, account_ids) if include_finance else []
+    )
+
+    if not include_investments:
+        return _render(
+            fmt,
+            user_name=user_name,
+            month=month,
+            finance_sections=finance_sections,
+            portfolios=[],
+            include_finance=include_finance,
+            include_investments=False,
+            include_charts=include_charts,
+        )
 
     portfolios = await get_user_portfolios(user_id, db)
     if portfolio_ids:
@@ -85,16 +107,18 @@ async def generate_monthly_report(
         for p in portfolios
     ]
 
-    if fmt == "xlsx":
-        return generate_monthly_report_xlsx(
-            user_name=user_name,
-            month=month,
-            finance_sections=finance_sections,
-            portfolios=portfolio_summaries,
-        )
-    return generate_monthly_report_pdf(
+    return _render(
+        fmt,
         user_name=user_name,
         month=month,
         finance_sections=finance_sections,
         portfolios=portfolio_summaries,
+        include_finance=include_finance,
+        include_investments=True,
+        include_charts=include_charts,
     )
+
+
+def _render(fmt: str, **kwargs) -> bytes:
+    renderer = generate_monthly_report_xlsx if fmt == "xlsx" else generate_monthly_report_pdf
+    return renderer(**kwargs)

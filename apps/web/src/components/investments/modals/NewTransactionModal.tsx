@@ -7,6 +7,7 @@ import { createTransaction } from "@/lib/portfolio-api";
 import type { PositionSummary } from "@/lib/portfolio-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { parseBRNumberOr, sanitizeNumericInput } from "@/lib/number-format";
 
 interface NewTransactionModalProps {
   portfolioId: string;
@@ -47,10 +48,10 @@ export function NewTransactionModal({
       createTransaction({
         position_id: positionId,
         transaction_type: txType as "buy" | "sell" | "dividend" | "split" | "bonus",
-        quantity: parseFloat(quantity),
-        unit_price: parseFloat(unitPrice),
-        fees: parseFloat(fees) || 0,
-        fx_rate: parseFloat(fxRate) > 0 ? parseFloat(fxRate) : 1,
+        quantity: parseBRNumberOr(quantity, 0),
+        unit_price: parseBRNumberOr(unitPrice, 0),
+        fees: parseBRNumberOr(fees, 0),
+        fx_rate: parseBRNumberOr(fxRate, 1) > 0 ? parseBRNumberOr(fxRate, 1) : 1,
         transaction_date: date, // YYYY-MM-DD direto do input; evita bug de UTC offset
         notes: notes.trim() || undefined,
       }),
@@ -79,7 +80,8 @@ export function NewTransactionModal({
     },
   });
 
-  const isValid = positionId && quantity && unitPrice && parseFloat(quantity) > 0 && parseFloat(unitPrice) > 0;
+  const isValid =
+    !!positionId && parseBRNumberOr(quantity, 0) > 0 && parseBRNumberOr(unitPrice, 0) > 0;
 
   return (
     <Modal
@@ -139,11 +141,10 @@ export function NewTransactionModal({
             <label htmlFor="tx-quantity" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade *</label>
             <input
               id="tx-quantity"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              min={0}
-              step="any"
+              onChange={(e) => setQuantity(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
               placeholder="100"
             />
@@ -152,13 +153,12 @@ export function NewTransactionModal({
             <label htmlFor="tx-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Unit. *</label>
             <input
               id="tx-price"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-              min={0}
-              step="any"
+              onChange={(e) => setUnitPrice(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
-              placeholder="32.50"
+              placeholder="32,50"
             />
           </div>
         </div>
@@ -168,11 +168,10 @@ export function NewTransactionModal({
             <label htmlFor="tx-fees" className="block text-[10px] text-[var(--text-muted)] mb-1">Taxas</label>
             <input
               id="tx-fees"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={fees}
-              onChange={(e) => setFees(e.target.value)}
-              min={0}
-              step="any"
+              onChange={(e) => setFees(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
             />
           </div>
@@ -180,11 +179,10 @@ export function NewTransactionModal({
             <label htmlFor="tx-fx-rate" className="block text-[10px] text-[var(--text-muted)] mb-1">Câmbio</label>
             <input
               id="tx-fx-rate"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={fxRate}
-              onChange={(e) => setFxRate(e.target.value)}
-              min={0.0001}
-              step="any"
+              onChange={(e) => setFxRate(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
             />
           </div>

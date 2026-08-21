@@ -61,6 +61,42 @@ async def test_invoice_upload_extracts_items_into_review_status(client):
 
 
 @pytest.mark.asyncio
+async def test_invoice_upload_extracts_items_from_a_real_pdf(client):
+    """Ponta a ponta pelo endpoint HTTP real, contra o mesmo _parse_pdf que
+    devolvia "Suporte a PDF não instalado no servidor" em produção (Vercel)
+    porque pdfplumber ficava de fora do bundle por peso — pypdf substitui e
+    é pequeno o bastante para ir junto. O provider de IA aqui é o fake do
+    fixture acima; o que este teste garante é que o PDF chega inteiro até
+    ele como texto."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
+    pdf.cell(0, 8, "FATURA ITAU - JUNHO 2026", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 8, "10/06 MERCADO SILVA 152,30", new_x="LMARGIN", new_y="NEXT")
+    content = bytes(pdf.output())
+
+    session = await register_and_login(client)
+    headers = session["headers"]
+    card_id = await _create_card(client, headers)
+
+    files = {"file": ("fatura.pdf", content, "application/pdf")}
+    res = await client.post(
+        f"/cards/{card_id}/invoices",
+        data={"reference_month": "2026-06-01"},
+        files=files,
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    invoice = res.json()
+    assert invoice["status"] == "review"
+
+    detail = await client.get(f"/cards/invoices/{invoice['id']}", headers=headers)
+    assert len(detail.json()["items"]) == 2
+
+
+@pytest.mark.asyncio
 async def test_confirm_creates_expense_transactions_and_is_idempotent(client):
     session = await register_and_login(client)
     headers = session["headers"]

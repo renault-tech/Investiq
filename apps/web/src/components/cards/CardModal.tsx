@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useCreateCard, useUpdateCard } from "@/hooks/useCards";
 import { CreditCard } from "@/lib/cards-api";
+import { parseBRNumber } from "@/lib/number-format";
 
 interface CardModalProps {
   /** Presente = editando este cartão; ausente = cadastrando um novo. */
@@ -30,7 +31,7 @@ export function CardModal({ card, onClose }: CardModalProps) {
       name: name.trim(),
       brand,
       last4: /^\d{4}$/.test(last4) ? last4 : undefined,
-      credit_limit: creditLimit ? Number(creditLimit.replace(",", ".")) : undefined,
+      credit_limit: parseBRNumber(creditLimit) ?? undefined,
       closing_day: closingDay ? Number(closingDay) : undefined,
       due_day: dueDay ? Number(dueDay) : undefined,
     };

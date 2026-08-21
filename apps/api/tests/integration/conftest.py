@@ -103,6 +103,28 @@ async def _clean_tables(_migrate_database):
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_redis():
+    """Flush the test Redis DB before each test.
+
+    Market-data caching (quotes/histórico/fundamentals) keys purely by
+    ticker+period+interval, with no per-test namespace. Without a flush here,
+    a fake price series cached by one test under, say, "^BVSP" survives (both
+    across tests in the same run AND across separate pytest invocations,
+    since Redis persists on disk) and gets served back to a later test that
+    expects a different provider's data for the same ticker — flaky failures
+    that depend on run order/history rather than on the test's own setup.
+    """
+    import redis.asyncio as aioredis
+
+    from src.config import settings
+
+    redis_client = aioredis.from_url(settings.REDIS_URL)
+    await redis_client.flushdb()
+    await redis_client.aclose()
+    yield
+
+
 @pytest_asyncio.fixture
 async def client():
     """httpx AsyncClient wired directly to the FastAPI app via ASGI transport."""

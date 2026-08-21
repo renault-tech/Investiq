@@ -1,4 +1,4 @@
-"""File parsing for card invoices — PDF (pdfplumber) and CSV, tolerant decoding."""
+"""File parsing for card invoices — PDF (pypdf) and CSV, tolerant decoding."""
 import io
 import logging
 
@@ -28,20 +28,32 @@ def parse_invoice_file(file_name: str, content: bytes) -> str:
 
 
 def _parse_pdf(content: bytes) -> str:
+    # pypdf em vez de pdfplumber: a extração vai direto para uma IA que lê o
+    # texto corrido e monta os itens da fatura, então não precisa da
+    # reconstrução de layout/tabela que pdfplumber oferece — só do texto.
+    # Isso importa porque pdfplumber arrasta fontTools + pypdfium2 (~45MB) e
+    # já quase estourou o limite de 225MB de função da Vercel; pypdf é puro
+    # Python, sem dependência nenhuma, e instala ~4MB — cabe tranquilo, então
+    # PDF passa a funcionar em produção, não só no Docker/local.
     try:
-        import pdfplumber
+        from pypdf import PdfReader
     except ImportError as exc:
         raise InvoiceParseError("Suporte a PDF não instalado no servidor") from exc
 
     try:
+        reader = PdfReader(io.BytesIO(content))
+        if reader.is_encrypted:
+            # Fatura exportada com senha em branco (comum) ainda abre; com
+            # senha real, decrypt("") falha e cai no except genérico abaixo
+            # com a mensagem "protegido ou corrompido".
+            reader.decrypt("")
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise InvoiceParseError(f"PDF com mais de {MAX_PDF_PAGES} páginas")
         pages_text = []
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            if len(pdf.pages) > MAX_PDF_PAGES:
-                raise InvoiceParseError(f"PDF com mais de {MAX_PDF_PAGES} páginas")
-            for page in pdf.pages:
-                text = page.extract_text() or ""
-                if text.strip():
-                    pages_text.append(text)
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if text.strip():
+                pages_text.append(text)
         raw = "\n".join(pages_text).strip()
     except InvoiceParseError:
         raise

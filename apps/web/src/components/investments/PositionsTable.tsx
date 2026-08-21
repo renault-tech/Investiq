@@ -3,6 +3,7 @@ import { Settings2, Wallet } from "lucide-react";
 import { RebalanceTag } from "./RebalanceTag";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatBRLExact, formatCurrencyExact } from "@/components/charts/chartTheme";
+import { formatPercent, formatQuantity } from "@/lib/number-format";
 import type { PositionSummary } from "@/lib/portfolio-api";
 
 interface PositionsTableProps {
@@ -28,9 +29,7 @@ function fmtNative(v: number | string | null, currency: string): string | null {
 
 function fmtPct(v: number | string | null): string {
   if (v == null) return "0,00%";
-  const num = Number(v);
-  const sign = num >= 0 ? "+" : "";
-  return `${sign}${num.toFixed(2).replace(".", ",")}%`;
+  return formatPercent(Number(v), 2, { signed: true });
 }
 
 const COLS = ["Ativo", "Qtd", "PM", "Atual", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações"];
@@ -102,7 +101,7 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                     </div>
                   </div>
                 </td>
-                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{Number(pos.quantity).toFixed(4)}</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{formatQuantity(Number(pos.quantity))}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{fmtBRL(pos.avg_cost)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
                   {fmtBRL(pos.current_price)}
@@ -122,9 +121,9 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                 </td>
                 <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtBRL(pos.pnl_absolute)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: pnlColor }}>{fmtPct(pos.pnl_percent)}</td>
-                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{(Number(pos.weight) * 100).toFixed(1)}%</td>
+                <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">{formatPercent(Number(pos.weight) * 100)}</td>
                 <td className="px-2.5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                  {pos.target_weight != null ? `${(Number(pos.target_weight) * 100).toFixed(1)}%` : "—"}
+                  {pos.target_weight != null ? formatPercent(Number(pos.target_weight) * 100) : "—"}
                 </td>
                 <td className="px-2.5 py-3 text-right">
                   <RebalanceTag action={pos.rebalance_action} deltaUnits={pos.rebalance_delta_units} />

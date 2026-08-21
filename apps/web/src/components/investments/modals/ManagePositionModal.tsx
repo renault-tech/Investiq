@@ -14,6 +14,7 @@ import {
 } from "@/hooks/usePositionActions";
 import type { InvestmentTransaction } from "@/lib/portfolio-api";
 import type { PositionSummary } from "@/lib/portfolio-api";
+import { parseBRNumberOr, sanitizeNumericInput } from "@/lib/number-format";
 
 interface ManagePositionModalProps {
   portfolioId: string;
@@ -55,17 +56,17 @@ function TransactionRow({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label htmlFor={`txn-qty-${txn.id}`} className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade</label>
-            <input id={`txn-qty-${txn.id}`} type="number" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={fieldClass} />
+            <input id={`txn-qty-${txn.id}`} type="text" inputMode="decimal" value={quantity} onChange={(e) => setQuantity(sanitizeNumericInput(e.target.value))} className={fieldClass} />
           </div>
           <div>
             <label htmlFor={`txn-price-${txn.id}`} className="block text-[10px] text-[var(--text-muted)] mb-1">Preço unit.</label>
-            <input id={`txn-price-${txn.id}`} type="number" step="any" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={fieldClass} />
+            <input id={`txn-price-${txn.id}`} type="text" inputMode="decimal" value={unitPrice} onChange={(e) => setUnitPrice(sanitizeNumericInput(e.target.value))} className={fieldClass} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label htmlFor={`txn-fees-${txn.id}`} className="block text-[10px] text-[var(--text-muted)] mb-1">Taxas</label>
-            <input id={`txn-fees-${txn.id}`} type="number" step="any" value={fees} onChange={(e) => setFees(e.target.value)} className={fieldClass} />
+            <input id={`txn-fees-${txn.id}`} type="text" inputMode="decimal" value={fees} onChange={(e) => setFees(sanitizeNumericInput(e.target.value))} className={fieldClass} />
           </div>
           <div>
             <label htmlFor={`txn-date-${txn.id}`} className="block text-[10px] text-[var(--text-muted)] mb-1">Data</label>
@@ -79,12 +80,12 @@ function TransactionRow({
           <Button
             size="sm"
             loading={saving}
-            disabled={!quantity || !unitPrice || Number(quantity) <= 0 || Number(unitPrice) <= 0}
+            disabled={parseBRNumberOr(quantity, 0) <= 0 || parseBRNumberOr(unitPrice, 0) <= 0}
             onClick={() => {
               onSave({
-                quantity: parseFloat(quantity),
-                unit_price: parseFloat(unitPrice),
-                fees: parseFloat(fees) || 0,
+                quantity: parseBRNumberOr(quantity, 0),
+                unit_price: parseBRNumberOr(unitPrice, 0),
+                fees: parseBRNumberOr(fees, 0),
                 transaction_date: date,
               });
               setEditing(false);
@@ -180,10 +181,9 @@ export function ManagePositionModal({ portfolioId, position, onClose }: ManagePo
               </label>
               <input
                 id="pos-target"
-                type="number"
-                min={0}
+                type="text"
+              inputMode="decimal"
                 max={100}
-                step="any"
                 value={targetWeight}
                 onChange={(e) => setTargetWeight(e.target.value)}
                 placeholder="Opcional"

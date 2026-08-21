@@ -1,3 +1,5 @@
+import { formatQuantity } from "@/lib/number-format";
+
 interface RebalanceTagProps {
   action: "buy" | "sell" | "hold" | null;
   deltaUnits: number | null;
@@ -17,7 +19,7 @@ export function RebalanceTag({ action, deltaUnits }: RebalanceTagProps) {
     >
       {isBuy ? "COMPRAR" : "VENDER"}
       {deltaUnits !== null && (
-        <span className="opacity-70">{Math.abs(deltaUnits).toFixed(2)}</span>
+        <span className="opacity-70">{formatQuantity(Math.abs(deltaUnits), 2)}</span>
       )}
     </span>
   );

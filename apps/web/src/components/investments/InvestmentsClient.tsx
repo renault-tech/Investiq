@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Download } from "lucide-react";
+import { LayoutDashboard, Download, FileText } from "lucide-react";
 import { listPortfolios, type Portfolio, type PerformancePeriod, type PositionSummary } from "@/lib/portfolio-api";
 import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
@@ -20,11 +20,14 @@ import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist
 import { useMask } from "@/hooks/useMask";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { NewPortfolioModal } from "./modals/NewPortfolioModal";
 import { AddPositionModal } from "./modals/AddPositionModal";
 import { NewTransactionModal } from "./modals/NewTransactionModal";
 import { ManagePositionModal } from "./modals/ManagePositionModal";
+import { formatPercent } from "@/lib/number-format";
+import { ExportReportModal } from "@/components/reports/ExportReportModal";
 
 const AllocationDonut = dynamic(
   () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
@@ -57,6 +60,11 @@ interface Props {
   initialPortfolios: Portfolio[];
 }
 
+function currentMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function InvestmentsClient({ initialPortfolios }: Props) {
   const [activePortfolioId, setActivePortfolioId] = useState<string | null>(
     initialPortfolios[0]?.id ?? null
@@ -64,6 +72,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [showNewPortfolio, setShowNewPortfolio] = useState(false);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [showNewTransaction, setShowNewTransaction] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [defaultTransactionPositionId, setDefaultTransactionPositionId] = useState<
     string | undefined
   >(undefined);
@@ -213,29 +222,45 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               <div className="relative flex justify-between items-start flex-wrap gap-4">
                 <div>
                   <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Carteira total</div>
-                  <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
-                    {mask(formatBRLExact(marketValue))}
-                  </div>
-                  <div className="flex items-center gap-2.5 mt-2 text-[13px]">
-                    <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {mask(`${pnlAbsolute >= 0 ? "+" : ""}${formatBRLCompact(pnlAbsolute)}`)}
-                    </span>
-                    <span className="text-[var(--text-muted)]">·</span>
-                    <span className="text-[var(--text-secondary)]">
-                      {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}% desde o início
-                    </span>
-                  </div>
+                  {isSummaryLoading ? (
+                    <Skeleton className="h-9 w-48 mt-1.5" />
+                  ) : (
+                    <div className="text-4xl font-semibold tracking-[-.045em] mt-1.5 tabular-nums text-[var(--text-primary)]">
+                      {mask(formatBRLExact(marketValue))}
+                    </div>
+                  )}
+                  {isSummaryLoading ? (
+                    <Skeleton className="h-4 w-40 mt-2.5" />
+                  ) : (
+                    <div className="flex items-center gap-2.5 mt-2 text-[13px]">
+                      <span className="font-semibold" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                        {mask(`${pnlAbsolute >= 0 ? "+" : ""}${formatBRLCompact(pnlAbsolute)}`)}
+                      </span>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <span className="text-[var(--text-secondary)]">
+                        {formatPercent(pnlPercent, 1, { signed: true })} desde o início
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-6">
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Total investido</div>
-                    <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{mask(formatBRLCompact(investedValue))}</div>
+                    {isSummaryLoading ? (
+                      <Skeleton className="h-[17px] w-16 mt-1" />
+                    ) : (
+                      <div className="text-[17px] font-semibold mt-0.5 text-[var(--text-primary)]">{mask(formatBRLCompact(investedValue))}</div>
+                    )}
                   </div>
                   <div>
                     <div className="text-[11.5px] text-[var(--text-secondary)]">Resultado</div>
-                    <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {mask(formatBRLCompact(pnlAbsolute))}
-                    </div>
+                    {isSummaryLoading ? (
+                      <Skeleton className="h-[17px] w-16 mt-1" />
+                    ) : (
+                      <div className="text-[17px] font-semibold mt-0.5" style={{ color: pnlAbsolute >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                        {mask(formatBRLCompact(pnlAbsolute))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -440,12 +465,20 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                     </button>
                   ))}
                 </div>
-                <button
-                  onClick={handleExport}
-                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                >
-                  <Download size={13} /> Exportar CSV
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <Download size={13} /> Exportar CSV
+                  </button>
+                  <button
+                    onClick={() => setShowExport(true)}
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    <FileText size={13} /> Exportar relatório
+                  </button>
+                </div>
               </div>
 
               {activeTab === "positions" ? (
@@ -492,6 +525,16 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
           portfolioId={activePortfolioId}
           position={managingPosition}
           onClose={() => setManagingPosition(null)}
+        />
+      )}
+      {showExport && (
+        <ExportReportModal
+          month={currentMonth()}
+          origin="investments"
+          // A carteira aberta na tela já vem marcada — exportar daqui quase
+          // sempre significa "esta carteira", não todas.
+          defaultPortfolioIds={activePortfolioId ? [activePortfolioId] : []}
+          onClose={() => setShowExport(false)}
         />
       )}
     </div>

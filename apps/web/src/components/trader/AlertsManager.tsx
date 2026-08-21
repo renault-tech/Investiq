@@ -6,6 +6,7 @@ import { Bell, Plus, Trash2 } from "lucide-react";
 import { useAlerts, useCreateAlert, useDeleteAlert, useUpdateAlert } from "@/hooks/useAlerts";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { parseBRNumber } from "@/lib/number-format";
 
 export function AlertsManager() {
   const { data: alerts = [], isLoading } = useAlerts();
@@ -20,7 +21,7 @@ export function AlertsManager() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const value = Number(threshold.replace(",", "."));
+    const value = parseBRNumber(threshold);
     const t = ticker.trim().toUpperCase();
     if (!t || !value || value <= 0) return;
     await createMutation.mutateAsync({ ticker: t, alert_type: alertType, threshold: value });

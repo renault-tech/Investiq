@@ -1,7 +1,7 @@
 "use client";
 
 import { CategoryMatrixRow } from "@/lib/analytics-api";
-import { formatBRLCompact } from "@/components/charts/chartTheme";
+import { formatBRL } from "@/components/charts/chartTheme";
 
 function formatMonth(month: string): string {
   const [year, mon] = month.split("-");
@@ -49,14 +49,14 @@ export function CategoryMatrix({ months, rows: rawRows }: Props) {
                 return (
                   <td key={months[i]} className="p-0">
                     <div
-                      className="rounded-md text-center font-mono py-1.5 px-1 min-w-16"
+                      className="rounded-md text-center font-mono py-1.5 px-1 min-w-20 whitespace-nowrap"
                       style={{
                         backgroundColor: value > 0 ? `rgba(37, 99, 235, ${0.08 + intensity * 0.55})` : "transparent",
                         color: intensity > 0.5 ? "#fff" : "var(--text-secondary)",
                       }}
                       title={`${row.category_name} · ${formatMonth(months[i])}`}
                     >
-                      {value > 0 ? formatBRLCompact(value) : "—"}
+                      {value > 0 ? formatBRL(value) : "—"}
                     </div>
                   </td>
                 );
