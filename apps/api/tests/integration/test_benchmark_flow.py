@@ -36,6 +36,27 @@ class _FakeProvider:
         ]
 
 
+class _FlatPriceProvider:
+    """Mesmo preço em todo o período, pra isolar o efeito do aporte: qualquer
+    variação em portfolio_pct só pode vir do fluxo de caixa, nunca do preço."""
+
+    def __init__(self, start: date, days: int, price: Decimal):
+        self._start = start
+        self._days = days
+        self._price = price
+
+    async def get_historical(self, ticker, period, interval):
+        return [
+            HistoricalBar(
+                ticker=ticker,
+                date=self._start + timedelta(days=i),
+                open=self._price, high=self._price, low=self._price, close=self._price,
+                volume=0,
+            )
+            for i in range(self._days)
+        ]
+
+
 @pytest.mark.asyncio
 async def test_benchmark_aligns_portfolio_cdi_and_ibov(client, db_session, monkeypatch):
     session = await register_and_login(client)
@@ -116,6 +137,74 @@ async def test_benchmark_degrades_gracefully_when_cdi_fetch_fails(client, db_ses
     assert len(points) >= 1
     assert all(p["cdi_pct"] is None for p in points)
     assert points[0]["portfolio_pct"] is not None
+
+
+@pytest.mark.asyncio
+async def test_benchmark_does_not_inflate_return_on_a_mid_period_contribution(client, db_session, monkeypatch):
+    """O bug relatado: um aporte no meio do período aparecia como salto na
+    linha da carteira ao ser comparada com CDI/Ibovespa, porque o cálculo
+    antigo era `valor_atual / valor_inicial - 1` — nenhum ajuste pra
+    contribuição de capital nova. Compra 10 VALE3 no início (preço parado
+    em R$10 por 6 dias — sem viés de tendência natural do preço), depois
+    dobra a posição no meio do período. Sem TWR, portfolio_pct pularia pra
+    ~100% no dia do segundo aporte; com TWR, fica em 0% o tempo todo, porque
+    o preço nunca mudou."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio = await client.post("/portfolios/", json={"name": "BR", "currency": "BRL"}, headers=headers)
+    portfolio_id = portfolio.json()["id"]
+    position = await client.post(
+        f"/portfolios/{portfolio_id}/positions", json={"ticker": "VALE3"}, headers=headers
+    )
+    position_id = position.json()["id"]
+
+    start = date.today() - timedelta(days=5)
+    midpoint = date.today() - timedelta(days=2)
+
+    first_buy = await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": f"{start.isoformat()}T12:00:00Z",
+        },
+        headers=headers,
+    )
+    assert first_buy.status_code == 201
+
+    second_buy = await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            # Mesmo preço do dia (R$10, flat em toda a série) — dobra o
+            # capital investido sem gerar ganho ou perda real nenhuma.
+            "quantity": 10, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": f"{midpoint.isoformat()}T12:00:00Z",
+        },
+        headers=headers,
+    )
+    assert second_buy.status_code == 201
+
+    async def fake_cdi(start_d, end_d, redis=None):
+        return [(start_d + timedelta(days=i), Decimal("0")) for i in range((end_d - start_d).days + 1)]
+
+    monkeypatch.setattr(service, "get_cdi_daily_rates", fake_cdi)
+    # Preço plano em R$10 todo o período — qualquer variação no portfolio_pct
+    # só pode vir do aporte, não do mercado.
+    monkeypatch.setattr(
+        service, "get_provider",
+        lambda *a, **kw: _FlatPriceProvider(start, days=7, price=Decimal("10")),
+    )
+
+    resp = await client.get(f"/portfolios/{portfolio_id}/benchmark?period=1m", headers=headers)
+    assert resp.status_code == 200
+    points = resp.json()
+    assert len(points) >= 2
+
+    for point in points:
+        assert Decimal(point["portfolio_pct"]) == Decimal("0"), (
+            f"aporte inflou o retorno em {point['date']}: portfolio_pct={point['portfolio_pct']}"
+        )
 
 
 @pytest.mark.asyncio
