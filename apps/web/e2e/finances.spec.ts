@@ -43,7 +43,15 @@ test("deleting a transaction removes it from the table", async ({ page }) => {
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Excluir" }).click();
 
-  await expect(page.getByText("Transação para excluir")).not.toBeVisible({ timeout: 10_000 });
+  // Scoped to the table: the confirmation dialog's own copy ("Excluir
+  // “Transação para excluir”?") also matches an unscoped getByText while it's
+  // still closing, so an unscoped assertion here is a race between the
+  // dialog unmounting and the table refetching — flaky under CI load. What
+  // actually matters is the row leaving the table, not the dialog's text.
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole("table").getByText("Transação para excluir")).not.toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test("cancelar no modal de exclusão não apaga nada", async ({ page }) => {
