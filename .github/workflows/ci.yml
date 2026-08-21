@@ -155,6 +155,7 @@ jobs:
               f.write(f'ENCRYPTION_KEY={Fernet.generate_key().decode()}\n')
               f.write('FRONTEND_URL=http://localhost:3000\n')
               f.write('ENABLE_SCHEDULER=false\n')
+              f.write('RATE_LIMIT_ENABLED=false\n')
           "
       - name: Run API migrations
         working-directory: apps/api

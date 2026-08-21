@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="InvestIQ API", version="0.1.0", lifespan=lifespan)
 
 # Rate limiting
+limiter.enabled = settings.RATE_LIMIT_ENABLED
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
