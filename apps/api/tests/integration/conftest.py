@@ -19,6 +19,13 @@ os.environ.setdefault(
 os.environ.setdefault("REDIS_URL", os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/1"))
 os.environ.setdefault("ENABLE_SCHEDULER", "false")
 os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
+# Must be set before src.main is ever imported (the `client` fixture below
+# does `from src.main import app` lazily) — src/main.py now does
+# `limiter.enabled = settings.RATE_LIMIT_ENABLED` at module level, which
+# would otherwise clobber the `_limiter.enabled = False` set further down
+# in this file back to True the moment src.main gets imported for the
+# first client fixture, since RATE_LIMIT_ENABLED defaults to true.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 if "test" not in os.environ["DATABASE_URL"].rsplit("/", 1)[-1]:
     raise RuntimeError(
