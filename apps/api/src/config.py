@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ENVIRONMENT: str = "development"
     ENABLE_SCHEDULER: bool = True
+    # Só desligado no job de E2E do CI: os testes Playwright rodam contra um
+    # uvicorn real (não em-processo como os testes de integração, que já
+    # desligam o limiter direto em Python — ver tests/integration/conftest.py),
+    # então precisam de um jeito de desligar por fora. Toda a suíte bate no
+    # /auth/login (10/minuto) a partir do mesmo IP de loopback; passou a
+    # estourar esse teto no meio da suíte quando o número de specs cresceu
+    # o bastante pra acumular mais de 10 logins em menos de um minuto.
+    RATE_LIMIT_ENABLED: bool = True
     # Shared secret for POST /internal/jobs/run — see src/workers/router.py.
     CRON_SECRET: str = ""
 
