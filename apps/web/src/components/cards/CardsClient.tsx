@@ -15,6 +15,7 @@ import { useCategories } from "@/hooks/useFinance";
 import { CardInvoice, CreditCard } from "@/lib/cards-api";
 import { formatBRL, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useMask } from "@/hooks/useMask";
 import { CardModal } from "./CardModal";
 import { InvoiceUploadZone } from "./InvoiceUploadZone";
@@ -57,6 +58,8 @@ export function CardsClient() {
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
+  const [confirmingCardDelete, setConfirmingCardDelete] = useState(false);
+  const [confirmingInvoiceDelete, setConfirmingInvoiceDelete] = useState(false);
   const mask = useMask();
 
   const { data: cards = [], isLoading: cardsLoading } = useCards();
@@ -207,12 +210,7 @@ export function CardsClient() {
                 Faturas — {selectedCard.name}
               </h3>
               <button
-                onClick={() => {
-                  if (window.confirm(`Remover o cartão ${selectedCard.name}? Faturas não confirmadas serão perdidas.`)) {
-                    deleteCardMutation.mutate(selectedCard.id);
-                    setActiveCardId(null);
-                  }
-                }}
+                onClick={() => setConfirmingCardDelete(true)}
                 className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)]"
                 aria-label="Remover cartão"
               >
@@ -258,12 +256,7 @@ export function CardsClient() {
               invoice={invoiceDetail}
               categories={categories}
               onConfirm={() => confirmMutation.mutate(invoiceDetail.id)}
-              onDelete={() => {
-                if (window.confirm("Excluir esta fatura e todos os itens extraídos?")) {
-                  deleteInvoiceMutation.mutate(invoiceDetail.id);
-                  setActiveInvoiceId(null);
-                }
-              }}
+              onDelete={() => setConfirmingInvoiceDelete(true)}
               confirming={confirmMutation.isPending}
             />
           )}
@@ -272,6 +265,46 @@ export function CardsClient() {
 
       {showCardModal && <CardModal onClose={() => setShowCardModal(false)} />}
       {editingCard && <CardModal card={editingCard} onClose={() => setEditingCard(null)} />}
+      {confirmingCardDelete && selectedCard && (
+        <ConfirmModal
+          title="Remover cartão"
+          message={
+            <>
+              Remover o cartão &ldquo;{selectedCard.name}&rdquo;? O histórico de faturas deste cartão é apagado — despesas
+              já lançadas de faturas confirmadas continuam na sua lista de transações, só o histórico da fatura em si
+              (itens extraídos, status) some.
+            </>
+          }
+          confirmLabel="Remover"
+          isPending={deleteCardMutation.isPending}
+          onConfirm={() =>
+            deleteCardMutation.mutate(selectedCard.id, {
+              onSuccess: () => {
+                setConfirmingCardDelete(false);
+                setActiveCardId(null);
+              },
+            })
+          }
+          onClose={() => setConfirmingCardDelete(false)}
+        />
+      )}
+      {confirmingInvoiceDelete && invoiceDetail && (
+        <ConfirmModal
+          title="Excluir fatura"
+          message="Excluir esta fatura e todos os itens extraídos? Como ela ainda não foi confirmada, nenhuma despesa chegou a ser lançada — não há nada além da fatura em si pra recuperar depois."
+          confirmLabel="Excluir"
+          isPending={deleteInvoiceMutation.isPending}
+          onConfirm={() =>
+            deleteInvoiceMutation.mutate(invoiceDetail.id, {
+              onSuccess: () => {
+                setConfirmingInvoiceDelete(false);
+                setActiveInvoiceId(null);
+              },
+            })
+          }
+          onClose={() => setConfirmingInvoiceDelete(false)}
+        />
+      )}
     </div>
   );
 }

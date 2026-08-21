@@ -10,6 +10,7 @@ import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useMask } from "@/hooks/useMask";
 import { parseBRNumber } from "@/lib/number-format";
 
@@ -41,6 +42,7 @@ function paceStatus(goal: Goal): { label: string; color: string } | null {
 
 function GoalCard({ goal, index }: { goal: Goal; index: number }) {
   const [contribution, setContribution] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const mask = useMask();
   const contributeMutation = useContributeToGoal();
   const deleteMutation = useDeleteGoal();
@@ -107,7 +109,7 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
             Adicionar
           </button>
           <button
-            onClick={() => { if (window.confirm(`Remover a meta "${goal.name}"?`)) deleteMutation.mutate(goal.id); }}
+            onClick={() => setConfirmingDelete(true)}
             type="button"
             className="text-[var(--text-muted)] hover:text-[var(--danger)]"
             aria-label={`Remover meta ${goal.name}`}
@@ -115,6 +117,24 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
             <Trash2 size={14} />
           </button>
         </form>
+      )}
+      {confirmingDelete && (
+        <ConfirmModal
+          title="Remover meta"
+          message={
+            <>
+              Remover a meta &ldquo;{goal.name}&rdquo;? O histórico de aportes ({mask(formatBRLExact(Number(goal.current_amount)))}{" "}
+              acumulados) some junto — a meta é só um objetivo, não mexe no saldo das contas, mas o registro de quanto
+              você já separou pra ela não volta.
+            </>
+          }
+          confirmLabel="Remover"
+          isPending={deleteMutation.isPending}
+          onConfirm={() =>
+            deleteMutation.mutate(goal.id, { onSuccess: () => setConfirmingDelete(false) })
+          }
+          onClose={() => setConfirmingDelete(false)}
+        />
       )}
     </section>
   );
