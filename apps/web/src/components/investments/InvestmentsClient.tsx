@@ -143,7 +143,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Ações */}
-      <div className="flex items-center justify-between px-[30px] pt-[22px]">
+      <div className="flex items-center justify-between flex-wrap gap-y-2 px-[30px] pt-[22px]">
         {portfolios.length > 0 ? (
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-[11px] text-[var(--text-muted)] tracking-[.1em] uppercase flex-shrink-0">
@@ -156,7 +156,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             />
           </div>
         ) : <div />}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button size="sm" onClick={() => setShowNewPortfolio(true)}>
             + Nova carteira
           </Button>
