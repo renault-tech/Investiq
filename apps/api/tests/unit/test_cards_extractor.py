@@ -36,6 +36,15 @@ VALID_JSON = (
     '"total":152.30,"due_date":"2026-07-10"}'
 )
 
+# Fatura longa estourando o max_tokens da resposta e cortando o JSON no meio
+# de uma string — mesma assinatura do bug relatado em produção ("EOF while
+# parsing a string"). O primeiro item está completo; o segundo, pela metade.
+TRUNCATED_JSON = (
+    '{"items":[{"description":"MERCADO X","amount":152.30,"date":"2026-06-10",'
+    '"installment_no":null,"installment_total":null,"suggested_category":"Alimentação"},'
+    '{"description":"BITT CONVEN'
+)
+
 
 @pytest.mark.asyncio
 async def test_extractor_parses_valid_json():
@@ -60,6 +69,23 @@ async def test_extractor_fails_after_two_invalid_responses():
     provider = FakeProvider(["nada", "ainda nada"])
     with pytest.raises(InvoiceExtractionError):
         await extract_invoice_items(provider, None, "texto", [])
+
+
+@pytest.mark.asyncio
+async def test_extractor_salvages_items_from_a_response_truncated_by_max_tokens():
+    provider = FakeProvider([TRUNCATED_JSON])
+    result = await extract_invoice_items(provider, None, "texto", ["Alimentação"])
+    assert provider.calls == 1  # recuperou sem precisar do retry corretivo
+    assert len(result.items) == 1
+    assert result.items[0].description == "MERCADO X"
+
+
+@pytest.mark.asyncio
+async def test_extractor_still_retries_when_truncation_leaves_no_complete_item():
+    provider = FakeProvider(['{"items":[{"description":"BITT CONVEN', VALID_JSON])
+    result = await extract_invoice_items(provider, None, "texto", ["Alimentação"])
+    assert provider.calls == 2
+    assert len(result.items) == 1
 
 
 @pytest.mark.asyncio
