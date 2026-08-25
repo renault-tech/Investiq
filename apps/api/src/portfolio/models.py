@@ -38,6 +38,11 @@ class Portfolio(Base):
     description = Column(Text(), nullable=True)
     currency = Column(String(10), nullable=False, default="BRL", server_default="BRL")
     is_default = Column(Boolean(), nullable=False, default=False, server_default=text("FALSE"))
+
+    # Rótulo livre do titular ("Eu", "Minha mãe") — mesmo conceito de
+    # bank_accounts.holder (src/finance/account_models.py), para separar
+    # investimentos de pessoas diferentes sem multiusuário.
+    holder = Column(String(80), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 

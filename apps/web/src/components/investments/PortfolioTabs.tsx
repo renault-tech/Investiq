@@ -35,19 +35,24 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
   });
 
   const editMut = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => updatePortfolio(id, name),
+    mutationFn: ({ id, name, holder }: { id: string; name: string; holder: string | null }) =>
+      updatePortfolio(id, { name, holder: holder ?? undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-      toast.success("Carteira renomeada.");
+      toast.success("Carteira atualizada.");
     },
   });
 
-  const handleEdit = (e: React.MouseEvent, id: string, oldName: string) => {
+  const handleEdit = (e: React.MouseEvent, portfolio: Portfolio) => {
     e.stopPropagation();
-    const newName = window.prompt("Novo nome da carteira:", oldName);
-    if (newName && newName.trim() !== "" && newName !== oldName) {
-      editMut.mutate({ id, name: newName.trim() });
-    }
+    const newName = window.prompt("Novo nome da carteira:", portfolio.name);
+    if (!newName || newName.trim() === "") return;
+    const newHolder = window.prompt(
+      "Titular (vazio = sem titular, separa carteiras de outra pessoa):",
+      portfolio.holder ?? ""
+    );
+    if (newHolder === null) return;
+    editMut.mutate({ id: portfolio.id, name: newName.trim(), holder: newHolder.trim() || null });
   };
 
   const handleDeleteClick = (e: React.MouseEvent, id: string, name: string) => {
@@ -71,13 +76,13 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
                 : { background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-secondary)" }
             }
           >
-            <span>{portfolio.name}</span>
+            <span>{portfolio.name}{portfolio.holder ? ` · ${portfolio.holder}` : ""}</span>
 
             <div className="hidden group-hover:flex items-center gap-0.5 ml-1">
               <span
                 className="p-0.5 rounded-full hover:bg-white/20 transition-colors"
-                onClick={(e) => handleEdit(e, portfolio.id, portfolio.name)}
-                title="Renomear"
+                onClick={(e) => handleEdit(e, portfolio)}
+                title="Renomear / titular"
               >
                 <Pencil size={11} />
               </span>

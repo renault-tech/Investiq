@@ -1,17 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X, Pencil, ArrowLeftRight } from "lucide-react";
+import { Search, X, Pencil, ArrowLeftRight, Layers } from "lucide-react";
 import { useCategories, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAccounts } from "@/hooks/useAccounts";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useUIStore, maskValue } from "@/store/useUIStore";
 import { TransactionsTable } from "@/components/finances/TransactionsTable";
 import { TransactionModal } from "@/components/finances/TransactionModal";
 import { DeleteTransactionModal, type DeleteScope } from "@/components/finances/DeleteTransactionModal";
+import { AccountsBar } from "@/components/finances/AccountsBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+
+// Recorrências só se projetam para o futuro quando `date_to` é informado
+// (ver expand_recurring em src/finance/service.py) — sem bound nenhum, todo
+// o histórico real aparece, mas nenhuma ocorrência virtual futura entrava
+// aqui, diferente de parcelamento (que já materializa as linhas reais).
+// 6 meses casa com a janela padrão do Planejamento/Forecast.
+function sixMonthsAhead(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 6);
+  return d.toISOString();
+}
 
 const SOURCE_LABELS: Record<FinanceTransaction["source"], string> = {
   manual: "Lançamento manual",
@@ -37,14 +51,27 @@ export function TransactionsClient() {
   const [editingTxn, setEditingTxn] = useState<FinanceTransaction | undefined>(undefined);
   const [showModal, setShowModal] = useState(false);
   const [deletingTxn, setDeletingTxn] = useState<FinanceTransaction | undefined>(undefined);
+  // "" = todos os titulares — mesmo filtro da tela de Finanças.
+  const [holder, setHolder] = useState("");
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const setActiveAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
+  const { data: accounts = [] } = useAccounts();
+  const activeAccount = accounts.find((a) => a.id === activeAccountId);
 
   const { data: categories = [] } = useCategories();
+  // Fixo por montagem do componente — recalcular a cada render mudaria a
+  // query key do React Query (date_to muda de milissegundo a milissegundo)
+  // e disparava uma nova busca sem parar.
+  const [dateTo] = useState(() => sixMonthsAhead());
   const { data: txPage, isLoading, isError, refetch } = useTransactions({
     search: search || undefined,
     transaction_type: typeFilter || undefined,
+    account_id: activeAccountId || undefined,
+    holder: holder || undefined,
+    date_to: dateTo,
     per_page: 100,
   });
-  const { data: analytics } = useAnalytics(6);
+  const { data: analytics } = useAnalytics(6, activeAccountId, holder || undefined);
   const deleteMutation = useDeleteTransaction();
   const payMutation = usePayTransaction();
 
@@ -73,9 +100,21 @@ export function TransactionsClient() {
   };
 
   return (
-    <div className="p-[26px_30px_60px] flex flex-col md:flex-row gap-[18px] items-start">
+    <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
+      <AccountsBar holder={holder} onHolderChange={setHolder} />
+      <div className="flex flex-col md:flex-row gap-[18px] items-start">
       <section className="flex-1 min-w-0 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-[22px] shadow-[var(--shadow)] animate-rise-up">
         <div className="flex items-center gap-2.5 flex-wrap mb-4">
+          {activeAccount && (
+            <button
+              onClick={() => setActiveAccountId(null)}
+              title="Clique para ver o consolidado"
+              className="flex items-center gap-1.5 px-2.5 py-2 text-[11px] rounded-lg border transition-colors"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--glow)" }}
+            >
+              <Layers size={12} /> {activeAccount.name}
+            </button>
+          )}
           <div className="flex-1 min-w-[200px] flex items-center gap-2.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3.5 py-2">
             <Search size={15} className="text-[var(--text-muted)]" />
             <input
@@ -221,6 +260,7 @@ export function TransactionsClient() {
           onClose={() => setDeletingTxn(undefined)}
         />
       )}
+      </div>
     </div>
   );
 }

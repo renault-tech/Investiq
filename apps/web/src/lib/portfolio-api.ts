@@ -9,6 +9,9 @@ export interface Portfolio {
   description: string | null;
   currency: string;
   is_default: boolean;
+  /** Rótulo livre do titular ("Eu", "Minha mãe") — mesmo conceito de
+   * Account.holder, para separar investimentos de pessoas diferentes. */
+  holder: string | null;
   created_at: string;
 }
 
@@ -94,6 +97,7 @@ export interface CreatePortfolioInput {
   name: string;
   description?: string;
   currency: string;
+  holder?: string;
 }
 
 export interface AddPositionInput {
@@ -212,8 +216,11 @@ export async function deletePortfolio(portfolioId: string): Promise<void> {
   await apiClient.delete(`/portfolios/${portfolioId}`);
 }
 
-export async function updatePortfolio(portfolioId: string, name: string): Promise<void> {
-  await apiClient.put(`/portfolios/${portfolioId}`, { name });
+export async function updatePortfolio(
+  portfolioId: string,
+  input: { name?: string; description?: string; holder?: string | null }
+): Promise<void> {
+  await apiClient.put(`/portfolios/${portfolioId}`, input);
 }
 
 export async function updatePosition(positionId: string, input: UpdatePositionInput): Promise<unknown> {
