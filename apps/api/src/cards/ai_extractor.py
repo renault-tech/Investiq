@@ -63,6 +63,30 @@ def _strip_code_fences(text: str) -> str:
     return text.strip()
 
 
+def _salvage_truncated_json(text: str) -> Optional[dict]:
+    """Recover items from a response cut off mid-JSON by hitting max_tokens.
+
+    A fatura com muitos lançamentos pode gerar mais JSON do que o teto de
+    tokens da resposta comporta; como a chamada usa temperature=0.0, pedir
+    de novo (o retry corretivo abaixo) tende a truncar quase no mesmo
+    ponto e não resolve. Em vez de descartar a resposta inteira, caminha
+    de trás pra frente por cada "}" que o modelo chegou a fechar, corta
+    ali e fecha só a lista de items — o primeiro ponto que resulta em JSON
+    válido preserva todos os lançamentos completos e descarta apenas o
+    último, que ficou pela metade.
+    """
+    positions = [i for i, ch in enumerate(text) if ch == "}"]
+    for pos in reversed(positions):
+        candidate = text[:pos + 1] + "]}"
+        try:
+            parsed = json.loads(candidate)
+        except (ValueError, json.JSONDecodeError):
+            continue
+        if isinstance(parsed, dict) and isinstance(parsed.get("items"), list) and parsed["items"]:
+            return parsed
+    return None
+
+
 async def _extract_chunk(
     provider: LLMProvider,
     model: Optional[str],
@@ -82,15 +106,23 @@ async def _extract_chunk(
                 messages=messages,
                 system=_SYSTEM_PROMPT,
                 model=model,
-                max_tokens=8192,
+                max_tokens=16000,
                 temperature=0.0,
             )
         except LLMProviderError as exc:
             raise InvoiceExtractionError(str(exc)) from exc
 
+        stripped = _strip_code_fences(raw)
         try:
-            return ExtractionResult.model_validate_json(_strip_code_fences(raw))
+            return ExtractionResult.model_validate_json(stripped)
         except (ValidationError, ValueError) as exc:
+            salvaged = _salvage_truncated_json(stripped)
+            if salvaged is not None:
+                logger.warning(
+                    "Invoice extraction JSON truncated (provável limite de tokens) — "
+                    "recuperados %d lançamentos da resposta parcial", len(salvaged["items"])
+                )
+                return ExtractionResult.model_validate(salvaged)
             last_error = exc
             logger.warning("Invoice extraction JSON invalid (attempt %d): %s", attempt + 1, exc)
             messages = messages + [
