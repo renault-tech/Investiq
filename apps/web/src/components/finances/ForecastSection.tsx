@@ -1,15 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
 import { AlertTriangle } from "lucide-react";
-import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Select } from "@/components/ui/Input";
+import type { Forecast } from "@/lib/forecast-api";
 
 const ForecastChart = dynamic(
   () => import("./ForecastChart").then((m) => m.ForecastChart),
@@ -26,14 +24,25 @@ function monthLabel(month: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function ForecastSection() {
-  const [months, setMonths] = useState<(typeof HORIZONS)[number]>(6);
-  // Compartilhada com AccountsBar (tela /finances) — escolher a conta aqui
-  // ou lá é a mesma "carteira ativa", não dois filtros desencontrados.
-  const accountId = useFinanceScopeStore((s) => s.activeAccountId);
-  const setAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
+interface ForecastSectionProps {
+  months: (typeof HORIZONS)[number];
+  onMonthsChange: (months: (typeof HORIZONS)[number]) => void;
+  accountId: string | null;
+  onAccountIdChange: (id: string | null) => void;
+  holder: string;
+  onHolderChange: (holder: string) => void;
+  forecast: Forecast | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
+}
+
+export function ForecastSection({
+  months, onMonthsChange, accountId, onAccountIdChange, holder, onHolderChange,
+  forecast, isLoading, isError, refetch,
+}: ForecastSectionProps) {
   const { data: accounts = [] } = useAccounts();
-  const { data: forecast, isLoading, isError, refetch } = useForecast(months, accountId);
+  const holders = Array.from(new Set(accounts.map((a) => a.holder).filter((h): h is string => !!h))).sort();
 
   return (
     <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)]">
@@ -45,11 +54,24 @@ export function ForecastSection() {
             estimativa pela mediana dos últimos 6 meses.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {holders.length > 0 && (
+            <Select
+              value={holder}
+              onChange={(e) => onHolderChange(e.target.value)}
+              aria-label="Filtrar projeção por titular"
+              className="!py-1.5 text-xs"
+            >
+              <option value="">Todos os titulares</option>
+              {holders.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </Select>
+          )}
           {accounts.length > 0 && (
             <Select
               value={accountId ?? ""}
-              onChange={(e) => setAccountId(e.target.value || null)}
+              onChange={(e) => onAccountIdChange(e.target.value || null)}
               aria-label="Escopo da projeção"
               className="!py-1.5 text-xs"
             >
@@ -66,7 +88,7 @@ export function ForecastSection() {
             {HORIZONS.map((h) => (
               <button
                 key={h}
-                onClick={() => setMonths(h)}
+                onClick={() => onMonthsChange(h)}
                 className="px-2 py-1 text-xs transition-colors"
                 style={{
                   background: months === h ? "var(--surface-3)" : "transparent",

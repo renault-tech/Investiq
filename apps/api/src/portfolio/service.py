@@ -53,6 +53,7 @@ async def create_portfolio(
     description: Optional[str],
     currency: str,
     db: AsyncSession,
+    holder: Optional[str] = None,
 ) -> Portfolio:
     """Create a new portfolio. First portfolio is automatically set as default."""
     existing = await get_user_portfolios(user_id, db)
@@ -61,6 +62,7 @@ async def create_portfolio(
         name=name,
         description=description,
         currency=currency,
+        holder=holder,
         is_default=len(existing) == 0,
     )
     db.add(portfolio)
@@ -72,9 +74,12 @@ async def create_portfolio(
 async def update_portfolio(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,
-    name: str,
     db: AsyncSession,
+    fields: dict,
 ) -> Portfolio:
+    """Update a portfolio. `fields` holds only the attributes the caller
+    actually sent (router passes `body.model_dump(exclude_unset=True)`), so
+    an omitted `holder`/`description` never gets silently wiped to NULL."""
     result = await db.execute(
         select(Portfolio)
         .where(Portfolio.id == portfolio_id)
@@ -83,7 +88,8 @@ async def update_portfolio(
     portfolio = result.scalar_one_or_none()
     if not portfolio:
         raise NotFoundError("Portfolio not found")
-    portfolio.name = name
+    for key, value in fields.items():
+        setattr(portfolio, key, value)
     await db.commit()
     return portfolio
 

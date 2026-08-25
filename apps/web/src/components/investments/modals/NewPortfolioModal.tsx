@@ -19,9 +19,11 @@ export function NewPortfolioModal({ onClose }: NewPortfolioModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [currency, setCurrency] = useState("BRL");
+  const [holder, setHolder] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => createPortfolio({ name, description: description || undefined, currency }),
+    mutationFn: () =>
+      createPortfolio({ name, description: description || undefined, currency, holder: holder.trim() || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
       toast.success("Carteira criada!");
@@ -85,6 +87,22 @@ export function NewPortfolioModal({ onClose }: NewPortfolioModalProps) {
             <option value="USD">USD — Dólar</option>
             <option value="EUR">EUR — Euro</option>
           </select>
+        </div>
+        <div>
+          <label htmlFor="portfolio-holder" className="block text-[10px] text-[var(--text-muted)] mb-1">Titular</label>
+          <input
+            id="portfolio-holder"
+            type="text"
+            value={holder}
+            onChange={(e) => setHolder(e.target.value)}
+            className={fieldClass}
+            placeholder="Eu, Minha mãe…"
+            maxLength={80}
+          />
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">
+            Use para separar carteiras que você administra para outra pessoa. Na Visão Geral e em
+            Investimentos dá pra ver tudo junto ou só as carteiras de um titular.
+          </p>
         </div>
       </div>
     </Modal>

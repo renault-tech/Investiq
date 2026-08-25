@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { ArrowUp, ArrowDown, X, Landmark, Target as TargetIcon, ArrowLeftRight } from "lucide-react";
-import { listPortfolios, type Portfolio, type PerformancePeriod } from "@/lib/portfolio-api";
+import { ArrowUp, ArrowDown, X, Landmark, Target as TargetIcon, ArrowLeftRight, Layers, Wallet } from "lucide-react";
+import {
+  listPortfolios,
+  getPortfolioSummary,
+  getPortfolioPerformance,
+  type Portfolio,
+  type PortfolioSummary,
+  type PerformancePoint,
+  type PerformancePeriod,
+} from "@/lib/portfolio-api";
 import { listInvoices, type CardInvoice } from "@/lib/cards-api";
-import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
-import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
 import { useAccounts } from "@/hooks/useAccounts";
+import { ACCOUNT_TYPE_LABELS } from "@/lib/accounts-api";
 import { useCards } from "@/hooks/useCards";
 import { useGoals } from "@/hooks/useGoals";
 import { useTransactions, useFinanceSummary } from "@/hooks/useFinance";
@@ -26,16 +33,36 @@ import { formatDecimal, formatPercent } from "@/lib/number-format";
 const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", "1A": "1y", Tudo: "max" };
 
 const WIDGET_LABELS: Record<string, string> = {
-  net: "Patrimônio", alloc: "Alocação", flow: "Fluxo de caixa",
+  net: "Patrimônio", alloc: "Alocação", wallets: "Carteiras", flow: "Fluxo de caixa",
   bill: "Fatura", goals: "Metas", tx: "Movimentações", health: "Saúde financeira",
 };
-const WIDGET_SPAN: Record<string, number> = { net: 8, alloc: 4, flow: 5, bill: 3, goals: 4, tx: 8, health: 4 };
-const DEFAULT_ORDER = ["net", "alloc", "flow", "bill", "goals", "tx", "health"];
+const WIDGET_SPAN: Record<string, number> = { net: 8, alloc: 4, wallets: 4, flow: 5, bill: 3, goals: 4, tx: 8, health: 4 };
+const DEFAULT_ORDER = ["net", "alloc", "wallets", "flow", "bill", "goals", "tx", "health"];
 const STORAGE_KEY = "investiq-overview-layout";
 
 function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Uma "carteira" (conta ou portfólio) tem sua própria série de snapshots;
+// somar por data reconstrói a evolução do patrimônio consolidado sem exigir
+// que todas as carteiras tenham o mesmo histórico (uma criada depois só
+// entra a partir da data em que passou a existir).
+function mergePerformanceSeries(seriesList: PerformancePoint[][]): PerformancePoint[] {
+  if (seriesList.length <= 1) return seriesList[0] ?? [];
+  const byDate = new Map<string, { total_value: number; total_invested: number }>();
+  for (const series of seriesList) {
+    for (const point of series) {
+      const acc = byDate.get(point.date) ?? { total_value: 0, total_invested: 0 };
+      acc.total_value += Number(point.total_value);
+      acc.total_invested += Number(point.total_invested);
+      byDate.set(point.date, acc);
+    }
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, total_value: v.total_value, total_invested: v.total_invested } as PerformancePoint));
 }
 
 function relativeDate(iso: string): string {
@@ -137,16 +164,52 @@ export function OverviewClient() {
   const { data: portfolios = [], isLoading: portfoliosLoading } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"], queryFn: listPortfolios, staleTime: 30_000,
   });
-  const portfolioId = portfolios.find((p) => p.is_default)?.id ?? portfolios[0]?.id ?? null;
-
-  const { data: summary, isLoading: summaryLoading } = usePortfolioSummary(portfolioId);
-  const { data: performance = [] } = usePortfolioPerformance(portfolioId, perfPeriod);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
+
+  // Titular selecionado ("" = todos) — filtra contas e carteiras de
+  // investimento juntas, igual ao filtro de Finanças, mas aqui escopando o
+  // patrimônio consolidado da Visão Geral inteira.
+  const holders = useMemo(() => {
+    const set = new Set<string>();
+    accounts.forEach((a) => a.holder && set.add(a.holder));
+    portfolios.forEach((p) => p.holder && set.add(p.holder));
+    return Array.from(set).sort();
+  }, [accounts, portfolios]);
+  const [holder, setHolder] = useState("");
+  useEffect(() => {
+    if (holder && !holders.includes(holder)) setHolder("");
+  }, [holder, holders]);
+
+  const visibleAccounts = holder ? accounts.filter((a) => a.holder === holder) : accounts;
+  const visiblePortfolios = holder ? portfolios.filter((p) => p.holder === holder) : portfolios;
+
+  // Antes só a carteira padrão (ou a primeira) entrava no patrimônio — quem
+  // tinha mais de uma carteira de investimento via o resto sumir da conta.
+  // Somar o resumo de cada carteira visível cobre todas elas de uma vez.
+  const summaryQueries = useQueries({
+    queries: visiblePortfolios.map((p) => ({
+      queryKey: ["portfolio-summary", p.id],
+      queryFn: () => getPortfolioSummary(p.id),
+      staleTime: 20_000,
+    })),
+  });
+  const summaries = summaryQueries.map((q) => q.data).filter((d): d is PortfolioSummary => !!d);
+  const investmentsLoading = portfoliosLoading || summaryQueries.some((q) => q.isLoading);
+
+  const performanceQueries = useQueries({
+    queries: visiblePortfolios.map((p) => ({
+      queryKey: ["portfolio-performance", p.id, perfPeriod],
+      queryFn: () => getPortfolioPerformance(p.id, perfPeriod),
+      staleTime: 60_000,
+    })),
+  });
+  const performance = mergePerformanceSeries(performanceQueries.map((q) => q.data ?? []));
+
   const { data: cards = [], isLoading: cardsLoading } = useCards();
   const { data: goals = [] } = useGoals();
-  const { data: txPage } = useTransactions({ per_page: 6, page: 1 });
-  const { data: finSummary } = useFinanceSummary(currentMonth());
-  const { data: analytics } = useAnalytics(6);
+  const { data: txPage } = useTransactions({ per_page: 6, page: 1, holder: holder || undefined });
+  const { data: finSummary } = useFinanceSummary(currentMonth(), undefined, holder || undefined);
+  const { data: analytics } = useAnalytics(6, undefined, holder || undefined);
 
   const billCards = cards.filter((c) => c.is_active).slice(0, 3);
   const invoiceQueries = useQueries({
@@ -163,16 +226,9 @@ export function OverviewClient() {
   const billLimitTotal = billCards.reduce((sum, c) => sum + Number(c.credit_limit ?? 0), 0);
   const hasAnyInvoice = latestInvoices.some(Boolean);
 
-  const liquid = accounts.filter((a) => a.include_in_total).reduce((sum, a) => sum + Number(a.balance), 0);
-  const invested = Number(summary?.total_market_value_brl ?? 0);
+  const liquid = visibleAccounts.filter((a) => a.include_in_total).reduce((sum, a) => sum + Number(a.balance), 0);
+  const invested = summaries.reduce((sum, s) => sum + Number(s.total_market_value_brl), 0);
   const netWorth = liquid + invested - billTotal;
-
-  // A carteira de investimentos passa por duas requisições em série
-  // (portfolios -> summary), então "sem posição" só é verdade depois das
-  // duas resolverem. Sem essa distinção, quem tem patrimônio real via a
-  // tela dizer "R$ 0,00" e "Sem posições ainda" só porque a segunda
-  // requisição ainda não voltou — no 4G isso passa vários segundos.
-  const investmentsLoading = portfoliosLoading || (portfolioId !== null && summaryLoading);
   const netWorthLoading = accountsLoading || cardsLoading || investmentsLoading;
 
   const perfValues = performance.map((p) => Number(p.total_value));
@@ -185,7 +241,19 @@ export function OverviewClient() {
         .map((p) => new Date(p.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }))
     : [];
 
-  const allocation = (summary?.allocation_by_type ?? []).map((a) => ({ ...a, weight: Number(a.weight) }));
+  // Aloca por tipo de ativo somando o valor de mercado de cada carteira
+  // visível — antes só a carteira padrão contava, então quem dividia os
+  // investimentos em mais de um portfólio via uma alocação incompleta.
+  const allocationByType = new Map<string, number>();
+  for (const s of summaries) {
+    for (const a of s.allocation_by_type ?? []) {
+      allocationByType.set(a.asset_type, (allocationByType.get(a.asset_type) ?? 0) + Number(a.value));
+    }
+  }
+  const allocationTotal = Array.from(allocationByType.values()).reduce((a, b) => a + b, 0);
+  const allocation = Array.from(allocationByType.entries())
+    .map(([asset_type, value]) => ({ asset_type, value, weight: allocationTotal > 0 ? value / allocationTotal : 0 }))
+    .sort((a, b) => b.value - a.value);
 
   const flowSeries = (finSummary?.monthly_series ?? []).map((m) => ({ ...m, income: Number(m.income), expense: Number(m.expense) })).slice(-6);
   const flowMax = Math.max(1, ...flowSeries.flatMap((m) => [m.income, m.expense]));
@@ -196,7 +264,9 @@ export function OverviewClient() {
   const savingsFraction = lastSavings?.savings_rate ?? 0;
   const runwayMonths = analytics?.runway_months != null ? Number(analytics.runway_months) : null;
   const burnRate = Number(analytics?.burn_rate ?? 0);
-  const totalPnlPercent = Number(summary?.total_pnl_percent ?? 0);
+  const investedCost = summaries.reduce((sum, s) => sum + Number(s.total_invested_brl), 0);
+  const investedPnlAbs = summaries.reduce((sum, s) => sum + Number(s.total_pnl_absolute), 0);
+  const totalPnlPercent = investedCost > 0 ? (investedPnlAbs / investedCost) * 100 : 0;
   const financeNet = Number(finSummary?.net ?? 0);
 
   const mask = (text: string) => maskValue(text, privacy);
@@ -211,6 +281,30 @@ export function OverviewClient() {
   return (
     <div>
       <OnboardingChecklist />
+      {holders.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          {holder && (
+            <button
+              onClick={() => setHolder("")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg border transition-colors"
+              style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--glow)" }}
+            >
+              <Layers size={12} /> Ver consolidado
+            </button>
+          )}
+          <select
+            value={holder}
+            onChange={(e) => setHolder(e.target.value)}
+            aria-label="Filtrar por titular"
+            className="px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] text-[var(--text-secondary)]"
+          >
+            <option value="">Todos os titulares</option>
+            {holders.map((h) => (
+              <option key={h} value={h}>{h}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {customize && (
         <div className="flex items-center gap-3 flex-wrap px-4 py-3 border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] mb-5 animate-rise-up">
           <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
@@ -334,6 +428,68 @@ export function OverviewClient() {
                   </b>
                 </div>
               </>
+            )}
+          </Widget>
+        )}
+
+        {/* Carteiras (contas + portfólios) */}
+        {visible("wallets") && (
+          <Widget {...widgetProps("wallets", 0.09)}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Carteiras</div>
+                <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
+                  {holder ? `Contas e investimentos de ${holder}` : "Todas as contas e carteiras de investimento"}
+                </div>
+              </div>
+            </div>
+            {visibleAccounts.length === 0 && visiblePortfolios.length === 0 ? (
+              <EmptyState icon={Wallet} title="Nenhuma carteira ainda" description="Crie uma conta em Finanças ou uma carteira em Investimentos." />
+            ) : (
+              <ul className="flex flex-col gap-1 max-h-[280px] overflow-y-auto -mx-1.5">
+                {visibleAccounts.map((a) => (
+                  <li key={`acc-${a.id}`}>
+                    <Link
+                      href="/finances"
+                      className="flex items-center justify-between gap-2 px-1.5 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{a.name}</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">
+                          {ACCOUNT_TYPE_LABELS[a.account_type]}{a.holder ? ` · ${a.holder}` : ""}
+                        </div>
+                      </div>
+                      <b
+                        className="text-[12.5px] font-semibold tabular-nums flex-shrink-0"
+                        style={{ color: Number(a.balance) < 0 ? "var(--danger)" : "var(--text-primary)" }}
+                      >
+                        {mask(formatBRLCompact(Number(a.balance)))}
+                      </b>
+                    </Link>
+                  </li>
+                ))}
+                {visiblePortfolios.map((p) => {
+                  const s = summaries.find((row) => row.portfolio_id === p.id);
+                  return (
+                    <li key={`pf-${p.id}`}>
+                      <Link
+                        href="/investments"
+                        className="flex items-center justify-between gap-2 px-1.5 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{p.name}</div>
+                          <div className="text-[11px] text-[var(--text-muted)]">
+                            Investimentos{p.holder ? ` · ${p.holder}` : ""}
+                          </div>
+                        </div>
+                        <b className="text-[12.5px] font-semibold tabular-nums flex-shrink-0 text-[var(--text-primary)]">
+                          {s ? mask(formatBRLCompact(Number(s.total_market_value_brl))) : "…"}
+                        </b>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </Widget>
         )}

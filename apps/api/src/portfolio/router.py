@@ -17,6 +17,7 @@ from datetime import date as dt_date
 
 from src.portfolio.schemas import (
     PortfolioCreate,
+    PortfolioUpdate,
     PortfolioResponse,
     PortfolioSummaryResponse,
     PerformancePoint,
@@ -53,19 +54,21 @@ async def create_portfolio(
 ):
     """Create a new portfolio."""
     return await service.create_portfolio(
-        current_user.id, body.name, body.description, body.currency, db
+        current_user.id, body.name, body.description, body.currency, db, holder=body.holder
     )
 
 
 @router.put("/{portfolio_id}", response_model=PortfolioResponse)
 async def update_portfolio(
     portfolio_id: uuid.UUID,
-    body: PortfolioCreate,
+    body: PortfolioUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a portfolio name."""
-    return await service.update_portfolio(portfolio_id, current_user.id, body.name, db)
+    """Update a portfolio's name, description and/or holder."""
+    return await service.update_portfolio(
+        portfolio_id, current_user.id, db, body.model_dump(exclude_unset=True)
+    )
 
 
 @router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)

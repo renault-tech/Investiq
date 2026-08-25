@@ -11,7 +11,7 @@ from src.ai.base import LLMProvider, LLMProviderError
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 _MISSING_SDK = (
     "google-genai não está instalado neste ambiente. "
