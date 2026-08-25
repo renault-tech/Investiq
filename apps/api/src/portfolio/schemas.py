@@ -91,6 +91,7 @@ class PortfolioSummaryResponse(BaseModel):
     total_market_value_brl: Decimal
     total_pnl_absolute: Decimal
     total_pnl_percent: Decimal
+    xirr_percent: Optional[Decimal] = None
     positions: list[PositionSummary]
     rebalance_suggestions: list[dict]
     allocation_by_type: list[AllocationSlice] = []

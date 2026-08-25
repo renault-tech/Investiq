@@ -124,6 +124,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const investedValue = Number(summary?.total_invested_brl ?? 0);
   const pnlAbsolute = Number(summary?.total_pnl_absolute ?? 0);
   const pnlPercent = Number(summary?.total_pnl_percent ?? 0);
+  const xirrPercent = summary?.xirr_percent != null ? Number(summary.xirr_percent) : null;
 
   // Ativos cuja moeda nativa não é BRL — agrupados por moeda, com o valor
   // nativo (o que aparece na corretora americana) ao lado do equivalente
@@ -262,6 +263,26 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                       </div>
                     )}
                   </div>
+                  {(isSummaryLoading || xirrPercent !== null) && (
+                    <div>
+                      <div
+                        className="text-[11.5px] text-[var(--text-secondary)]"
+                        title="Retorno anualizado ponderado pelo dinheiro — considera quando cada aporte entrou, diferente do resultado acima (custo simples)."
+                      >
+                        XIRR (a.a.)
+                      </div>
+                      {isSummaryLoading ? (
+                        <Skeleton className="h-[17px] w-16 mt-1" />
+                      ) : (
+                        <div
+                          className="text-[17px] font-semibold mt-0.5"
+                          style={{ color: (xirrPercent ?? 0) >= 0 ? "var(--accent)" : "var(--danger)" }}
+                        >
+                          {mask(formatPercent(xirrPercent ?? 0, 1, { signed: true }))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex justify-end mt-3">
