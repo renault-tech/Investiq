@@ -105,6 +105,85 @@ async def delete_portfolio(
     await db.commit()
 
 
+def _compute_xirr(cash_flows: list[tuple[date, Decimal]]) -> Optional[Decimal]:
+    """Retorno anualizado ponderado pelo dinheiro (XIRR) — a taxa que zera o
+    valor presente de todos os fluxos de caixa: aportes (negativos, dinheiro
+    saindo do seu bolso), vendas e dividendos (positivos, dinheiro voltando),
+    e o valor de mercado atual como um saque hipotético final (positivo).
+
+    Complementa o TWR (`_compute_twr_series`): TWR mede a performance dos
+    ativos em si, neutralizando quando/quanto você aportou — bom pra comparar
+    com CDI/Ibovespa. XIRR mede quanto VOCÊ pessoalmente ganhou, no timing
+    real dos seus aportes — dois aportes idênticos em ativos idênticos podem
+    render TWR igual e XIRR bem diferente se um aporte chegou na véspera de
+    uma alta e o outro não.
+
+    Bisseção sobre uma faixa ampla de taxas anuais plausíveis, não
+    Newton-Raphson: o VP(taxa) de um XIRR não tem garantia de ser bem
+    comportado quando os fluxos não estão em ordem de sinal simples (ex.:
+    venda parcial no meio de uma sequência de compras), então Newton pode
+    divergir; bisseção é determinística dentro da faixa escolhida — no pior
+    caso não encontra raiz (retorna None), nunca diverge para um valor
+    absurdo.
+    """
+    if len(cash_flows) < 2:
+        return None
+    flows = sorted(cash_flows, key=lambda f: f[0])
+    t0 = flows[0][0]
+    amounts = [float(amount) for _, amount in flows]
+    days = [(d - t0).days for d, _ in flows]
+
+    # Sem os dois sinais representados não existe taxa que zere o VP —
+    # carteira só com aportes (nunca vendida/avaliada) ou só com entradas.
+    if not any(a > 0 for a in amounts) or not any(a < 0 for a in amounts):
+        return None
+
+    def npv(rate: float) -> float:
+        return sum(a / (1.0 + rate) ** (d / 365.0) for a, d in zip(amounts, days))
+
+    low, high = -0.999999, 100.0  # -99,9999% a +10.000% ao ano
+    npv_low, npv_high = npv(low), npv(high)
+    if npv_low * npv_high > 0:
+        # VP não muda de sinal nessa faixa inteira — sem raiz encontrável
+        # (cenário degenerado, ex.: um único aporte gigante recente com
+        # valorização absurda), preferível a devolver um número inventado.
+        return None
+
+    mid = (low + high) / 2
+    for _ in range(200):
+        mid = (low + high) / 2
+        npv_mid = npv(mid)
+        if abs(npv_mid) < 1e-6:
+            break
+        if npv_low * npv_mid < 0:
+            high = mid
+        else:
+            low, npv_low = mid, npv_mid
+
+    return round_financial(Decimal(str(mid * 100)))
+
+
+async def _get_portfolio_cash_flows(
+    portfolio_id: uuid.UUID, db: AsyncSession
+) -> list[tuple[date, Decimal]]:
+    """Fluxos de caixa de toda a carteira pro XIRR: compra sai (negativo),
+    venda e dividendo entram (positivo). Split/bonus não trocam dinheiro de
+    mãos — só ajustam quantidade — então não geram fluxo nenhum aqui."""
+    result = await db.execute(
+        select(InvestmentTransaction)
+        .join(PortfolioPosition, PortfolioPosition.id == InvestmentTransaction.position_id)
+        .where(PortfolioPosition.portfolio_id == portfolio_id)
+    )
+    flows: list[tuple[date, Decimal]] = []
+    for txn in result.scalars().all():
+        txn_date = txn.transaction_date.date() if hasattr(txn.transaction_date, "date") else txn.transaction_date
+        if txn.transaction_type == "buy":
+            flows.append((txn_date, -txn.total_amount))
+        elif txn.transaction_type in ("sell", "dividend"):
+            flows.append((txn_date, txn.total_amount))
+    return flows
+
+
 async def get_portfolio_summary(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -137,6 +216,7 @@ async def get_portfolio_summary(
             "total_market_value_brl": _ZERO,
             "total_pnl_absolute": _ZERO,
             "total_pnl_percent": _ZERO,
+            "xirr_percent": None,
             "positions": [],
             "rebalance_suggestions": [],
             "allocation_by_type": [],
@@ -246,10 +326,14 @@ async def get_portfolio_summary(
         )
     ]
 
+    cash_flows = await _get_portfolio_cash_flows(portfolio_id, db)
+    xirr_percent = _compute_xirr([*cash_flows, (date.today(), total_value)]) if cash_flows else None
+
     return {
         "portfolio_id": portfolio_id,
         "portfolio_name": portfolio.name,
         **summary,
+        "xirr_percent": xirr_percent,
         "positions": position_summaries,
         "rebalance_suggestions": rebalance,
         "allocation_by_type": allocation_by_type,

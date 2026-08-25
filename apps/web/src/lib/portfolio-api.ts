@@ -48,6 +48,11 @@ export interface PortfolioSummary {
   total_market_value_brl: number;
   total_pnl_absolute: number;
   total_pnl_percent: number;
+  /** Retorno anualizado ponderado pelo dinheiro (XIRR) — considera quando
+   * cada aporte entrou, diferente de total_pnl_percent (custo simples).
+   * null quando não há fluxo de caixa suficiente pra calcular (carteira
+   * sem aporte, ou sem cotação disponível pra avaliar a posição atual). */
+  xirr_percent: number | null;
   positions: PositionSummary[];
   rebalance_suggestions: unknown[];
   allocation_by_type: AllocationSlice[];
@@ -133,6 +138,7 @@ export async function createPortfolio(input: CreatePortfolioInput): Promise<Port
 // os componentes poderem confiar nos tipos declarados acima (ver lib/coerce.ts).
 const SUMMARY_NUMERIC = [
   "total_invested_brl", "total_market_value_brl", "total_pnl_absolute", "total_pnl_percent",
+  "xirr_percent",
 ] as const;
 const POSITION_NUMERIC = [
   "quantity", "avg_cost", "current_price", "current_price_native", "market_value_brl",

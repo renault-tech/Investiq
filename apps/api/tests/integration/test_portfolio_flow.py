@@ -1,6 +1,11 @@
 """Integration: portfolio → position → buy/sell transactions → summary (WAC)."""
+from datetime import date, timedelta
+from decimal import Decimal
+
 import pytest
 
+from src.market_data.base import Quote
+from src.portfolio import service
 from .conftest import register_and_login
 
 
@@ -131,6 +136,49 @@ async def test_empty_portfolio_summary_has_zeroed_totals(client):
     assert body["positions"] == []
     assert body["total_invested_brl"] == "0"
     assert body["allocation_by_type"] == []
+    # Sem aporte nenhum, não há fluxo de caixa pra calcular XIRR.
+    assert body["xirr_percent"] is None
+
+
+@pytest.mark.asyncio
+async def test_xirr_percent_reflects_a_known_annualized_gain(client, monkeypatch):
+    """XIRR (retorno ponderado pelo dinheiro): compra 100 PETR4 a R$10 exatos
+    365 dias atrás (o que sobra de 2026, não bissexto, entre um aporte e uma
+    avaliação de hoje); com a cotação ao vivo em R$20, o valor dobrou em
+    exatamente um ano — XIRR anualizado tem que ficar perto de +100%, não de
+    0% (o que _get_portfolio_cash_flows sem o valor de mercado final
+    produziria) nem de algo fora de qualquer realidade."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, position_id = await _create_portfolio_with_position(client, headers)
+
+    buy_date = date.today() - timedelta(days=365)
+    buy = await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 100, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": f"{buy_date.isoformat()}T12:00:00Z",
+        },
+        headers=headers,
+    )
+    assert buy.status_code == 201, buy.text
+
+    class _DoublePriceProvider:
+        async def get_quotes(self, tickers):
+            return {t: Quote(ticker=t, price=Decimal("20"), currency="BRL") for t in tickers}
+
+    monkeypatch.setattr(service, "get_provider", lambda *a, **kw: _DoublePriceProvider())
+
+    summary = await client.get(f"/portfolios/{portfolio_id}/summary", headers=headers)
+    assert summary.status_code == 200
+    body = summary.json()
+    assert body["total_market_value_brl"] == "2000.00"
+
+    xirr = Decimal(body["xirr_percent"])
+    assert Decimal("80") < xirr < Decimal("120"), (
+        f"esperava XIRR perto de +100% (dobrou em 1 ano), veio {xirr}"
+    )
 
 
 @pytest.mark.asyncio
