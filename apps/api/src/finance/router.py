@@ -214,11 +214,14 @@ async def create_transaction(
 
 @router.patch("/transactions/{txn_id}", response_model=TransactionResponse)
 async def update_transaction(
-    txn_id: uuid.UUID,
+    txn_id: str,
     body: TransactionUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """`txn_id` também aceita o id de uma ocorrência virtual de recorrência
+    ("{template_id}:{data-iso}") — editar uma delas materializa a ocorrência
+    numa linha própria antes de aplicar o update, ver service._resolve_txn_id."""
     return await service.update_transaction(
         txn_id, current_user.id, body.model_dump(exclude_unset=True), db
     )

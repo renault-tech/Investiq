@@ -63,6 +63,13 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
   const isTransfer = type === "transfer";
   const filteredCategories = categories.filter((c) => c.category_type === type && c.is_active);
 
+  // Ocorrência virtual de recorrência (data calculada, sem linha própria) —
+  // editar aqui materializa só ela numa linha nova e independente da série
+  // (backend: materialize_recurring_occurrence). Por isso não faz sentido
+  // oferecer o campo de recorrência aqui: essa linha nunca é, ela mesma, o
+  // início de uma série nova.
+  const isVirtualOccurrence = editing?.is_virtual === true;
+
   // Parcelar só faz sentido criando uma despesa nova — editar uma parcela já
   // existente mexe naquela linha, não na série.
   const canSplit = !editing && type === "expense";
@@ -97,7 +104,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
       to_bank_account_id: isTransfer ? toAccountId : undefined,
       transaction_date: `${date}T12:00:00Z`,
       due_date: dueDate ? `${dueDate}T12:00:00Z` : undefined,
-      recurrence_rule: canSplit && parcelCount > 1 ? undefined : recurrence || undefined,
+      recurrence_rule: isVirtualOccurrence || (canSplit && parcelCount > 1) ? undefined : recurrence || undefined,
       installments: canSplit ? parcelCount : undefined,
     };
 
@@ -114,7 +121,11 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
   };
 
   return (
-    <Modal title={editing ? "Editar transação" : "Nova transação"} onClose={onClose} maxWidth="xl">
+    <Modal
+      title={isVirtualOccurrence ? "Editar ocorrência" : editing ? "Editar transação" : "Nova transação"}
+      onClose={onClose}
+      maxWidth="xl"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
           {TYPE_BUTTONS.map(([value, label]) => (
@@ -230,6 +241,12 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
               value={installments}
               onChange={(e) => setInstallments(e.target.value)}
             />
+          ) : isVirtualOccurrence ? (
+            <div className="flex items-end pb-2">
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Recorrência mensal — editar aqui vira só esta ocorrência.
+              </span>
+            </div>
           ) : (
             <Select
               label="Recorrência"

@@ -75,6 +75,66 @@ async def test_monthly_recurring_transaction_expands_into_future_months(client):
 
 
 @pytest.mark.asyncio
+async def test_editing_a_virtual_occurrence_materializes_it_without_touching_the_series(client):
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    created = await client.post(
+        "/finance/transactions",
+        json={
+            "transaction_type": "expense", "amount": 30, "description": "Streaming",
+            "transaction_date": "2026-01-10T12:00:00Z", "recurrence_rule": "FREQ=MONTHLY",
+        },
+        headers=headers,
+    )
+    template_id = created.json()["id"]
+
+    listing = await client.get(
+        "/finance/transactions",
+        params={"date_from": "2026-01-01T00:00:00Z", "date_to": "2026-04-30T00:00:00Z", "per_page": 100},
+        headers=headers,
+    )
+    virtual = next(i for i in listing.json()["items"] if i["is_virtual"] and i["transaction_date"].startswith("2026-02"))
+    assert virtual["id"] == f"{template_id}:2026-02-10"
+
+    # Vencimento caiu num fim de semana — desliza a ocorrência de fevereiro
+    # 2 dias, sem mexer no template nem nas outras ocorrências da série.
+    patched = await client.patch(
+        f"/finance/transactions/{virtual['id']}",
+        json={"transaction_date": "2026-02-12T12:00:00Z", "due_date": "2026-02-12T12:00:00Z"},
+        headers=headers,
+    )
+    assert patched.status_code == 200
+    materialized = patched.json()
+    assert materialized["id"] != virtual["id"]
+    assert materialized["transaction_date"].startswith("2026-02-12")
+    assert materialized["is_virtual"] is False
+    assert materialized["is_paid"] is False
+
+    listing_after = await client.get(
+        "/finance/transactions",
+        params={"date_from": "2026-01-01T00:00:00Z", "date_to": "2026-04-30T00:00:00Z", "per_page": 100},
+        headers=headers,
+    )
+    items_after = listing_after.json()["items"]
+    # A ocorrência virtual de fevereiro sumiu — vira a linha materializada,
+    # não conta em dobro — e o template e março/abril seguem intactos.
+    assert len(items_after) == 4
+    assert not any(i["id"] == virtual["id"] for i in items_after)
+    assert any(i["id"] == materialized["id"] for i in items_after)
+
+    # Reabrir a mesma ocorrência de novo reaproveita a linha já materializada
+    # em vez de criar outra.
+    repatched = await client.patch(
+        f"/finance/transactions/{virtual['id']}",
+        json={"notes": "confirmado"},
+        headers=headers,
+    )
+    assert repatched.status_code == 200
+    assert repatched.json()["id"] == materialized["id"]
+
+
+@pytest.mark.asyncio
 async def test_summary_aggregates_income_expense_and_by_category(client):
     session = await register_and_login(client)
     headers = session["headers"]

@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Column, String, Numeric, Boolean, Integer, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Numeric, Boolean, Integer, Text, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func, text
@@ -58,6 +58,13 @@ class FinancialTransaction(Base):
     bill_notified_at = Column(TIMESTAMP(timezone=True), nullable=True)
     is_recurring = Column(Boolean(), nullable=False, default=False, server_default=text("FALSE"))
     recurrence_rule = Column(String(100), nullable=True)
+    # Ocorrência de recorrência materializada em linha própria (data editada,
+    # ex.: vencimento que caiu num fim de semana e deslizou uns dias) — fora
+    # de expand_recurring, igual a uma parcela. recurring_occurrence_date é a
+    # data originalmente prevista, não a editada: é a chave que faz
+    # expand_recurring não gerar de novo a ocorrência virtual dela.
+    recurring_parent_id = Column(UUID(as_uuid=True), ForeignKey("financial_transactions.id", ondelete="CASCADE"), nullable=True, index=True)
+    recurring_occurrence_date = Column(Date(), nullable=True)
     # Parcelamento: N linhas materializadas com is_recurring=False, para
     # ficarem fora de expand_recurring e nunca contarem em dobro.
     installment_group_id = Column(UUID(as_uuid=True), nullable=True, index=True)

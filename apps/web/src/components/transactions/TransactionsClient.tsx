@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X, Pencil, ArrowLeftRight, Layers } from "lucide-react";
+import { Search, X, Pencil, ArrowLeftRight, Layers, CheckCircle2 } from "lucide-react";
 import { useCategories, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -183,6 +183,18 @@ export function TransactionsClient() {
           <div className="text-[12.5px] text-[var(--text-secondary)] mt-1">
             {new Date(selected.transaction_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
           </div>
+          {!selected.is_virtual && selected.due_date.slice(0, 10) !== selected.transaction_date.slice(0, 10) && (
+            selected.is_paid ? (
+              <div className="inline-flex items-center gap-1 mt-2 text-[11px] rounded px-1.5 py-0.5 border w-fit" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>
+                <CheckCircle2 size={11} />
+                {selected.paid_at ? `Pago em ${new Date(selected.paid_at).toLocaleDateString("pt-BR")}` : "Pago"}
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1 mt-2 text-[11px] rounded px-1.5 py-0.5 border w-fit" style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
+                Vence em {new Date(selected.due_date).toLocaleDateString("pt-BR")}
+              </div>
+            )
+          )}
 
           <div className="mt-5 flex flex-col gap-3.5 text-[12.5px] border-t border-[var(--border)] pt-4.5">
             <div className="flex justify-between">
@@ -228,6 +240,16 @@ export function TransactionsClient() {
           )}
 
           <div className="flex gap-2 mt-5">
+            {!selected.is_virtual && !selected.is_paid && (
+              <button
+                onClick={() => payMutation.mutate(selected.id)}
+                disabled={payMutation.isPending}
+                className="px-3.5 py-2.5 rounded-xl border text-[12.5px] font-semibold"
+                style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+              >
+                Pagar
+              </button>
+            )}
             <button
               onClick={() => { setEditingTxn(selected); setShowModal(true); }}
               className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
@@ -235,12 +257,14 @@ export function TransactionsClient() {
             >
               <Pencil size={13} /> Editar
             </button>
-            <button
-              onClick={() => handleDelete(selected)}
-              className="px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--danger)]"
-            >
-              Excluir
-            </button>
+            {!selected.is_virtual && (
+              <button
+                onClick={() => handleDelete(selected)}
+                className="px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--danger)]"
+              >
+                Excluir
+              </button>
+            )}
           </div>
         </aside>
       )}
