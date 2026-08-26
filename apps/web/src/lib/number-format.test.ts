@@ -75,17 +75,23 @@ describe("parseBRNumber", () => {
 });
 
 describe("parseBRQuantity", () => {
-  it("nunca lê ponto único como milhar — cotas fracionárias de ETF, não lote inteiro", () => {
-    // Bug real relatado: 41,489 cotas de VWO (ETF internacional, fracionário)
-    // digitadas como "41.489" viravam 41489 pelo parseBRNumber comum — a
-    // posição inflava ~1000x sem nenhum erro na tela.
-    expect(parseBRQuantity("41.489")).toBe(41.489);
-    expect(parseBRQuantity("15.6")).toBe(15.6);
-    expect(parseBRQuantity("15.600")).toBe(15.6);
+  it("ponto é sempre milhar, nunca decimal — regra determinística, sem adivinhar por dígitos", () => {
+    // Ponto único não é mais lido por heurística de casas decimais: é
+    // sempre separador de milhar, mesmo em ativos cotados em dólar. Para
+    // digitar uma fração de cota é preciso usar vírgula.
+    expect(parseBRQuantity("41.489")).toBe(41489);
+    expect(parseBRQuantity("15.6")).toBe(156);
+    expect(parseBRQuantity("15.600")).toBe(15600);
   });
 
-  it("continua lendo vírgula como decimal e os dois separadores juntos normalmente", () => {
+  it("vírgula continua sendo o único jeito de digitar decimal", () => {
+    // Bug real relatado: 41,489 cotas de VWO (ETF internacional, fracionário)
+    // devem ser digitadas com vírgula para não virar milhar.
+    expect(parseBRQuantity("41,489")).toBe(41.489);
     expect(parseBRQuantity("15,6")).toBe(15.6);
+  });
+
+  it("continua lendo os dois separadores juntos normalmente", () => {
     expect(parseBRQuantity("1.234,56")).toBe(1234.56);
     expect(parseBRQuantity("1,234.56")).toBe(1234.56);
   });
@@ -97,7 +103,8 @@ describe("parseBRQuantity", () => {
 
   it("parseBRQuantityOr aplica o fallback só quando não há número", () => {
     expect(parseBRQuantityOr("", 0)).toBe(0);
-    expect(parseBRQuantityOr("41.489", 0)).toBe(41.489);
+    expect(parseBRQuantityOr("41,489", 0)).toBe(41.489);
+    expect(parseBRQuantityOr("41.489", 0)).toBe(41489);
   });
 });
 

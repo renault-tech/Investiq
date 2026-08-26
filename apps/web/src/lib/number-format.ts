@@ -31,7 +31,7 @@
  */
 export function parseBRNumber(
   raw: string | number | null | undefined,
-  { assumeDotIsDecimal = false }: { assumeDotIsDecimal?: boolean } = {}
+  { dotAlwaysThousands = false }: { dotAlwaysThousands?: boolean } = {}
 ): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (raw == null) return null;
@@ -65,9 +65,11 @@ export function parseBRNumber(
     // Só vírgula — decimal, sempre. É o padrão brasileiro.
     s = s.split(",").join(".");
   } else if (lastDot >= 0) {
-    if (assumeDotIsDecimal) {
-      // Chamador sabe que milhar não é uma leitura plausível aqui (ver
-      // parseBRQuantity) — ponto único é sempre decimal.
+    if (dotAlwaysThousands) {
+      // Regra determinística: ponto é sempre separador de milhar, nunca
+      // decimal — mesmo em valores em dólar. Sem vírgula não há decimal
+      // (ver parseBRQuantity).
+      s = s.split(".").join("");
     } else {
       // Só ponto — ambíguo. Um único ponto separando exatamente 3 casas é
       // milhar ("15.600"); qualquer outro arranjo é decimal ("15.6", "1.2345").
@@ -88,23 +90,19 @@ export function parseBRNumberOr(raw: string | number | null | undefined, fallbac
   return parsed == null ? fallback : parsed;
 }
 
-/** `parseBRNumber` para quantidade de ativos — não assume separador de
- * milhar num ponto único.
+/** `parseBRNumber` para quantidade de ativos — ponto nunca é decimal.
  *
- * Cotas fracionárias de ETF/ação internacional (ex.: 41,489 cotas de VWO)
- * são tão comuns quanto lotes inteiros digitados com separador de milhar,
- * e as duas notações usam o mesmo ponto — não dá pra adivinhar por regras
- * de dígitos. As duas leituras erradas não custam o mesmo: interpretar
- * "41.489" como milhar quando era decimal multiplica a posição por 1000
- * silenciosamente (foi exatamente o bug relatado: um ETF de ~R$ 10 mil
- * virou R$ 10 milhões sem nenhum erro na tela); interpretar como decimal
- * quando era milhar produz uma quantidade obviamente pequena demais, fácil
- * de notar e corrigir antes de confirmar. Por isso aqui um ponto único é
- * sempre decimal — ao contrário de valores em reais, onde milhar é a
- * leitura certa na mesma ambiguidade.
+ * A ambiguidade de um ponto único ("41.489": milhar ou decimal?) não pode
+ * ser resolvida adivinhando por quantidade de dígitos — isso já causou um
+ * bug real: 41,489 cotas de VWO (ETF fracionário) digitadas como "41.489"
+ * viraram 41489 cotas, inflando a posição ~1000x sem erro nenhum na tela.
+ * A regra passou a ser determinística e vale mesmo para ativos cotados em
+ * dólar: ponto é **sempre** separador de milhar, nunca decimal; quem
+ * precisa digitar uma fração de cota usa vírgula ("41,489"). Isso elimina
+ * a adivinhação por completo, ao custo de exigir vírgula para decimais.
  */
 export function parseBRQuantity(raw: string | number | null | undefined): number | null {
-  return parseBRNumber(raw, { assumeDotIsDecimal: true });
+  return parseBRNumber(raw, { dotAlwaysThousands: true });
 }
 
 /** `parseBRQuantity` com piso — para campos onde vazio equivale a zero. */
