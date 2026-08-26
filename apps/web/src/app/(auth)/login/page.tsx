@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiClient, setAccessToken } from "@/lib/api-client";
 import { useUserStore } from "@/store/useUserStore";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 
 export default function LoginPage() {
@@ -64,9 +65,8 @@ export default function LoginPage() {
               required
               placeholder="seu@email.com"
             />
-            <Input
+            <PasswordInput
               label="Senha"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

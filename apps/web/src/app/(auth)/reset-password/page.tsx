@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 
 function ResetPasswordForm() {
@@ -79,9 +79,8 @@ function ResetPasswordForm() {
         Escolha uma nova senha para sua conta.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
+        <PasswordInput
           label="Nova senha"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -89,9 +88,8 @@ function ResetPasswordForm() {
           minLength={8}
           placeholder="••••••••"
         />
-        <Input
+        <PasswordInput
           label="Confirmar nova senha"
-          type="password"
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
