@@ -14,7 +14,7 @@ import {
 } from "@/hooks/usePositionActions";
 import type { InvestmentTransaction } from "@/lib/portfolio-api";
 import type { PositionSummary } from "@/lib/portfolio-api";
-import { parseBRNumberOr, sanitizeNumericInput } from "@/lib/number-format";
+import { parseBRNumberOr, parseBRQuantityOr, sanitizeNumericInput } from "@/lib/number-format";
 
 interface ManagePositionModalProps {
   portfolioId: string;
@@ -80,10 +80,10 @@ function TransactionRow({
           <Button
             size="sm"
             loading={saving}
-            disabled={parseBRNumberOr(quantity, 0) <= 0 || parseBRNumberOr(unitPrice, 0) <= 0}
+            disabled={parseBRQuantityOr(quantity, 0) <= 0 || parseBRNumberOr(unitPrice, 0) <= 0}
             onClick={() => {
               onSave({
-                quantity: parseBRNumberOr(quantity, 0),
+                quantity: parseBRQuantityOr(quantity, 0),
                 unit_price: parseBRNumberOr(unitPrice, 0),
                 fees: parseBRNumberOr(fees, 0),
                 transaction_date: date,

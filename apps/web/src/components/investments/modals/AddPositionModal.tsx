@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { addPosition, createTransaction } from "@/lib/portfolio-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { parseBRNumber, sanitizeNumericInput } from "@/lib/number-format";
+import { parseBRNumber, parseBRQuantity, sanitizeNumericInput } from "@/lib/number-format";
 
 interface AddPositionModalProps {
   portfolioId: string;
@@ -35,7 +35,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
       }) as { id: string };
 
       // 2. Registra transação inicial se qty+preço informados
-      const numQty = parseBRNumber(quantity);
+      const numQty = parseBRQuantity(quantity);
       const numPrice = parseBRNumber(price);
       if (numQty != null && numPrice != null && numQty > 0) {
         await createTransaction({
