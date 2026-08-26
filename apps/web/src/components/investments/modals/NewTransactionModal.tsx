@@ -7,7 +7,7 @@ import { createTransaction } from "@/lib/portfolio-api";
 import type { PositionSummary } from "@/lib/portfolio-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { parseBRNumberOr, sanitizeNumericInput } from "@/lib/number-format";
+import { parseBRNumberOr, parseBRQuantityOr, sanitizeNumericInput } from "@/lib/number-format";
 
 interface NewTransactionModalProps {
   portfolioId: string;
@@ -48,7 +48,7 @@ export function NewTransactionModal({
       createTransaction({
         position_id: positionId,
         transaction_type: txType as "buy" | "sell" | "dividend" | "split" | "bonus",
-        quantity: parseBRNumberOr(quantity, 0),
+        quantity: parseBRQuantityOr(quantity, 0),
         unit_price: parseBRNumberOr(unitPrice, 0),
         fees: parseBRNumberOr(fees, 0),
         fx_rate: parseBRNumberOr(fxRate, 1) > 0 ? parseBRNumberOr(fxRate, 1) : 1,
@@ -81,7 +81,7 @@ export function NewTransactionModal({
   });
 
   const isValid =
-    !!positionId && parseBRNumberOr(quantity, 0) > 0 && parseBRNumberOr(unitPrice, 0) > 0;
+    !!positionId && parseBRQuantityOr(quantity, 0) > 0 && parseBRNumberOr(unitPrice, 0) > 0;
 
   return (
     <Modal

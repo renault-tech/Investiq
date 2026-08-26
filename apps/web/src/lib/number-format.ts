@@ -29,7 +29,10 @@
  * exatamente 3 ("15.600" = 15600), que é como as duas notações realmente
  * aparecem digitadas.
  */
-export function parseBRNumber(raw: string | number | null | undefined): number | null {
+export function parseBRNumber(
+  raw: string | number | null | undefined,
+  { assumeDotIsDecimal = false }: { assumeDotIsDecimal?: boolean } = {}
+): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (raw == null) return null;
 
@@ -62,11 +65,16 @@ export function parseBRNumber(raw: string | number | null | undefined): number |
     // Só vírgula — decimal, sempre. É o padrão brasileiro.
     s = s.split(",").join(".");
   } else if (lastDot >= 0) {
-    // Só ponto — ambíguo. Um único ponto separando exatamente 3 casas é
-    // milhar ("15.600"); qualquer outro arranjo é decimal ("15.6", "1.2345").
-    const parts = s.split(".");
-    const isThousands = parts.length > 1 && parts.slice(1).every((p) => p.length === 3);
-    s = isThousands ? parts.join("") : `${parts.slice(0, -1).join("")}.${parts[parts.length - 1]}`;
+    if (assumeDotIsDecimal) {
+      // Chamador sabe que milhar não é uma leitura plausível aqui (ver
+      // parseBRQuantity) — ponto único é sempre decimal.
+    } else {
+      // Só ponto — ambíguo. Um único ponto separando exatamente 3 casas é
+      // milhar ("15.600"); qualquer outro arranjo é decimal ("15.6", "1.2345").
+      const parts = s.split(".");
+      const isThousands = parts.length > 1 && parts.slice(1).every((p) => p.length === 3);
+      s = isThousands ? parts.join("") : `${parts.slice(0, -1).join("")}.${parts[parts.length - 1]}`;
+    }
   }
 
   const value = Number(s);
@@ -77,6 +85,31 @@ export function parseBRNumber(raw: string | number | null | undefined): number |
 /** `parseBRNumber` com piso — para campos onde vazio equivale a zero. */
 export function parseBRNumberOr(raw: string | number | null | undefined, fallback: number): number {
   const parsed = parseBRNumber(raw);
+  return parsed == null ? fallback : parsed;
+}
+
+/** `parseBRNumber` para quantidade de ativos — não assume separador de
+ * milhar num ponto único.
+ *
+ * Cotas fracionárias de ETF/ação internacional (ex.: 41,489 cotas de VWO)
+ * são tão comuns quanto lotes inteiros digitados com separador de milhar,
+ * e as duas notações usam o mesmo ponto — não dá pra adivinhar por regras
+ * de dígitos. As duas leituras erradas não custam o mesmo: interpretar
+ * "41.489" como milhar quando era decimal multiplica a posição por 1000
+ * silenciosamente (foi exatamente o bug relatado: um ETF de ~R$ 10 mil
+ * virou R$ 10 milhões sem nenhum erro na tela); interpretar como decimal
+ * quando era milhar produz uma quantidade obviamente pequena demais, fácil
+ * de notar e corrigir antes de confirmar. Por isso aqui um ponto único é
+ * sempre decimal — ao contrário de valores em reais, onde milhar é a
+ * leitura certa na mesma ambiguidade.
+ */
+export function parseBRQuantity(raw: string | number | null | undefined): number | null {
+  return parseBRNumber(raw, { assumeDotIsDecimal: true });
+}
+
+/** `parseBRQuantity` com piso — para campos onde vazio equivale a zero. */
+export function parseBRQuantityOr(raw: string | number | null | undefined, fallback: number): number {
+  const parsed = parseBRQuantity(raw);
   return parsed == null ? fallback : parsed;
 }
 

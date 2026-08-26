@@ -14,7 +14,10 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
     await page.getByLabel("Nome (opcional)").fill(opts.fullName);
   }
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Senha").fill(password);
+  // exact: true — sem isso, o botão "Mostrar senha" do PasswordInput (que
+  // contém "senha" como substring do próprio aria-label) também casa e
+  // vira strict-mode violation.
+  await page.getByLabel("Senha", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Criar conta" }).click();
 
   await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 });

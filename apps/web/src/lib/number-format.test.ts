@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   parseBRNumber,
   parseBRNumberOr,
+  parseBRQuantity,
+  parseBRQuantityOr,
   sanitizeNumericInput,
   formatQuantity,
   formatPercent,
@@ -69,6 +71,33 @@ describe("parseBRNumber", () => {
     expect(parseBRNumberOr("abc", 1)).toBe(1);
     expect(parseBRNumberOr("0", 1)).toBe(0);
     expect(parseBRNumberOr("15,6", 0)).toBe(15.6);
+  });
+});
+
+describe("parseBRQuantity", () => {
+  it("nunca lê ponto único como milhar — cotas fracionárias de ETF, não lote inteiro", () => {
+    // Bug real relatado: 41,489 cotas de VWO (ETF internacional, fracionário)
+    // digitadas como "41.489" viravam 41489 pelo parseBRNumber comum — a
+    // posição inflava ~1000x sem nenhum erro na tela.
+    expect(parseBRQuantity("41.489")).toBe(41.489);
+    expect(parseBRQuantity("15.6")).toBe(15.6);
+    expect(parseBRQuantity("15.600")).toBe(15.6);
+  });
+
+  it("continua lendo vírgula como decimal e os dois separadores juntos normalmente", () => {
+    expect(parseBRQuantity("15,6")).toBe(15.6);
+    expect(parseBRQuantity("1.234,56")).toBe(1234.56);
+    expect(parseBRQuantity("1,234.56")).toBe(1234.56);
+  });
+
+  it("continua aceitando inteiros simples, sem separador nenhum", () => {
+    expect(parseBRQuantity("100")).toBe(100);
+    expect(parseBRQuantity("41489")).toBe(41489);
+  });
+
+  it("parseBRQuantityOr aplica o fallback só quando não há número", () => {
+    expect(parseBRQuantityOr("", 0)).toBe(0);
+    expect(parseBRQuantityOr("41.489", 0)).toBe(41.489);
   });
 });
 
