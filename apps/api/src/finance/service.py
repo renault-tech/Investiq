@@ -385,6 +385,24 @@ async def list_transactions(
     result = await db.execute(query.order_by(FinancialTransaction.transaction_date.desc()))
     rows = list(result.scalars().all())
 
+    # Ocorrências já materializadas (ver materialize_recurring_occurrence)
+    # viram uma linha real, que a query acima já traz — sem isso a mesma
+    # ocorrência apareceria duas vezes: a linha editada e o fantasma virtual
+    # da data original que expand_recurring continuaria calculando.
+    recurring_ids = [txn.id for txn in rows if txn.is_recurring and txn.recurrence_rule]
+    materialized_dates: dict[uuid.UUID, set] = {}
+    if recurring_ids:
+        mat_result = await db.execute(
+            select(FinancialTransaction.recurring_parent_id, FinancialTransaction.recurring_occurrence_date)
+            .where(
+                FinancialTransaction.user_id == user_id,
+                FinancialTransaction.recurring_parent_id.in_(recurring_ids),
+                FinancialTransaction.deleted_at.is_(None),
+            )
+        )
+        for parent_id, occ_date in mat_result.all():
+            materialized_dates.setdefault(parent_id, set()).add(occ_date)
+
     items: list[dict] = []
     for txn in rows:
         base_in_window = (
@@ -395,7 +413,10 @@ async def list_transactions(
             items.append(_txn_to_dict(txn))
         if txn.is_recurring and txn.recurrence_rule and date_to is not None:
             window_start = date_from or txn.transaction_date
+            skip_dates = materialized_dates.get(txn.id, set())
             for occurrence in expand_recurring(txn, window_start, date_to):
+                if occurrence.date() in skip_dates:
+                    continue
                 items.append(_txn_to_dict(txn, virtual_date=occurrence))
 
     if tag:
@@ -552,8 +573,88 @@ async def _get_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSessi
     return txn
 
 
-async def update_transaction(txn_id: uuid.UUID, user_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
-    txn = await _get_transaction(txn_id, user_id, db)
+async def materialize_recurring_occurrence(
+    template_id: uuid.UUID, occurrence_date: date, user_id: uuid.UUID, db: AsyncSession,
+) -> FinancialTransaction:
+    """Vira ocorrência virtual (data calculada, sem linha própria) em linha
+    real e independente do template — o único jeito de editar só ela, ex.:
+    deslizar um vencimento que caiu num fim de semana sem mexer na série.
+
+    Idempotente: reabrir a mesma ocorrência (mesmo template_id + data
+    originalmente prevista) devolve a linha já materializada em vez de criar
+    outra — do contrário, editar a mesma ocorrência duas vezes duplicaria.
+    """
+    existing = await db.execute(
+        select(FinancialTransaction)
+        .options(*_txn_relations())
+        .where(
+            FinancialTransaction.user_id == user_id,
+            FinancialTransaction.recurring_parent_id == template_id,
+            FinancialTransaction.recurring_occurrence_date == occurrence_date,
+            FinancialTransaction.deleted_at.is_(None),
+        )
+    )
+    found = existing.scalar_one_or_none()
+    if found:
+        return found
+
+    template = await _get_transaction(template_id, user_id, db)
+    if not template.is_recurring or not template.recurrence_rule:
+        raise NotFoundError("Ocorrência não encontrada")
+
+    base = template.transaction_date
+    occurrence_dt = datetime.combine(occurrence_date, base.timetz())
+    # Só materializa uma data que a regra realmente projeta — trava contra um
+    # id de ocorrência forjado, que abriria uma linha fora da série.
+    if not expand_recurring(template, occurrence_dt, occurrence_dt):
+        raise NotFoundError("Ocorrência não encontrada")
+
+    due_offset = template.due_date - base
+    txn = FinancialTransaction(
+        user_id=user_id,
+        transaction_type=template.transaction_type,
+        amount=template.amount,
+        currency=template.currency,
+        fx_rate=template.fx_rate,
+        amount_brl=template.amount_brl,
+        description=template.description,
+        notes=template.notes,
+        category_id=template.category_id,
+        bank_account_id=template.bank_account_id,
+        to_bank_account_id=template.to_bank_account_id,
+        transaction_date=occurrence_dt,
+        due_date=occurrence_dt + due_offset,
+        is_paid=False,
+        paid_at=None,
+        is_recurring=False,
+        recurring_parent_id=template.id,
+        recurring_occurrence_date=occurrence_date,
+        source=template.source,
+        tags=template.tags,
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
+    return txn
+
+
+async def _resolve_txn_id(txn_id: str, user_id: uuid.UUID, db: AsyncSession) -> uuid.UUID:
+    """Um id de transação normal já é um UUID; um id de ocorrência virtual é
+    "{template_id}:{data-iso}" (ver _txn_to_dict) — editar essa ocorrência
+    materializa a linha na hora, para o resto do fluxo de update seguir
+    igual a uma transação qualquer."""
+    if ":" not in txn_id:
+        return uuid.UUID(txn_id)
+    template_id_str, date_str = txn_id.split(":", 1)
+    txn = await materialize_recurring_occurrence(
+        uuid.UUID(template_id_str), date.fromisoformat(date_str), user_id, db,
+    )
+    return txn.id
+
+
+async def update_transaction(txn_id: str, user_id: uuid.UUID, updates: dict, db: AsyncSession) -> dict:
+    real_id = await _resolve_txn_id(txn_id, user_id, db)
+    txn = await _get_transaction(real_id, user_id, db)
     old_category_id = txn.category_id
     if updates.get("category_id"):
         await _get_category(updates["category_id"], user_id, db)

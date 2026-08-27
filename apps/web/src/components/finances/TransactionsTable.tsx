@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, CircleDollarSign, Pencil, Repeat, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, CircleDollarSign, Pencil, Repeat, Trash2 } from "lucide-react";
 import { FinanceTransaction, TransactionSource } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 
@@ -90,14 +90,28 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                         {txn.installment_no}/{txn.installment_total}
                       </span>
                     )}
-                    {!txn.is_paid && !txn.is_virtual && (
-                      <span
-                        className="text-[10px] rounded px-1 border"
-                        style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
-                        title={`Vence em ${new Date(txn.due_date).toLocaleDateString("pt-BR")}`}
-                      >
-                        Vence {new Date(txn.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                      </span>
+                    {/* Vence/Pago só aparece pra lançamento com cara de conta a pagar
+                        (vencimento diferente da data de lançamento) — numa transação
+                        comum, lançada e paga no mesmo dia, o selo seria óbvio demais
+                        pra valer a poluição visual. */}
+                    {!txn.is_virtual && txn.due_date.slice(0, 10) !== txn.transaction_date.slice(0, 10) && (
+                      txn.is_paid ? (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[10px] rounded px-1 border"
+                          style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
+                          title={txn.paid_at ? `Pago em ${new Date(txn.paid_at).toLocaleDateString("pt-BR")}` : "Pago"}
+                        >
+                          <CheckCircle2 size={10} /> Pago
+                        </span>
+                      ) : (
+                        <span
+                          className="text-[10px] rounded px-1 border"
+                          style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                          title={`Vence em ${new Date(txn.due_date).toLocaleDateString("pt-BR")}`}
+                        >
+                          Vence {new Date(txn.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                        </span>
+                      )
                     )}
                     {txn.source === "manual" ? (
                       <span
@@ -148,33 +162,32 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                   {formatBRLExact(Number(txn.amount))}
                 </td>
                 <td className="px-2 py-2 text-right whitespace-nowrap">
+                  {!txn.is_virtual && !txn.is_paid && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPay(txn); }}
+                      className="inline-flex items-center gap-1 px-1.5 py-1 mr-1 text-[11px] font-medium rounded-md"
+                      style={{ color: "var(--accent)", background: "var(--glow)" }}
+                      aria-label={`Marcar ${txn.description ?? "transação"} como paga`}
+                    >
+                      <CircleDollarSign size={13} /> Pagar
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEdit(txn); }}
+                    className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    aria-label={`Editar ${txn.description ?? "transação"}`}
+                    title={txn.is_virtual ? "Editar só esta ocorrência (não muda a série)" : undefined}
+                  >
+                    <Pencil size={14} />
+                  </button>
                   {!txn.is_virtual && (
-                    <>
-                      {!txn.is_paid && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onPay(txn); }}
-                          className="inline-flex items-center gap-1 px-1.5 py-1 mr-1 text-[11px] font-medium rounded-md"
-                          style={{ color: "var(--accent)", background: "var(--glow)" }}
-                          aria-label={`Marcar ${txn.description ?? "transação"} como paga`}
-                        >
-                          <CircleDollarSign size={13} /> Pagar
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onEdit(txn); }}
-                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        aria-label={`Editar ${txn.description ?? "transação"}`}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(txn); }}
-                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)]"
-                        aria-label={`Excluir ${txn.description ?? "transação"}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDelete(txn); }}
+                      className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)]"
+                      aria-label={`Excluir ${txn.description ?? "transação"}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   )}
                 </td>
               </tr>
