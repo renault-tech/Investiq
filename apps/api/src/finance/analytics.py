@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.finance import service as finance_service
 from src.finance.account_models import BankAccount
+from src.shared.holder_filter import holder_condition
 
 _ZERO = Decimal("0")
 _BURN_RATE_MONTHS = 3
@@ -108,7 +109,7 @@ async def get_analytics(
     if account_id:
         accounts_query = accounts_query.where(BankAccount.id == account_id)
     elif holder:
-        accounts_query = accounts_query.where(BankAccount.holder == holder)
+        accounts_query = accounts_query.where(holder_condition(holder))
     accounts_result = await db.execute(accounts_query)
     included_ids = {row[0] for row in accounts_result.all()}
     total_balance = sum((balances.get(aid, _ZERO) for aid in included_ids), _ZERO)

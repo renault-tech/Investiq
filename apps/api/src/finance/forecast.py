@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.cards.models import CardInvoice
 from src.finance import service as finance_service
 from src.finance.account_models import BankAccount
+from src.shared.holder_filter import holder_condition
 
 _ZERO = Decimal("0")
 _BASELINE_MONTHS = 6
@@ -89,7 +90,7 @@ async def get_forecast(
             BankAccount.include_in_total.is_(True),
         )
         if holder:
-            accounts_query = accounts_query.where(BankAccount.holder == holder)
+            accounts_query = accounts_query.where(holder_condition(holder))
         accounts_result = await db.execute(accounts_query)
         included_ids = {row[0] for row in accounts_result.all()}
         current_balance = sum((balances.get(aid, _ZERO) for aid in included_ids), _ZERO)

@@ -22,6 +22,7 @@ import { useTransactions, useFinanceSummary } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period, maskValue } from "@/store/useUIStore";
+import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { assetTypeLabel, formatBRLExact, formatBRLCompact, CATEGORICAL } from "@/components/charts/chartTheme";
 import { AreaLineChart } from "@/components/charts/AreaLineChart";
 import { DonutRing } from "@/components/charts/DonutRing";
@@ -29,6 +30,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
+import { buildHolderOptions, matchesHolder } from "@/lib/holders";
 import { DashboardCard } from "@/components/ui/DashboardCard";
 import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
 
@@ -111,20 +113,23 @@ export function OverviewClient() {
 
   // Titular selecionado ("" = todos) — filtra contas e carteiras de
   // investimento juntas, igual ao filtro de Finanças, mas aqui escopando o
-  // patrimônio consolidado da Visão Geral inteira.
-  const holders = useMemo(() => {
-    const set = new Set<string>();
-    accounts.forEach((a) => a.holder && set.add(a.holder));
-    portfolios.forEach((p) => p.holder && set.add(p.holder));
-    return Array.from(set).sort();
-  }, [accounts, portfolios]);
+  // patrimônio consolidado da Visão Geral inteira. "Eu" (NO_HOLDER) entra
+  // como opção própria quando há mistura de contas com e sem titular — do
+  // contrário "Todos" e "Eu" seriam a mesma coisa e a opção some sozinha.
+  const holderOptions = useMemo(() => buildHolderOptions(accounts, portfolios), [accounts, portfolios]);
   const [holder, setHolder] = useState("");
   useEffect(() => {
-    if (holder && !holders.includes(holder)) setHolder("");
-  }, [holder, holders]);
+    if (holder && !holderOptions.some((opt) => opt.value === holder)) setHolder("");
+  }, [holder, holderOptions]);
 
-  const visibleAccounts = holder ? accounts.filter((a) => a.holder === holder) : accounts;
-  const visiblePortfolios = holder ? portfolios.filter((p) => p.holder === holder) : portfolios;
+  // Carteira ativa escolhida no topo (mesmo controle de Finanças/Transações)
+  // — restringe as contas à única selecionada; carteiras de investimento
+  // continuam consolidadas, já que "conta ativa" é um conceito bancário.
+  const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
+  const visibleAccounts = accounts
+    .filter((a) => matchesHolder(a.holder, holder))
+    .filter((a) => !activeAccountId || a.id === activeAccountId);
+  const visiblePortfolios = portfolios.filter((p) => matchesHolder(p.holder, holder));
 
   // Uma conta ou carteira vira um card com id estável ("acc-<uuid>"), então
   // a posição e a largura que o usuário escolher para ela sobrevivem a
@@ -247,7 +252,7 @@ export function OverviewClient() {
   return (
     <div>
       <OnboardingChecklist />
-      {holders.length > 0 && (
+      {holderOptions.length > 1 && (
         <div className="flex items-center gap-2 mb-4">
           {holder && (
             <button
@@ -264,9 +269,8 @@ export function OverviewClient() {
             aria-label="Filtrar por titular"
             className="px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--surface)] text-[var(--text-secondary)]"
           >
-            <option value="">Todos os titulares</option>
-            {holders.map((h) => (
-              <option key={h} value={h}>{h}</option>
+            {holderOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>

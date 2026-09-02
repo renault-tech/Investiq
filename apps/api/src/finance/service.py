@@ -28,6 +28,7 @@ from src.finance.budget_models import FinanceBudget
 from src.finance.goal_models import FinanceGoal, FinanceGoalContribution
 from src.shared.exceptions import NotFoundError, ConflictError, ValidationError
 from src.shared.fx import get_fx_rates_to_brl
+from src.shared.holder_filter import holder_condition
 
 logger = logging.getLogger(__name__)
 
@@ -355,7 +356,7 @@ async def list_transactions(
         )
     if holder:
         holder_accounts = select(BankAccount.id).where(
-            BankAccount.user_id == user_id, BankAccount.holder == holder
+            BankAccount.user_id == user_id, holder_condition(holder)
         )
         query = query.where(
             or_(

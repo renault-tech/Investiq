@@ -22,13 +22,18 @@ export function useRepairPortfolioFx(portfolioId: string | null) {
   return useMutation({
     mutationFn: () => repairPortfolioFx(portfolioId!),
     onSuccess: (result) => {
-      if (result.transactions_repaired === 0) {
-        toast.success("Nada a corrigir — o câmbio das transações já está certo.");
-      } else {
-        toast.success(
-          `${result.transactions_repaired} transação(ões) recalculada(s) com o câmbio do dia do lançamento.`
-        );
+      const parts: string[] = [];
+      if (result.transactions_repaired > 0) {
+        parts.push(`${result.transactions_repaired} transação(ões) recalculada(s) com o câmbio do dia do lançamento`);
       }
+      if (result.snapshots_cleared > 0) {
+        parts.push("o histórico do gráfico foi limpo e será recalculado");
+      }
+      toast.success(
+        parts.length > 0
+          ? `${parts.join("; ")}.`
+          : "Nada a corrigir — câmbio e histórico já estavam certos."
+      );
       // Toda leitura de posição muda junto com o custo recalculado.
       queryClient.invalidateQueries({ queryKey: ["portfolio-audit", portfolioId] });
       queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });

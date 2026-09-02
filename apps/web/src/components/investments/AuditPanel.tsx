@@ -18,7 +18,11 @@ import { Button } from "@/components/ui/Button";
  */
 export function AuditPanel({ portfolioId }: { portfolioId: string | null }) {
   const [open, setOpen] = useState(false);
-  const { data: audit, isLoading } = usePortfolioAudit(open ? portfolioId : null);
+  // Busca sempre que há uma carteira, não só quando o painel está aberto —
+  // do contrário o selo de aviso no cabeçalho fechado nunca aparece, porque
+  // o dado que ele mostra só existiria depois de abrir o próprio painel que
+  // o selo deveria anunciar.
+  const { data: audit, isLoading } = usePortfolioAudit(portfolioId);
   const repair = useRepairPortfolioFx(portfolioId);
 
   const issueCount = audit?.issue_count ?? 0;
@@ -126,27 +130,31 @@ export function AuditPanel({ portfolioId }: { portfolioId: string | null }) {
                 </table>
               </div>
 
-              {issueCount > 0 ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-4">
+                {issueCount > 0 ? (
                   <p className="text-[11.5px] text-[var(--text-secondary)] max-w-[520px] leading-snug">
                     Transações de ativo estrangeiro lançadas com câmbio 1 guardam o custo em
                     moeda estrangeira num campo lido como reais. Corrigir regrava cada uma com
-                    o câmbio do dia em que ela aconteceu e recalcula a posição.
+                    o câmbio do dia em que ela aconteceu, recalcula a posição e limpa o
+                    histórico do gráfico de performance.
                   </p>
-                  <Button
-                    size="sm"
-                    loading={repair.isPending}
-                    onClick={() => repair.mutate()}
-                  >
-                    <Wrench size={13} /> Corrigir câmbio
-                  </Button>
-                </div>
-              ) : (
-                <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--border)] pt-4 text-[11.5px] text-[var(--text-secondary)]">
-                  <CheckCircle2 size={13} style={{ color: "var(--accent)" }} />
-                  Nenhuma inconsistência de moeda encontrada nas transações desta carteira.
-                </p>
-              )}
+                ) : (
+                  <p className="flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] max-w-[520px] leading-snug">
+                    <CheckCircle2 size={13} style={{ color: "var(--accent)" }} />
+                    Nenhuma inconsistência de moeda encontrada. Se o gráfico de performance
+                    ainda mostrar um valor que não bate, ele pode ter guardado um número de um
+                    dia em que a posição esteve errada — corrigir aqui também limpa esse histórico.
+                  </p>
+                )}
+                <Button
+                  size="sm"
+                  variant={issueCount > 0 ? "primary" : "secondary"}
+                  loading={repair.isPending}
+                  onClick={() => repair.mutate()}
+                >
+                  <Wrench size={13} /> {issueCount > 0 ? "Corrigir câmbio" : "Recalcular gráfico"}
+                </Button>
+              </div>
             </>
           )}
         </div>

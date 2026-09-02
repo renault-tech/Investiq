@@ -12,15 +12,20 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { AccountModal } from "./AccountModal";
 import { ACCOUNT_TYPE_LABELS, type Account } from "@/lib/accounts-api";
+import { buildHolderOptions, matchesHolder } from "@/lib/holders";
 
 interface Props {
   /** Titular selecionado ("" = todos) — controlado pelo pai, que também
    * aplica o filtro nas demais consultas da página. */
   holder: string;
   onHolderChange: (holder: string) => void;
+  /** Sem o cartão próprio (borda/sombra/padding) — para quando o pai já
+   * embrulha isto num DashboardCard da grade ajustável (Finanças). Sozinho
+   * em Transações, mantém o cartão de sempre. */
+  bare?: boolean;
 }
 
-export function AccountsBar({ holder, onHolderChange }: Props) {
+export function AccountsBar({ holder, onHolderChange, bare = false }: Props) {
   const { data: accounts = [], isLoading, isError, refetch } = useAccounts();
   const mask = useMask();
   const [showModal, setShowModal] = useState(false);
@@ -28,12 +33,9 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
   const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
   const setActiveAccountId = useFinanceScopeStore((s) => s.setActiveAccountId);
 
-  const holders = useMemo(
-    () => Array.from(new Set(accounts.map((a) => a.holder).filter((h): h is string => !!h))).sort(),
-    [accounts]
-  );
+  const holderOptions = useMemo(() => buildHolderOptions(accounts), [accounts]);
 
-  const visible = holder ? accounts.filter((a) => a.holder === holder) : accounts;
+  const visible = accounts.filter((a) => matchesHolder(a.holder, holder));
   const total = visible
     .filter((a) => a.include_in_total)
     .reduce((sum, a) => sum + Number(a.balance), 0);
@@ -51,8 +53,17 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
     setShowModal(true);
   };
 
+  const Wrapper = bare ? "div" : "section";
+
   return (
-    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".22s" }}>
+    <Wrapper
+      className={
+        bare
+          ? ""
+          : "bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
+      }
+      style={bare ? undefined : { animationDelay: ".22s" }}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Contas</h2>
@@ -65,17 +76,16 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
               <Layers size={12} /> Ver consolidado
             </button>
           )}
-          {holders.length > 0 && (
+          {holderOptions.length > 1 && (
             <select
               value={holder}
               onChange={(e) => onHolderChange(e.target.value)}
               aria-label="Filtrar por titular"
               className="px-2 py-1 text-xs border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-secondary)]"
             >
-              <option value="">Todos os titulares</option>
-              {holders.map((h) => (
-                <option key={h} value={h}>
-                  {h}
+              {holderOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -107,7 +117,11 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
       ) : visible.length === 0 ? (
         <EmptyState
           icon={Landmark}
-          title={holder ? `Nenhuma conta de ${holder}.` : "Nenhuma conta cadastrada."}
+          title={
+            holder
+              ? `Nenhuma conta de ${holderOptions.find((o) => o.value === holder)?.label ?? holder}.`
+              : "Nenhuma conta cadastrada."
+          }
           description="Crie uma conta por banco (e use o titular para separar as contas de outra pessoa)."
           action={<Button onClick={openNew}>Criar conta</Button>}
         />
@@ -191,6 +205,6 @@ export function AccountsBar({ holder, onHolderChange }: Props) {
           }}
         />
       )}
-    </section>
+    </Wrapper>
   );
 }

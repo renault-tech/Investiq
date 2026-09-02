@@ -18,6 +18,8 @@ interface DashboardCardProps {
   onSpanChange: (id: string, span: number) => void;
   delay?: number;
   className?: string;
+  /** Repassado ao elemento raiz — usado pelo tour guiado para achar o card. */
+  "data-tour"?: string;
   children: React.ReactNode;
 }
 
@@ -43,12 +45,14 @@ export function DashboardCard({
   onSpanChange,
   delay = 0,
   className = "",
+  "data-tour": dataTour,
   children,
 }: DashboardCardProps) {
   const presets = SPAN_PRESETS.filter((preset) => preset >= minSpan);
 
   return (
     <section
+      data-tour={dataTour}
       draggable={customize}
       onDragStart={() => onDragStart(id)}
       onDragOver={(e) => {

@@ -297,6 +297,33 @@ async def test_holder_filter_scopes_transactions_to_that_persons_accounts(client
 
 
 @pytest.mark.asyncio
+async def test_no_holder_sentinel_scopes_to_accounts_without_a_titular_set(client):
+    """`holder=None` já significa "sem filtro" — para escolher explicitamente
+    só as contas sem titular definido (quando já existe conta de outra
+    pessoa) é preciso de um terceiro valor, distinto dos dois. Ver
+    src/shared/holder_filter.py."""
+    from src.shared.holder_filter import NO_HOLDER
+
+    headers = (await register_and_login(client))["headers"]
+    mine = await _account(client, headers, "Minha conta")  # sem holder
+    hers = await _account(client, headers, "Conta da mãe", holder="Minha mãe")
+
+    await client.post("/finance/transactions", headers=headers, json={
+        "transaction_type": "expense", "amount": 10, "description": "Meu gasto",
+        "bank_account_id": mine["id"], "transaction_date": _iso(),
+    })
+    await client.post("/finance/transactions", headers=headers, json={
+        "transaction_type": "expense", "amount": 20, "description": "Gasto dela",
+        "bank_account_id": hers["id"], "transaction_date": _iso(),
+    })
+
+    listing = await client.get(f"/finance/transactions?holder={NO_HOLDER}", headers=headers)
+    items = listing.json()["items"]
+    assert len(items) == 1
+    assert items[0]["description"] == "Meu gasto"
+
+
+@pytest.mark.asyncio
 async def test_manual_entries_are_flagged_as_manual(client):
     """Lançamento digitado à mão precisa ser distinguível do importado."""
     headers = (await register_and_login(client))["headers"]

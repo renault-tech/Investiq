@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Select } from "@/components/ui/Input";
 import type { Forecast } from "@/lib/forecast-api";
+import { buildHolderOptions } from "@/lib/holders";
 
 const ForecastChart = dynamic(
   () => import("./ForecastChart").then((m) => m.ForecastChart),
@@ -42,7 +43,7 @@ export function ForecastSection({
   forecast, isLoading, isError, refetch,
 }: ForecastSectionProps) {
   const { data: accounts = [] } = useAccounts();
-  const holders = Array.from(new Set(accounts.map((a) => a.holder).filter((h): h is string => !!h))).sort();
+  const holderOptions = buildHolderOptions(accounts);
 
   return (
     <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)]">
@@ -55,16 +56,15 @@ export function ForecastSection({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {holders.length > 0 && (
+          {holderOptions.length > 1 && (
             <Select
               value={holder}
               onChange={(e) => onHolderChange(e.target.value)}
               aria-label="Filtrar projeção por titular"
               className="!py-1.5 text-xs"
             >
-              <option value="">Todos os titulares</option>
-              {holders.map((h) => (
-                <option key={h} value={h}>{h}</option>
+              {holderOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </Select>
           )}

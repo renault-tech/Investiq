@@ -2,8 +2,9 @@ import { create } from "zustand";
 
 interface FinanceScopeStore {
   /** Conta selecionada como "carteira ativa" — todas as telas de Finanças
-   * (resumo, gráficos, projeção, análises, transações, exportação) passam
-   * a mostrar só os dados dela. null = visão consolidada. */
+   * (resumo, gráficos, projeção, análises, transações, exportação) e a
+   * Visão Geral (contas, mas não as carteiras de investimento) passam a
+   * mostrar só os dados dela. null = visão consolidada. */
   activeAccountId: string | null;
   setActiveAccountId: (id: string | null) => void;
 }
