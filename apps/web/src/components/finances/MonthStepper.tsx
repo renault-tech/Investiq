@@ -27,8 +27,13 @@ interface MonthStepperProps {
 /** Passar de mês. Aparece no topo da tela e de novo junto da lista de
  * lançamentos: a lista é longa, e ter que voltar ao topo só para trocar o
  * mês que ela mostra é o tipo de ida e volta que a tela inteira existe pra
- * evitar. */
+ * evitar. As duas instâncias controlam o mesmo estado — o rótulo do
+ * compacto usa palavras diferentes (não só um sufixo) porque a checagem de
+ * nome acessível do Playwright/Testing Library é por substring: um sufixo
+ * ainda deixaria "Próximo mês" batendo nos dois botões. */
 export function MonthStepper({ month, onShift, compact = false }: MonthStepperProps) {
+  const prevLabel = compact ? "Voltar um mês" : "Mês anterior";
+  const nextLabel = compact ? "Avançar um mês" : "Próximo mês";
   return (
     <div
       className={`flex items-center gap-1 ${
@@ -39,7 +44,7 @@ export function MonthStepper({ month, onShift, compact = false }: MonthStepperPr
     >
       <button
         onClick={() => onShift(-1)}
-        aria-label="Mês anterior"
+        aria-label={prevLabel}
         className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
       >
         <ChevronLeft size={compact ? 14 : 16} />
@@ -55,7 +60,7 @@ export function MonthStepper({ month, onShift, compact = false }: MonthStepperPr
       </span>
       <button
         onClick={() => onShift(1)}
-        aria-label="Próximo mês"
+        aria-label={nextLabel}
         className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
       >
         <ChevronRight size={compact ? 14 : 16} />
