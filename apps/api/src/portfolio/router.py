@@ -194,7 +194,9 @@ async def repair_portfolio_fx(
     db: AsyncSession = Depends(get_db),
 ):
     """Regrava com o câmbio histórico as transações de ativo estrangeiro
-    lançadas com câmbio 1 e recalcula as posições afetadas."""
+    lançadas com câmbio 1, recalcula as posições afetadas, e limpa os
+    snapshots diários da carteira (que confiavam num valor calculado antes
+    da correção)."""
     return await service.repair_portfolio_fx(portfolio_id, current_user.id, db)
 
 

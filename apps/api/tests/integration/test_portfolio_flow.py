@@ -299,6 +299,44 @@ async def test_repair_fx_rewrites_cost_with_the_historical_rate(client, db_sessi
 
 
 @pytest.mark.asyncio
+async def test_repair_clears_stale_snapshots_even_without_fx_issues(client, db_session):
+    """`portfolio_snapshots` grava um valor por dia e nunca revisita o
+    passado — um snapshot gravado enquanto uma posição esteve com a
+    quantidade errada (ex.: o bug de separador de milhar) infla aquele dia
+    pra sempre no gráfico de performance, mesmo depois da transação já
+    estar correta. O reparo precisa limpar isso mesmo quando não há nenhuma
+    transação de câmbio pra corrigir — é exatamente esse o caso relatado:
+    câmbio já certo, gráfico ainda errado.
+    """
+    import uuid
+    from sqlalchemy import select
+    from src.portfolio.models import PortfolioSnapshot
+
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, _ = await _create_portfolio_with_position(client, headers)
+    portfolio_uuid = uuid.UUID(portfolio_id)
+
+    db_session.add(PortfolioSnapshot(
+        portfolio_id=portfolio_uuid, user_id=uuid.UUID(session["user_id"]),
+        snapshot_date=date(2026, 1, 15),
+        total_value=Decimal("400000"), total_invested=Decimal("1000"), total_pnl=Decimal("399000"),
+    ))
+    await db_session.commit()
+
+    repair = await client.post(f"/portfolios/{portfolio_id}/audit/repair-fx", headers=headers)
+    assert repair.status_code == 200, repair.text
+    body = repair.json()
+    assert body["transactions_repaired"] == 0
+    assert body["snapshots_cleared"] == 1
+
+    remaining = await db_session.execute(
+        select(PortfolioSnapshot).where(PortfolioSnapshot.portfolio_id == portfolio_uuid)
+    )
+    assert remaining.scalars().all() == []
+
+
+@pytest.mark.asyncio
 async def test_audit_leaves_brl_assets_alone(client):
     session = await register_and_login(client)
     headers = session["headers"]

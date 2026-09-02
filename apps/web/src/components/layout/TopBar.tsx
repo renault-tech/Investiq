@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/api-client";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { AccountSwitcher } from "./AccountSwitcher";
 
 const PERIODS: Period[] = ["1M", "6M", "1A", "Tudo"];
 
@@ -75,6 +76,10 @@ export function TopBar() {
   // de personalizar só faz sentido onde há um painel pra organizar.
   const isCustomizable =
     pathname.startsWith("/overview") || pathname === "/finances" || pathname.startsWith("/finances?");
+  // Telas que respeitam a "carteira ativa" (useFinanceScopeStore) — trocar
+  // de conta noutra tela não faria nada, então o controle fica de fora lá.
+  const showAccountSwitcher =
+    pathname.startsWith("/overview") || pathname.startsWith("/finances") || pathname.startsWith("/transactions");
   const page = PAGE_TITLES.find((p) => pathname.startsWith(p.prefix)) ?? PAGE_TITLES[0];
 
   return (
@@ -125,6 +130,10 @@ export function TopBar() {
           </button>
         ))}
       </div>
+
+      {/* Trocar conta — fixo no topo para não depender de rolar até a
+          seção Contas, que pode ficar longe do topo dependendo do layout. */}
+      {showAccountSwitcher && <AccountSwitcher />}
 
       {/* Feedback — discreto, mas presente em toda tela: o relato vale
           justamente por sair de onde o problema apareceu. */}

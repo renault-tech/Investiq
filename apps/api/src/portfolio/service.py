@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, delete as sa_delete, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1104,12 +1104,23 @@ async def audit_portfolio(portfolio_id: uuid.UUID, user_id: uuid.UUID, db: Async
 
 async def repair_portfolio_fx(portfolio_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
     """Regrava com o câmbio histórico as transações de ativo estrangeiro que
-    ficaram com câmbio 1, e recalcula as posições afetadas.
+    ficaram com câmbio 1, recalcula as posições afetadas, e limpa os
+    snapshots diários da carteira.
 
     Corrigir o código que gravava 1 não conserta o que já está no banco — e
     reeditar transação por transação na mão não é viável. Só mexe em quem tem
     câmbio exatamente 1 num ativo não-BRL (o rastro do bug); um câmbio 1
     digitado de propósito nesse cenário seria, de qualquer forma, errado.
+
+    Os snapshots são apagados mesmo quando nenhuma transação precisa de
+    câmbio corrigido: `portfolio_snapshots` grava `total_value` uma vez por
+    dia e nunca revisita o passado, então um dia em que a quantidade de uma
+    posição esteve errada (ex.: o bug de separador de milhar já corrigido em
+    outra versão) deixa aquele dia inflado para sempre no gráfico, mesmo
+    depois da transação em si já estar certa — get_portfolio_performance
+    confia no snapshot salvo antes de tentar recalcular. Apagando, os dias
+    voltam a ser reconstruídos a partir das transações (já corretas) na
+    próxima leitura, e o worker diário recria os snapshots dali em diante.
     """
     result = await db.execute(
         select(Portfolio)
@@ -1151,12 +1162,22 @@ async def repair_portfolio_fx(portfolio_id: uuid.UUID, user_id: uuid.UUID, db: A
             _recompute_position_from_transactions(pos, list(pos.transactions))
             positions_touched += 1
 
-    if repaired:
+    snapshots_result = await db.execute(
+        select(sa_func.count(PortfolioSnapshot.id)).where(PortfolioSnapshot.portfolio_id == portfolio_id)
+    )
+    snapshots_cleared = snapshots_result.scalar() or 0
+    if snapshots_cleared:
+        await db.execute(
+            sa_delete(PortfolioSnapshot).where(PortfolioSnapshot.portfolio_id == portfolio_id)
+        )
+
+    if repaired or snapshots_cleared:
         await db.commit()
     return {
         "transactions_repaired": repaired,
         "positions_recalculated": positions_touched,
         "transactions_skipped_no_rate": skipped_no_rate,
+        "snapshots_cleared": snapshots_cleared,
     }
 
 

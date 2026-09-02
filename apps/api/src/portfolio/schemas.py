@@ -285,3 +285,4 @@ class PortfolioRepairResponse(BaseModel):
     transactions_repaired: int
     positions_recalculated: int
     transactions_skipped_no_rate: int
+    snapshots_cleared: int

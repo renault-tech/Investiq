@@ -30,6 +30,10 @@ const FINANCE_CARDS: DashboardCardSpec[] = [
   { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
   { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
   { id: "planned", label: "Previsto × executado", defaultSpan: 6, minSpan: 4 },
+  // Preenche o resto da linha ao lado de "Previsto × executado" por padrão —
+  // antes ficava fora da grade, numa seção fixa mais abaixo, desalinhada dos
+  // demais cards e sem poder ser movida ou redimensionada como eles.
+  { id: "accounts", label: "Contas", defaultSpan: 6, minSpan: 4 },
 ];
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -236,10 +240,12 @@ export function FinancesClient() {
           <PlannedVsActual transactions={txnList?.items ?? []} isLoading={txnLoading} />
         </DashboardCard>
         )}
-      </div>
 
-      <div data-tour="accounts-bar">
-        <AccountsBar holder={holder} onHolderChange={setHolder} />
+        {visible("accounts") && (
+        <DashboardCard {...cardProps("accounts", 0.24)} data-tour="accounts-bar">
+          <AccountsBar holder={holder} onHolderChange={setHolder} bare />
+        </DashboardCard>
+        )}
       </div>
 
       <div data-tour="budgets-section">

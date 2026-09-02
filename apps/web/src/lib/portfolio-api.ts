@@ -314,6 +314,10 @@ export interface PortfolioRepairResult {
   transactions_repaired: number;
   positions_recalculated: number;
   transactions_skipped_no_rate: number;
+  /** Snapshots diários apagados — gravavam um valor por dia sem nunca
+   *  revisitar o passado, então um dia com posição errada (ex.: quantidade)
+   *  ficava inflado no gráfico para sempre, mesmo após a transação corrigida. */
+  snapshots_cleared: number;
 }
 
 export async function repairPortfolioFx(portfolioId: string): Promise<PortfolioRepairResult> {

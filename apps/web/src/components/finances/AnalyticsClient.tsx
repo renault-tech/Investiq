@@ -15,6 +15,7 @@ import { CategoryTrendList } from "./CategoryTrendList";
 import { CategoryMatrix } from "./CategoryMatrix";
 import { CategoryBars } from "./CategoryBars";
 import { formatDecimal } from "@/lib/number-format";
+import { buildHolderOptions } from "@/lib/holders";
 
 const SavingsRateChart = dynamic(
   () => import("./SavingsRateChart").then((m) => m.SavingsRateChart),
@@ -54,7 +55,7 @@ export function AnalyticsClient() {
   const [holder, setHolder] = useState("");
   const { data: accounts = [] } = useAccounts();
   const activeAccount = accounts.find((a) => a.id === activeAccountId);
-  const holders = Array.from(new Set(accounts.map((a) => a.holder).filter((h): h is string => !!h))).sort();
+  const holderOptions = buildHolderOptions(accounts);
   const { data, isLoading, isError, refetch } = useAnalytics(months, activeAccountId, holder || undefined);
 
   const latestSavingsRate = data?.savings_series.at(-1)?.savings_rate ?? null;
@@ -94,16 +95,15 @@ export function AnalyticsClient() {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {holders.length > 0 && (
+          {holderOptions.length > 1 && (
             <Select
               value={holder}
               onChange={(e) => setHolder(e.target.value)}
               aria-label="Filtrar análise por titular"
               className="!py-1.5 text-xs"
             >
-              <option value="">Todos os titulares</option>
-              {holders.map((h) => (
-                <option key={h} value={h}>{h}</option>
+              {holderOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </Select>
           )}

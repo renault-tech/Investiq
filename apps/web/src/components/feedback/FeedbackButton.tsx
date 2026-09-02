@@ -112,7 +112,7 @@ export function FeedbackButton() {
                 maxLength={4000}
                 autoFocus
                 placeholder="Descreva o que você viu e o que esperava ver."
-                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[12.5px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)] resize-none"
+                className="w-full px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-[12.5px] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] focus:border-[var(--accent)] resize-none"
               />
               <p className="text-[10.5px] text-[var(--text-muted)] mt-1.5">
                 A tela atual ({pathname || "—"}) vai junto, para localizar o problema.
