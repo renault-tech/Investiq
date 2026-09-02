@@ -674,17 +674,17 @@ async def _fetch_index_series(ticker: str, provider_period: str, cache, provider
         return []
 
 
-async def get_portfolio_benchmark(
-    portfolio_id: uuid.UUID,
-    user_id: uuid.UUID,
+async def _benchmark_from_series(
+    series: list[dict],
     period: str,
-    db: AsyncSession,
     redis=None,
     preferred_provider: str = "yahoo",
     brapi_key: Optional[str] = None,
 ) -> list[dict]:
-    """Portfolio cumulative % return (time-weighted) vs. CDI and Ibovespa over
-    the same window.
+    """Core of get_portfolio_benchmark, factored out so a consolidated (all
+    portfolios) series can be compared against CDI/Ibovespa/Nasdaq/S&P 500
+    the exact same way as a single portfolio's — only where `series` comes
+    from differs.
 
     The portfolio leg is TWR (see `_compute_twr_series`), not a naive
     `value_t / value_0` — a contribution made mid-window would otherwise show
@@ -697,9 +697,6 @@ async def get_portfolio_benchmark(
     for dates where their data isn't available — a fetch failure on one
     benchmark never blocks the others or the portfolio leg.
     """
-    series = await get_portfolio_performance(
-        portfolio_id, user_id, period, db, redis, preferred_provider, brapi_key
-    )
     if not series:
         return []
 
@@ -751,6 +748,296 @@ async def get_portfolio_benchmark(
             "sp500_pct": sp500_pct,
         })
     return result
+
+
+async def get_portfolio_benchmark(
+    portfolio_id: uuid.UUID,
+    user_id: uuid.UUID,
+    period: str,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> list[dict]:
+    """Portfolio cumulative % return (time-weighted) vs. CDI, Ibovespa,
+    Nasdaq and S&P 500 over the same window — see `_benchmark_from_series`."""
+    series = await get_portfolio_performance(
+        portfolio_id, user_id, period, db, redis, preferred_provider, brapi_key
+    )
+    return await _benchmark_from_series(series, period, redis, preferred_provider, brapi_key)
+
+
+def _reconstruct_value_series(
+    txns: list[tuple[date, str, "InvestmentTransaction"]],
+    grid: list[date],
+    close_at,
+    rate_at,
+    ticker_currency: dict[str, str],
+) -> list[dict]:
+    """Valor reconstruído dia a dia a partir de uma lista de transações —
+    mesma lógica do trecho de reconstrução em get_portfolio_performance,
+    fatorada pra ser somada por carteira em get_consolidated_performance sem
+    duplicar a conta (só o carregamento dos dados difere: uma carteira só,
+    ou todas)."""
+    series = []
+    for day in grid:
+        qty: dict[str, Decimal] = {}
+        invested_by_ticker: dict[str, Decimal] = {}
+        for txn_date, ticker, txn in txns:
+            if txn_date > day:
+                break
+            held = qty.get(ticker, _ZERO)
+            if txn.transaction_type == "buy":
+                qty[ticker] = held + txn.quantity
+                invested_by_ticker[ticker] = invested_by_ticker.get(ticker, _ZERO) + txn.total_amount
+            else:  # sell
+                if held > _ZERO:
+                    sold_fraction = min(txn.quantity / held, _ONE)
+                    invested_by_ticker[ticker] = invested_by_ticker.get(ticker, _ZERO) * (_ONE - sold_fraction)
+                qty[ticker] = held - txn.quantity
+
+        total_value = _ZERO
+        for ticker, quantity in qty.items():
+            if quantity <= _ZERO:
+                continue
+            price = close_at(ticker, day)
+            if price is not None:
+                total_value += quantity * price * rate_at(ticker_currency.get(ticker, "BRL"), day)
+        invested = sum(
+            (value for ticker, value in invested_by_ticker.items() if qty.get(ticker, _ZERO) > _ZERO),
+            _ZERO,
+        )
+        series.append({
+            "date": day,
+            "total_value": total_value,
+            "total_invested": invested if invested > _ZERO else _ZERO,
+        })
+    return series
+
+
+async def get_consolidated_performance(
+    user_id: uuid.UUID,
+    period: str,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> list[dict]:
+    """Time series somando TODAS as carteiras do usuário — mesma forma de
+    get_portfolio_performance, mas com o valor de cada carteira reconstruído
+    e somado dia a dia, em vez de olhar uma carteira só.
+
+    Sempre reconstrói a partir das transações, nunca lê PortfolioSnapshot: um
+    snapshot é por carteira e cada um pode ter sido calculado num momento
+    diferente (antes ou depois de uma correção de conta) — misturar um valor
+    congelado de uma carteira com a reconstrução ao vivo de outra reintroduz
+    exatamente a mistura de bases que já causou o degrau vertical corrigido
+    em get_portfolio_performance. Reconstruir tudo com a mesma lógica, sempre,
+    evita essa classe de bug por construção em vez de precisar corrigi-la nos
+    dados já gravados.
+    """
+    result = await db.execute(
+        select(Portfolio)
+        .options(
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.asset),
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.transactions),
+        )
+        .where(Portfolio.user_id == user_id)
+    )
+    portfolios = list(result.scalars().all())
+
+    ticker_currency: dict[str, str] = {}
+    per_portfolio_txns: list[list[tuple[date, str, InvestmentTransaction]]] = []
+    for portfolio in portfolios:
+        txns = []
+        for pos in portfolio.positions:
+            ticker_currency[pos.asset.ticker] = pos.asset.currency
+            for txn in pos.transactions:
+                if txn.transaction_type in ("buy", "sell"):
+                    txns.append((txn.transaction_date.date(), pos.asset.ticker, txn))
+        if txns:
+            txns.sort(key=lambda t: t[0])
+            per_portfolio_txns.append(txns)
+
+    if not per_portfolio_txns:
+        return []
+
+    today = date.today()
+    first_txn_date = min(txns[0][0] for txns in per_portfolio_txns)
+    if period == "max":
+        start = first_txn_date
+    else:
+        days = _PERIOD_DAYS.get(period, 365)
+        start = max(today - timedelta(days=days), first_txn_date)
+
+    grid = _build_date_grid(start, today, weekly=(period == "max"))
+
+    fx_history: dict[str, list[tuple[date, Decimal]]] = {}
+    needed_currencies = {c for c in ticker_currency.values() if c and c != "BRL"}
+    if needed_currencies:
+        fx_result = await db.execute(
+            select(FxRate)
+            .where(FxRate.from_currency.in_(needed_currencies), FxRate.to_currency == "BRL")
+            .order_by(FxRate.date)
+        )
+        for row in fx_result.scalars().all():
+            fx_history.setdefault(row.from_currency, []).append((row.date, row.rate))
+
+    def rate_at(currency: str, day: date) -> Decimal:
+        if not currency or currency == "BRL":
+            return _ONE
+        history = fx_history.get(currency)
+        if not history:
+            return _ONE
+        best = None
+        for rate_date, rate in history:
+            if rate_date <= day:
+                best = rate
+            else:
+                break
+        return best if best is not None else history[0][1]
+
+    tickers = sorted(ticker_currency.keys())
+    provider_period = _PERIOD_TO_PROVIDER.get(period, "max")
+    cache = get_cache(redis) if redis else None
+    provider = get_provider(preferred_provider, brapi_key)
+
+    async def _fetch_closes(ticker: str) -> list[tuple[date, Decimal]]:
+        bars = None
+        if cache:
+            bars = await cache.get_historical(ticker, provider_period, "1d")
+        if not bars:
+            try:
+                bars = await provider.get_historical(ticker, provider_period, "1d")
+            except Exception as exc:
+                logger.warning("History fetch failed for %s: %s", ticker, exc)
+                bars = []
+            if cache and bars:
+                await cache.set_historical(ticker, bars, provider_period, "1d")
+        return sorted(
+            ((bar.date.date() if hasattr(bar.date, "date") else bar.date, bar.close) for bar in bars),
+            key=lambda item: item[0],
+        )
+
+    closes_list = await asyncio.gather(*(_fetch_closes(t) for t in tickers))
+    closes: dict[str, list[tuple[date, Decimal]]] = dict(zip(tickers, closes_list))
+
+    def close_at(ticker: str, day: date) -> Optional[Decimal]:
+        history = closes.get(ticker, [])
+        if not history:
+            return None
+        best = None
+        for bar_date, close in history:
+            if bar_date <= day:
+                best = close
+            else:
+                break
+        return best if best is not None else history[0][1]
+
+    combined = [{"date": day, "total_value": _ZERO, "total_invested": _ZERO} for day in grid]
+    for txns in per_portfolio_txns:
+        series = _reconstruct_value_series(txns, grid, close_at, rate_at, ticker_currency)
+        for combined_point, point in zip(combined, series):
+            combined_point["total_value"] += point["total_value"]
+            combined_point["total_invested"] += point["total_invested"]
+
+    return combined
+
+
+async def get_consolidated_benchmark(
+    user_id: uuid.UUID,
+    period: str,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> list[dict]:
+    """Retorno % (TWR) combinando todas as carteiras vs. CDI/Ibovespa/Nasdaq/
+    S&P 500 — see `_benchmark_from_series`."""
+    series = await get_consolidated_performance(user_id, period, db, redis, preferred_provider, brapi_key)
+    return await _benchmark_from_series(series, period, redis, preferred_provider, brapi_key)
+
+
+async def get_consolidated_summary(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> dict:
+    """Resumo somando todas as carteiras do usuário — mesmo formato de
+    get_portfolio_summary, com cada posição carregando de qual carteira ela
+    veio (portfolio_id/portfolio_name) já que o mesmo ticker pode aparecer em
+    carteiras diferentes como lotes/custos distintos, nunca somados numa
+    posição só."""
+    portfolios = await get_user_portfolios(user_id, db)
+    if not portfolios:
+        return {
+            "total_invested_brl": _ZERO,
+            "total_market_value_brl": _ZERO,
+            "total_pnl_absolute": _ZERO,
+            "total_pnl_percent": _ZERO,
+            "xirr_percent": None,
+            "positions": [],
+            "allocation_by_type": [],
+            "portfolio_count": 0,
+        }
+
+    summaries = await asyncio.gather(*(
+        get_portfolio_summary(p.id, user_id, db, redis, preferred_provider, brapi_key)
+        for p in portfolios
+    ))
+
+    total_value = sum((s["total_market_value_brl"] for s in summaries), _ZERO)
+    total_invested = sum((s["total_invested_brl"] for s in summaries), _ZERO)
+    total_pnl = sum((s["total_pnl_absolute"] for s in summaries), _ZERO)
+    total_pnl_pct = round_financial(total_pnl / total_invested * 100) if total_invested > _ZERO else _ZERO
+
+    positions = []
+    for portfolio, summary in zip(portfolios, summaries):
+        for pos in summary["positions"]:
+            positions.append({
+                **pos,
+                # Peso relativo ao total combinado, não mais ao total da
+                # carteira de origem — senão os pesos de posições de
+                # carteiras diferentes não somariam 1 juntos.
+                "weight": pos["market_value_brl"] / total_value if total_value > _ZERO else _ZERO,
+                # Rebalanceamento foi calculado contra o peso-alvo dentro da
+                # carteira de origem — misturado aqui viraria uma sugestão
+                # sem sentido (peso-alvo de qual carteira?).
+                "rebalance_action": None,
+                "rebalance_delta_units": None,
+                "portfolio_id": portfolio.id,
+                "portfolio_name": portfolio.name,
+            })
+
+    allocation_totals: dict[str, Decimal] = {}
+    for pos in positions:
+        allocation_totals[pos["asset_type"]] = allocation_totals.get(pos["asset_type"], _ZERO) + pos["market_value_brl"]
+    allocation_by_type = [
+        {
+            "asset_type": asset_type,
+            "value": value,
+            "weight": value / total_value if total_value > _ZERO else _ZERO,
+        }
+        for asset_type, value in sorted(allocation_totals.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
+    cash_flows: list[tuple[date, Decimal]] = []
+    for portfolio in portfolios:
+        cash_flows.extend(await _get_portfolio_cash_flows(portfolio.id, db))
+    xirr_percent = _compute_xirr([*cash_flows, (date.today(), total_value)]) if cash_flows else None
+
+    return {
+        "total_invested_brl": total_invested,
+        "total_market_value_brl": total_value,
+        "total_pnl_absolute": total_pnl,
+        "total_pnl_percent": total_pnl_pct,
+        "xirr_percent": xirr_percent,
+        "positions": positions,
+        "allocation_by_type": allocation_by_type,
+        "portfolio_count": len(portfolios),
+    }
 
 
 async def record_transaction(

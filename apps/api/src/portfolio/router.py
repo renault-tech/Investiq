@@ -20,6 +20,7 @@ from src.portfolio.schemas import (
     PortfolioUpdate,
     PortfolioResponse,
     PortfolioSummaryResponse,
+    ConsolidatedSummaryResponse,
     PerformancePoint,
     BenchmarkPoint,
     PortfolioIncomeResponse,
@@ -46,6 +47,67 @@ async def list_portfolios(
 ):
     """List all portfolios for the current user."""
     return await service.get_user_portfolios(current_user.id, db)
+
+
+# Registradas antes de /{portfolio_id}/... — "consolidated" bate no mesmo
+# formato de rota (dois segmentos depois de /portfolios/), e o roteador
+# usa a primeira que casar; se {portfolio_id} viesse antes, "consolidated"
+# seria capturado como (inválido) portfolio_id e nunca chegaria aqui.
+@router.get("/consolidated/summary", response_model=ConsolidatedSummaryResponse)
+async def get_consolidated_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Resumo somando todas as carteiras do usuário — mesmos números do
+    resumo de uma carteira, mas de todas juntas."""
+    return await service.get_consolidated_summary(
+        user_id=current_user.id,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/consolidated/performance", response_model=list[PerformancePoint])
+async def get_consolidated_performance(
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Valor combinado de todas as carteiras ao longo do tempo — sempre
+    reconstruído das transações (nunca lê snapshot, que é por carteira)."""
+    return await service.get_consolidated_performance(
+        user_id=current_user.id,
+        period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/consolidated/benchmark", response_model=list[BenchmarkPoint])
+async def get_consolidated_benchmark(
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Retorno combinado de todas as carteiras vs. CDI, Ibovespa, Nasdaq e S&P 500."""
+    return await service.get_consolidated_benchmark(
+        user_id=current_user.id,
+        period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
 
 
 @router.post("/", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)

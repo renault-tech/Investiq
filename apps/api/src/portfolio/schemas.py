@@ -105,6 +105,30 @@ class PortfolioSummaryResponse(BaseModel):
     allocation_by_type: list[AllocationSlice] = []
 
 
+class ConsolidatedPositionSummary(PositionSummary):
+    """Mesmos campos de PositionSummary, com a carteira de origem anexada —
+    uma posição de MSFT na carteira A e outra na carteira B viram duas
+    linhas distintas aqui, nunca somadas numa só."""
+    portfolio_id: uuid.UUID
+    portfolio_name: str
+
+
+class ConsolidatedSummaryResponse(BaseModel):
+    """Mesma forma de PortfolioSummaryResponse, somando todas as carteiras
+    do usuário — sem portfolio_id/portfolio_name (não é uma carteira) e sem
+    rebalance_suggestions (a sugestão de rebalanceamento de cada posição é
+    calculada contra o peso-alvo dentro da SUA carteira; misturar carteiras
+    diferentes na mesma sugestão não faz sentido)."""
+    total_invested_brl: Decimal
+    total_market_value_brl: Decimal
+    total_pnl_absolute: Decimal
+    total_pnl_percent: Decimal
+    xirr_percent: Optional[Decimal] = None
+    positions: list[ConsolidatedPositionSummary]
+    allocation_by_type: list[AllocationSlice] = []
+    portfolio_count: int
+
+
 # ---------------------------------------------------------------------------
 # Look-through geográfico e setorial
 # ---------------------------------------------------------------------------

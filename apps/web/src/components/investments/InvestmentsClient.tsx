@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard, Download, FileText } from "lucide-react";
-import { listPortfolios, type Portfolio, type PerformancePeriod, type PositionSummary } from "@/lib/portfolio-api";
+import { listPortfolios, CONSOLIDATED_ID, type Portfolio, type PerformancePeriod, type PositionSummary } from "@/lib/portfolio-api";
 import { apiClient } from "@/lib/api-client";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioPerformance } from "@/hooks/usePortfolioPerformance";
@@ -78,6 +78,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     string | undefined
   >(undefined);
   const [managingPosition, setManagingPosition] = useState<PositionSummary | null>(null);
+  // Ao gerenciar/lançar transação numa posição vinda do Consolidado, a
+  // posição carrega sua própria carteira de origem (pos.portfolio_id) — os
+  // modais precisam dela, não da aba "Consolidado" ativa, pra chamar a API
+  // certa e invalidar o cache da carteira que de fato mudou.
+  const [actionPortfolioId, setActionPortfolioId] = useState<string | null>(null);
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
   const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
   const [lookThroughMode, setLookThroughMode] = useState<"sector" | "country" | "class">("sector");
@@ -98,8 +103,9 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     usePortfolioPerformance(activePortfolioId, performancePeriod);
   const { data: benchmark, isLoading: isBenchmarkLoading, isError: isBenchmarkError, refetch: refetchBenchmark } =
     usePortfolioBenchmark(activePortfolioId, performancePeriod);
+  const isConsolidated = activePortfolioId === CONSOLIDATED_ID;
   const { data: lookThrough, isLoading: isLookThroughLoading, isError: isLookThroughError, refetch: refetchLookThrough } =
-    usePortfolioLookThrough(activePortfolioId);
+    usePortfolioLookThrough(isConsolidated ? null : activePortfolioId);
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -108,8 +114,17 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     }
   }, [portfolios, activePortfolioId]);
 
+  // Raio-X e Proventos não têm equivalente consolidado (v1) — trocar para
+  // "Consolidado" enquanto "Proventos" está aberto deixaria a aba mostrando
+  // dados de uma carteira que não é mais a ativa.
+  useEffect(() => {
+    if (isConsolidated && activeTab === "income") {
+      setActiveTab("positions");
+    }
+  }, [isConsolidated, activeTab]);
+
   const handleExport = async () => {
-    if (!activePortfolioId) return;
+    if (!activePortfolioId || isConsolidated) return;
     const res = await apiClient.get(`/portfolios/${activePortfolioId}/export`, { responseType: "blob" });
     const url = window.URL.createObjectURL(res.data as Blob);
     const link = document.createElement("a");
@@ -166,15 +181,21 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             size="sm"
             variant="secondary"
             onClick={() => setShowAddPosition(true)}
-            disabled={!activePortfolioId}
+            disabled={!activePortfolioId || isConsolidated}
+            title={isConsolidated ? "Selecione uma carteira para adicionar um ativo" : undefined}
           >
             + Ativo
           </Button>
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => { setDefaultTransactionPositionId(undefined); setShowNewTransaction(true); }}
-            disabled={!activePortfolioId}
+            onClick={() => {
+              setDefaultTransactionPositionId(undefined);
+              setActionPortfolioId(activePortfolioId);
+              setShowNewTransaction(true);
+            }}
+            disabled={!activePortfolioId || isConsolidated}
+            title={isConsolidated ? "Selecione uma carteira para lançar uma transação" : undefined}
           >
             + Transação
           </Button>
@@ -223,7 +244,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 80% -20%, var(--glow), transparent 70%)" }} />
               <div className="relative flex justify-between items-start flex-wrap gap-4">
                 <div>
-                  <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Carteira total</div>
+                  <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">
+                    {isConsolidated
+                      ? `Todas as carteiras${summary?.portfolio_count ? ` · ${summary.portfolio_count}` : ""}`
+                      : "Carteira total"}
+                  </div>
                   {isSummaryLoading ? (
                     <Skeleton className="h-9 w-48 mt-1.5" />
                   ) : (
@@ -392,7 +417,9 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </section>
             )}
 
-            {/* Raio-X da carteira: look-through geográfico e setorial */}
+            {/* Raio-X da carteira: look-through geográfico e setorial — sem
+                equivalente consolidado ainda, selecione uma carteira específica. */}
+            {!isConsolidated && (
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".11s" }}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
@@ -452,10 +479,13 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 </p>
               )}
             </section>
+            )}
 
             {/* Benchmark */}
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
-              <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Rentabilidade da carteira</div>
+              <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">
+                {isConsolidated ? "Rentabilidade — todas as carteiras" : "Rentabilidade da carteira"}
+              </div>
               <ChartCard
                 title="" bare
                 isLoading={isBenchmarkLoading}
@@ -473,7 +503,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".2s" }}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden p-[3px] gap-1">
-                  {([["positions", "Posições"], ["income", "Proventos"]] as const).map(([tab, label]) => (
+                  {(
+                    isConsolidated
+                      ? ([["positions", "Posições"]] as const)
+                      : ([["positions", "Posições"], ["income", "Proventos"]] as const)
+                  ).map(([tab, label]) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -490,13 +524,17 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleExport}
-                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    disabled={isConsolidated}
+                    title={isConsolidated ? "Selecione uma carteira para exportar" : undefined}
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--text-secondary)]"
                   >
                     <Download size={13} /> Exportar CSV
                   </button>
                   <button
                     onClick={() => setShowExport(true)}
-                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    disabled={isConsolidated}
+                    title={isConsolidated ? "Selecione uma carteira para exportar" : undefined}
+                    className="flex items-center gap-1.5 py-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[var(--text-secondary)]"
                   >
                     <FileText size={13} /> Exportar relatório
                   </button>
@@ -507,18 +545,22 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 <PositionsTable
                   positions={summary?.positions ?? []}
                   isLoading={isSummaryLoading}
-                  onAddTransaction={(positionId, _ticker) => {
-                    setDefaultTransactionPositionId(positionId);
+                  onAddTransaction={(pos) => {
+                    setDefaultTransactionPositionId(pos.position_id);
+                    setActionPortfolioId(pos.portfolio_id ?? activePortfolioId);
                     setShowNewTransaction(true);
                   }}
-                  onManage={setManagingPosition}
+                  onManage={(pos) => {
+                    setManagingPosition(pos);
+                    setActionPortfolioId(pos.portfolio_id ?? activePortfolioId);
+                  }}
                 />
               ) : (
-                activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
+                activePortfolioId && !isConsolidated && <IncomeTab portfolioId={activePortfolioId} />
               )}
             </section>
 
-            {activeTab === "positions" && <AuditPanel portfolioId={activePortfolioId} />}
+            {activeTab === "positions" && !isConsolidated && <AuditPanel portfolioId={activePortfolioId} />}
           </div>
         </div>
       )}
@@ -533,22 +575,30 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
           portfolioId={activePortfolioId}
         />
       )}
-      {showNewTransaction && activePortfolioId && (
+      {showNewTransaction && (actionPortfolioId ?? activePortfolioId) && (
         <NewTransactionModal
           onClose={() => {
             setShowNewTransaction(false);
             setDefaultTransactionPositionId(undefined);
+            setActionPortfolioId(null);
           }}
-          portfolioId={activePortfolioId}
-          positions={summary?.positions ?? []}
+          portfolioId={(actionPortfolioId ?? activePortfolioId) as string}
+          positions={
+            isConsolidated
+              ? (summary?.positions ?? []).filter((p) => p.portfolio_id === actionPortfolioId)
+              : summary?.positions ?? []
+          }
           defaultPositionId={defaultTransactionPositionId}
         />
       )}
-      {managingPosition && activePortfolioId && (
+      {managingPosition && (actionPortfolioId ?? activePortfolioId) && (
         <ManagePositionModal
-          portfolioId={activePortfolioId}
+          portfolioId={(actionPortfolioId ?? activePortfolioId) as string}
           position={managingPosition}
-          onClose={() => setManagingPosition(null)}
+          onClose={() => {
+            setManagingPosition(null);
+            setActionPortfolioId(null);
+          }}
         />
       )}
       {showExport && (
