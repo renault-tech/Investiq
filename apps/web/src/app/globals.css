@@ -40,7 +40,11 @@
 
   --text-primary:  #0B0E14;
   --text-secondary:#666D7A;
-  --text-muted:    #9AA1AE;
+  /* Era #9AA1AE (~2.6:1 contra --surface) — abaixo do mínimo de 4.5:1 do
+     WCAG AA para texto normal. #646971 mantém o mesmo tom (só mais escuro)
+     e passa em todo fundo onde --text-muted aparece (surface, background,
+     surface-2, surface-3), com folga de pelo menos ~4.8:1. */
+  --text-muted:    #646971;
 
   --shadow:        0 20px 50px -28px rgba(12,18,30,.35);
   --grid-line:      rgba(9,12,20,.06);
@@ -83,7 +87,11 @@
 
   --text-primary:  #EDEFF3;
   --text-secondary:#8B929E;
-  --text-muted:    #5C6270;
+  /* Era #5C6270 (~3.1:1 contra --surface) — abaixo do mínimo de 4.5:1 do
+     WCAG AA para texto normal. #81899D mantém o mesmo tom (só mais claro)
+     e passa em todo fundo onde --text-muted aparece (surface, background,
+     surface-2, surface-3), com folga de pelo menos ~4.6:1. */
+  --text-muted:    #81899D;
 
   --shadow:        0 24px 60px -24px rgba(0,0,0,.75);
   --grid-line:      rgba(255,255,255,.055);
