@@ -9,7 +9,7 @@ import type { PositionSummary } from "@/lib/portfolio-api";
 interface PositionsTableProps {
   positions: PositionSummary[];
   isLoading: boolean;
-  onAddTransaction: (positionId: string, ticker: string) => void;
+  onAddTransaction: (position: PositionSummary) => void;
   onManage: (position: PositionSummary) => void;
 }
 
@@ -35,6 +35,12 @@ function fmtPct(v: number | string | null): string {
 const COLS = ["Ativo", "Qtd", "PM", "Atual", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações"];
 
 export function PositionsTable({ positions, isLoading, onAddTransaction, onManage }: PositionsTableProps) {
+  // Visão consolidada: cada posição carrega de qual carteira ela veio —
+  // sem essa coluna, MSFT na carteira A e MSFT na carteira B apareceriam
+  // como duas linhas idênticas sem explicação de por que não foram somadas.
+  const showPortfolioColumn = positions.some((p) => p.portfolio_name);
+  const cols = showPortfolioColumn ? ["Carteira", ...COLS] : COLS;
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -54,11 +60,11 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
       <table className="w-full text-[13px] border-collapse">
         <thead>
           <tr className="border-b border-[var(--border)]">
-            {COLS.map((h) => (
+            {cols.map((h) => (
               <th
                 key={h}
                 className={`px-2.5 py-2.5 text-[11px] font-medium text-[var(--text-muted)] tracking-[.06em] uppercase whitespace-nowrap ${
-                  h === "Ativo" ? "text-left" : "text-right"
+                  h === "Ativo" || h === "Carteira" ? "text-left" : "text-right"
                 }`}
               >
                 {h}
@@ -75,6 +81,11 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                 key={pos.position_id}
                 className={`border-b border-[var(--border)] transition-colors hover:bg-[var(--surface-2)] ${pos.quantity === 0 ? "opacity-60" : ""}`}
               >
+                {showPortfolioColumn && (
+                  <td className="px-2.5 py-3 text-left text-[12px] text-[var(--text-secondary)] whitespace-nowrap">
+                    {pos.portfolio_name ?? "—"}
+                  </td>
+                )}
                 <td className="px-2.5 py-3 text-left">
                   <div className="flex items-center gap-2.5">
                     <div
@@ -131,7 +142,7 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                 <td className="px-2.5 py-3 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
-                      onClick={() => onAddTransaction(pos.position_id, pos.ticker)}
+                      onClick={() => onAddTransaction(pos)}
                       className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
                       style={{ color: "var(--accent)", background: "var(--glow)" }}
                     >

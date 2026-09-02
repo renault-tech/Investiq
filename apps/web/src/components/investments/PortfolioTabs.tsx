@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { deletePortfolio, updatePortfolio, type Portfolio } from "@/lib/portfolio-api";
+import { deletePortfolio, updatePortfolio, CONSOLIDATED_ID, type Portfolio } from "@/lib/portfolio-api";
 
 interface Props {
   portfolios: Portfolio[];
@@ -65,6 +65,20 @@ export function PortfolioTabs({ portfolios, activeId, onChange }: Props) {
   return (
     <>
       <div className="flex gap-2 overflow-x-auto pb-1">
+        {portfolios.length > 1 && (
+          <button
+            onClick={() => onChange(CONSOLIDATED_ID)}
+            className="group relative flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-medium rounded-[11px] shrink-0 transition-colors border"
+            style={
+              activeId === CONSOLIDATED_ID
+                ? { background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }
+                : { background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-secondary)" }
+            }
+            title="Soma de todas as carteiras"
+          >
+            <span>Consolidado</span>
+          </button>
+        )}
         {portfolios.map((portfolio) => (
           <button
             key={portfolio.id}

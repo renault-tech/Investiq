@@ -36,7 +36,18 @@ export interface PositionSummary {
   target_weight: number | null;
   rebalance_action: "buy" | "sell" | "hold" | null;
   rebalance_delta_units: number | null;
+  /** Só presentes na visão consolidada (várias carteiras somadas) — de qual
+   * carteira essa linha veio. O mesmo ticker em duas carteiras diferentes
+   * vira duas linhas aqui, nunca uma soma — são lotes/custos distintos. */
+  portfolio_id?: string;
+  portfolio_name?: string;
 }
+
+/** Sentinela de "todas as carteiras juntas" — usado no lugar de um
+ * portfolio_id de verdade em PortfolioTabs/InvestmentsClient para chavear
+ * os hooks de resumo/evolução/benchmark para os endpoints /consolidated/*
+ * em vez de /{portfolio_id}/*. */
+export const CONSOLIDATED_ID = "__consolidado__";
 
 export interface AllocationSlice {
   asset_type: string;
@@ -59,6 +70,8 @@ export interface PortfolioSummary {
   positions: PositionSummary[];
   rebalance_suggestions: unknown[];
   allocation_by_type: AllocationSlice[];
+  /** Só presente na visão consolidada — quantas carteiras foram somadas. */
+  portfolio_count?: number;
 }
 
 export type PerformancePeriod = "1m" | "3m" | "6m" | "1y" | "max";
@@ -153,10 +166,27 @@ const POSITION_NUMERIC = [
 ] as const;
 const ALLOCATION_NUMERIC = ["value", "weight"] as const;
 
+/** Resposta crua de /summary (uma carteira) ou /consolidated/summary (todas
+ * juntas) — a segunda não tem portfolio_id/portfolio_name/
+ * rebalance_suggestions (não é uma carteira), daí opcionais aqui; getPortfolioSummary
+ * completa esses três na fronteira pra o resto da tela usar sempre o mesmo
+ * tipo PortfolioSummary sem precisar de um branch em cada componente. */
+type PortfolioSummaryRaw = Omit<PortfolioSummary, "portfolio_id" | "portfolio_name" | "rebalance_suggestions"> & {
+  portfolio_id?: string;
+  portfolio_name?: string;
+  rebalance_suggestions?: unknown[];
+};
+
 export async function getPortfolioSummary(portfolioId: string): Promise<PortfolioSummary> {
-  const res = await apiClient.get<PortfolioSummary>(`/portfolios/${portfolioId}/summary`);
+  const isConsolidated = portfolioId === CONSOLIDATED_ID;
+  const res = await apiClient.get<PortfolioSummaryRaw>(
+    isConsolidated ? "/portfolios/consolidated/summary" : `/portfolios/${portfolioId}/summary`
+  );
   const data = coerceNumbers(res.data, SUMMARY_NUMERIC);
   return {
+    portfolio_id: CONSOLIDATED_ID,
+    portfolio_name: "Todas as carteiras",
+    rebalance_suggestions: [],
     ...data,
     positions: coerceNumbersInList(data.positions ?? [], POSITION_NUMERIC),
     allocation_by_type: coerceNumbersInList(data.allocation_by_type ?? [], ALLOCATION_NUMERIC),
@@ -167,8 +197,9 @@ export async function getPortfolioPerformance(
   portfolioId: string,
   period: PerformancePeriod
 ): Promise<PerformancePoint[]> {
+  const isConsolidated = portfolioId === CONSOLIDATED_ID;
   const res = await apiClient.get<PerformancePoint[]>(
-    `/portfolios/${portfolioId}/performance`,
+    isConsolidated ? "/portfolios/consolidated/performance" : `/portfolios/${portfolioId}/performance`,
     { params: { period } }
   );
   return coerceNumbersInList(res.data, ["total_value", "total_invested"] as const);
@@ -178,8 +209,9 @@ export async function getPortfolioBenchmark(
   portfolioId: string,
   period: PerformancePeriod
 ): Promise<BenchmarkPoint[]> {
+  const isConsolidated = portfolioId === CONSOLIDATED_ID;
   const res = await apiClient.get<BenchmarkPoint[]>(
-    `/portfolios/${portfolioId}/benchmark`,
+    isConsolidated ? "/portfolios/consolidated/benchmark" : `/portfolios/${portfolioId}/benchmark`,
     { params: { period } }
   );
   return coerceNumbersInList(res.data, ["portfolio_pct", "cdi_pct", "ibov_pct"] as const);

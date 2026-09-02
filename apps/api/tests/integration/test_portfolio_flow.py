@@ -355,3 +355,142 @@ async def test_audit_leaves_brl_assets_alone(client):
     audit = await client.get(f"/portfolios/{portfolio_id}/audit", headers=headers)
     # Câmbio 1 em ativo brasileiro é o correto — não é problema.
     assert audit.json()["issue_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Consolidado — soma de todas as carteiras do usuário
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_consolidated_summary_sums_positions_across_portfolios(client, monkeypatch):
+    """Duas carteiras, um ativo diferente em cada — o consolidado soma os
+    totais e cada posição carrega de qual carteira ela veio (nunca uma soma
+    das duas, mesmo que fosse o mesmo ticker: são lotes/custos distintos)."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    portfolio_a, position_a = await _create_portfolio_with_position(client, headers, ticker="PETR4")
+    portfolio_b = await client.post("/portfolios/", json={"name": "Carteira 2", "currency": "BRL"}, headers=headers)
+    portfolio_b_id = portfolio_b.json()["id"]
+    position_b = await client.post(
+        f"/portfolios/{portfolio_b_id}/positions", json={"ticker": "VALE3"}, headers=headers
+    )
+    position_b_id = position_b.json()["id"]
+
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_a, "transaction_type": "buy",
+            "quantity": 100, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-01-01T12:00:00Z",
+        },
+        headers=headers,
+    )
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_b_id, "transaction_type": "buy",
+            "quantity": 50, "unit_price": 20, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-01-02T12:00:00Z",
+        },
+        headers=headers,
+    )
+
+    class _FixedPriceProvider:
+        async def get_quotes(self, tickers):
+            prices = {"PETR4": Decimal("10"), "VALE3": Decimal("20")}
+            return {t: Quote(ticker=t, price=prices[t], currency="BRL") for t in tickers}
+
+    monkeypatch.setattr(service, "get_provider", lambda *a, **kw: _FixedPriceProvider())
+
+    # Cada carteira isolada primeiro, pra conferir contra o que o
+    # consolidado deveria somar.
+    summary_a = await client.get(f"/portfolios/{portfolio_a}/summary", headers=headers)
+    summary_b = await client.get(f"/portfolios/{portfolio_b_id}/summary", headers=headers)
+    value_a = Decimal(summary_a.json()["total_market_value_brl"])
+    value_b = Decimal(summary_b.json()["total_market_value_brl"])
+
+    consolidated = await client.get("/portfolios/consolidated/summary", headers=headers)
+    assert consolidated.status_code == 200, consolidated.text
+    body = consolidated.json()
+
+    assert Decimal(body["total_market_value_brl"]) == value_a + value_b
+    assert body["portfolio_count"] == 2
+    assert len(body["positions"]) == 2
+
+    by_ticker = {p["ticker"]: p for p in body["positions"]}
+    assert by_ticker["PETR4"]["portfolio_id"] == portfolio_a
+    assert by_ticker["PETR4"]["portfolio_name"] == "Carteira BR"
+    assert by_ticker["VALE3"]["portfolio_id"] == portfolio_b_id
+    assert by_ticker["VALE3"]["portfolio_name"] == "Carteira 2"
+
+    # Peso recalculado contra o total combinado (as duas juntas somam 100%),
+    # não mais contra o total de cada carteira isolada.
+    total_weight = sum(Decimal(p["weight"]) for p in body["positions"])
+    assert abs(total_weight - Decimal("1")) < Decimal("0.0001")
+
+    # Rebalanceamento por carteira não faz sentido misturado — vem nulo.
+    assert all(p["rebalance_action"] is None for p in body["positions"])
+
+
+@pytest.mark.asyncio
+async def test_consolidated_summary_with_no_portfolios_is_zeroed(client):
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    consolidated = await client.get("/portfolios/consolidated/summary", headers=headers)
+    assert consolidated.status_code == 200
+    body = consolidated.json()
+    assert body["portfolio_count"] == 0
+    assert body["positions"] == []
+    assert Decimal(body["total_market_value_brl"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_consolidated_performance_spans_the_earliest_transaction_across_portfolios(client):
+    """period=max some duas carteiras: o início da série é a transação mais
+    antiga entre TODAS as carteiras, não só a mais recente a ser criada."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    portfolio_a, position_a = await _create_portfolio_with_position(client, headers, ticker="PETR4")
+    portfolio_b = await client.post("/portfolios/", json={"name": "Carteira 2", "currency": "BRL"}, headers=headers)
+    portfolio_b_id = portfolio_b.json()["id"]
+    position_b = await client.post(
+        f"/portfolios/{portfolio_b_id}/positions", json={"ticker": "VALE3"}, headers=headers
+    )
+    position_b_id = position_b.json()["id"]
+
+    old_date = date.today() - timedelta(days=200)
+    recent_date = date.today() - timedelta(days=10)
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_a, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": f"{old_date.isoformat()}T12:00:00Z",
+        },
+        headers=headers,
+    )
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_b_id, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 10, "fees": 0, "fx_rate": 1,
+            "transaction_date": f"{recent_date.isoformat()}T12:00:00Z",
+        },
+        headers=headers,
+    )
+
+    performance = await client.get(
+        "/portfolios/consolidated/performance", params={"period": "max"}, headers=headers
+    )
+    assert performance.status_code == 200, performance.text
+    series = performance.json()
+    assert series[0]["date"] == old_date.isoformat()
+    assert series[-1]["date"] == date.today().isoformat()
+
+    benchmark = await client.get(
+        "/portfolios/consolidated/benchmark", params={"period": "max"}, headers=headers
+    )
+    assert benchmark.status_code == 200, benchmark.text
