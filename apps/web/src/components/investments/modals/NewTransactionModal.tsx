@@ -7,7 +7,7 @@ import { createTransaction } from "@/lib/portfolio-api";
 import type { PositionSummary } from "@/lib/portfolio-api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { parseBRNumberOr, parseBRQuantityOr, sanitizeNumericInput } from "@/lib/number-format";
+import { parseBRNumber, parseBRNumberOr, parseBRQuantityOr, sanitizeNumericInput } from "@/lib/number-format";
 
 interface NewTransactionModalProps {
   portfolioId: string;
@@ -39,7 +39,7 @@ export function NewTransactionModal({
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [fees, setFees] = useState("0");
-  const [fxRate, setFxRate] = useState("1");
+  const [fxRate, setFxRate] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
 
@@ -51,7 +51,9 @@ export function NewTransactionModal({
         quantity: parseBRQuantityOr(quantity, 0),
         unit_price: parseBRNumberOr(unitPrice, 0),
         fees: parseBRNumberOr(fees, 0),
-        fx_rate: parseBRNumberOr(fxRate, 1) > 0 ? parseBRNumberOr(fxRate, 1) : 1,
+        // Vazio = o backend usa o câmbio do dia da moeda do ativo. Mandar 1
+        // por padrão gravava o custo de ativo em dólar como se fosse real.
+        fx_rate: parseBRNumber(fxRate) && parseBRNumber(fxRate)! > 0 ? parseBRNumber(fxRate)! : undefined,
         transaction_date: date, // YYYY-MM-DD direto do input; evita bug de UTC offset
         notes: notes.trim() || undefined,
       }),
@@ -184,6 +186,8 @@ export function NewTransactionModal({
               value={fxRate}
               onChange={(e) => setFxRate(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
+              placeholder="Cotação do dia"
+              title="Deixe em branco para usar a cotação do dia da moeda do ativo"
             />
           </div>
         </div>

@@ -44,7 +44,8 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
           quantity: numQty,
           unit_price: numPrice,
           fees: 0,
-          fx_rate: 1,
+          // Sem fx_rate: o backend resolve pela moeda do ativo. Fixar 1 aqui
+          // gravava o custo de um ativo em dólar como se fosse em reais.
           transaction_date: new Date().toISOString().split("T")[0],
         });
       }

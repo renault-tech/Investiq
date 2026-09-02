@@ -157,6 +157,17 @@ body {
   }
 }
 
+/* Card de painel redimensionável: a largura escolhida pelo usuário chega em
+   `--card-span` (colunas de 12) e só vale do tablet pra cima — abaixo disso
+   a regra acima já força linha inteira, que é a única largura legível num
+   celular. Fica aqui, e não em inline style, justamente para não vencer
+   aquele `!important`. */
+@media (min-width: 768px) {
+  .dashboard-card {
+    grid-column: span var(--card-span, 4);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
