@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/api-client";
 import { NotificationsDropdown } from "./NotificationsDropdown";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 const PERIODS: Period[] = ["1M", "6M", "1A", "Tudo"];
 
@@ -70,7 +71,10 @@ export function TopBar() {
     setSearch("");
   };
 
-  const isOverview = pathname.startsWith("/overview");
+  // Telas com cards ajustáveis (arrastar/redimensionar/ocultar) — o botão
+  // de personalizar só faz sentido onde há um painel pra organizar.
+  const isCustomizable =
+    pathname.startsWith("/overview") || pathname === "/finances" || pathname.startsWith("/finances?");
   const page = PAGE_TITLES.find((p) => pathname.startsWith(p.prefix)) ?? PAGE_TITLES[0];
 
   return (
@@ -122,6 +126,10 @@ export function TopBar() {
         ))}
       </div>
 
+      {/* Feedback — discreto, mas presente em toda tela: o relato vale
+          justamente por sair de onde o problema apareceu. */}
+      <FeedbackButton />
+
       {/* Privacy toggle */}
       <button
         data-tour="topbar-privacy"
@@ -134,7 +142,7 @@ export function TopBar() {
       </button>
 
       {/* Customize (Visão geral only) */}
-      {isOverview && (
+      {isCustomizable && (
         <button
           onClick={toggleCustomize}
           className="hidden md:flex items-center gap-2 px-3.5 h-[34px] rounded-[11px] text-[12.5px] font-medium transition-colors flex-shrink-0"

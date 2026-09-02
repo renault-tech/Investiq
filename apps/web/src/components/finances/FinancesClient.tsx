@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, FileText, Layers, Plus, Tags } from "lucide-react";
+import { Download, FileText, Layers, Plus, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -13,6 +13,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { SummaryCards } from "./SummaryCards";
 import { CategoryBars } from "./CategoryBars";
 import { TransactionsTable } from "./TransactionsTable";
+import { MonthStepper, monthKey, monthLabel as monthLabelFor } from "./MonthStepper";
+import { PlannedVsActual } from "./PlannedVsActual";
+import { DashboardCard } from "@/components/ui/DashboardCard";
+import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
+import { useUIStore } from "@/store/useUIStore";
 import { TransactionModal } from "./TransactionModal";
 import { DeleteTransactionModal, type DeleteScope } from "./DeleteTransactionModal";
 import { CategoryManager } from "./CategoryManager";
@@ -21,17 +26,11 @@ import { BudgetsSection } from "./BudgetsSection";
 import { ExportReportModal } from "@/components/reports/ExportReportModal";
 import { ForecastChart } from "./ForecastChart";
 
-function monthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(month: string): string {
-  const [year, mon] = month.split("-").map(Number);
-  // "agosto de 2026" — a classe `capitalize` do CSS maiuscularia cada
-  // palavra ("Agosto De 2026"); em português só a inicial é maiúscula.
-  const label = new Date(year, mon - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
+const FINANCE_CARDS: DashboardCardSpec[] = [
+  { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
+  { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
+  { id: "planned", label: "Previsto × executado", defaultSpan: 6, minSpan: 4 },
+];
 
 function monthBounds(month: string): { from: string; to: string } {
   const [year, mon] = month.split("-").map(Number);
@@ -42,6 +41,26 @@ function monthBounds(month: string): { from: string; to: string } {
 
 export function FinancesClient() {
   const [month, setMonth] = useState(() => monthKey(new Date()));
+
+  // Mesmos cards ajustáveis da Visão Geral: quem organiza o painel lá espera
+  // poder organizar aqui também.
+  const customize = useUIStore((st) => st.customize);
+  const layout = useDashboardLayout("finances", FINANCE_CARDS);
+  const visible = (id: string) => !layout.isHidden(id);
+  const cardProps = (id: string, delay: number) => ({
+    id,
+    label: layout.specById[id]?.label ?? id,
+    customize,
+    span: layout.spanOf(id),
+    minSpan: layout.specById[id]?.minSpan,
+    dragged: layout.dragged,
+    onDragStart: layout.handleDragStart,
+    onDrop: layout.handleDrop,
+    onHide: layout.hide,
+    onSpanChange: layout.setSpan,
+    order: layout.order.indexOf(id),
+    delay,
+  });
   const [typeFilter, setTypeFilter] = useState<"" | "income" | "expense">("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -123,16 +142,8 @@ export function FinancesClient() {
               <Layers size={12} /> {activeAccount.name}
             </button>
           )}
-          <div className="flex items-center gap-1 ml-2">
-            <button onClick={() => shiftMonth(-1)} aria-label="Mês anterior" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm text-[var(--text-secondary)] min-w-36 text-center">
-              {monthLabel(month)}
-            </span>
-            <button onClick={() => shiftMonth(1)} aria-label="Próximo mês" className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-              <ChevronRight size={18} />
-            </button>
+          <div className="ml-2">
+            <MonthStepper month={month} onShift={shiftMonth} />
           </div>
         </div>
         <div className="flex gap-2">
@@ -165,8 +176,32 @@ export function FinancesClient() {
         <SummaryCards summary={summary} isLoading={summaryLoading} />
       )}
 
+      {customize && (
+        <div className="flex items-center gap-3 flex-wrap px-4 py-3 border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] animate-rise-up">
+          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
+            Modo edição — arraste para reposicionar, use ¼ ½ ⅔ 1 para redimensionar e × para ocultar.
+          </span>
+          {layout.hiddenCards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => layout.restore(card.id)}
+              className="flex items-center gap-1.5 text-[11.5px] px-2.5 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-secondary)]"
+            >
+              + {card.label}
+            </button>
+          ))}
+          <button
+            onClick={layout.reset}
+            className="ml-auto text-[11.5px] px-2.5 py-1.5 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)]"
+          >
+            Restaurar padrão
+          </button>
+        </div>
+      )}
+
       <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-        <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
+        {visible("forecast") && (
+        <DashboardCard {...cardProps("forecast", 0.1)}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-[var(--text-primary)]">Projeção de saldo</div>
@@ -182,12 +217,25 @@ export function FinancesClient() {
               <ForecastChart months={forecast?.months ?? []} negativeFrom={forecast?.negative_from ?? null} />
             )}
           </div>
-        </section>
+        </DashboardCard>
+        )}
 
-        <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".16s" }}>
+        {visible("categories") && (
+        <DashboardCard {...cardProps("categories", 0.16)}>
           <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Gastos por categoria</div>
           {summaryLoading ? <Skeleton className="h-48" /> : <CategoryBars byCategory={summary?.by_category ?? []} />}
-        </section>
+        </DashboardCard>
+        )}
+
+        {visible("planned") && (
+        <DashboardCard {...cardProps("planned", 0.2)}>
+          <div className="flex items-baseline justify-between gap-2 mb-4">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">Previsto × executado</div>
+            <span className="text-[11px] text-[var(--text-muted)]">{monthLabelFor(month)}</span>
+          </div>
+          <PlannedVsActual transactions={txnList?.items ?? []} isLoading={txnLoading} />
+        </DashboardCard>
+        )}
       </div>
 
       <div data-tour="accounts-bar">
@@ -201,6 +249,9 @@ export function FinancesClient() {
       {/* Filtros + tabela */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card)] p-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
+          {/* Mesmo seletor do topo: a lista fica longe do cabeçalho, e trocar
+              o mês do que se está lendo não deveria exigir voltar lá em cima. */}
+          <MonthStepper month={month} onShift={shiftMonth} compact />
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}

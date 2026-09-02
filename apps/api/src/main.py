@@ -23,6 +23,7 @@ from src.market_data.router import router as market_router
 from src.finance.router import router as finance_router
 from src.alerts.router import router as alerts_router
 from src.notifications.router import router as notifications_router
+from src.feedback.router import router as feedback_router
 from src.onboarding.router import router as onboarding_router
 from src.workers.router import router as workers_router
 from src.workers.scheduler import start_scheduler, stop_scheduler
@@ -96,6 +97,7 @@ app.include_router(workers_router, prefix="/api/v1")
 app.include_router(cards_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(watchlist_router, prefix="/api/v1")
+app.include_router(feedback_router, prefix="/api/v1")
 
 
 @app.get("/health")

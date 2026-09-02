@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { ArrowUp, ArrowDown, X, Landmark, Target as TargetIcon, ArrowLeftRight, Layers, Wallet } from "lucide-react";
+import { ArrowUp, ArrowDown, Landmark, Target as TargetIcon, ArrowLeftRight, Layers, Wallet, TrendingUp } from "lucide-react";
 import {
   listPortfolios,
   getPortfolioSummary,
@@ -29,16 +29,25 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
+import { DashboardCard } from "@/components/ui/DashboardCard";
+import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
 
 const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", "1A": "1y", Tudo: "max" };
 
-const WIDGET_LABELS: Record<string, string> = {
-  net: "Patrimônio", alloc: "Alocação", wallets: "Carteiras", flow: "Fluxo de caixa",
-  bill: "Fatura", goals: "Metas", tx: "Movimentações", health: "Saúde financeira",
-};
-const WIDGET_SPAN: Record<string, number> = { net: 8, alloc: 4, wallets: 4, flow: 5, bill: 3, goals: 4, tx: 8, health: 4 };
-const DEFAULT_ORDER = ["net", "alloc", "wallets", "flow", "bill", "goals", "tx", "health"];
-const STORAGE_KEY = "investiq-overview-layout";
+// Cards fixos do painel. Cada conta e cada carteira de investimento entra
+// como um card próprio depois destes (ver `cardSpecs`), em vez da lista
+// única e rolável de antes: numa lista com altura fixa, conta que passasse
+// do fim ficava invisível sem nenhum indício de que existia.
+const BASE_CARDS: DashboardCardSpec[] = [
+  { id: "net", label: "Patrimônio", defaultSpan: 8, minSpan: 6 },
+  { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
+  { id: "flow", label: "Fluxo de caixa", defaultSpan: 5, minSpan: 4 },
+  { id: "bill", label: "Fatura", defaultSpan: 3, minSpan: 3 },
+  { id: "goals", label: "Metas", defaultSpan: 4, minSpan: 3 },
+  { id: "tx", label: "Movimentações", defaultSpan: 8, minSpan: 6 },
+  { id: "health", label: "Saúde financeira", defaultSpan: 4, minSpan: 3 },
+];
+const LEGACY_STORAGE_KEY = "investiq-overview-layout";
 
 function currentMonth(): string {
   const d = new Date();
@@ -88,77 +97,11 @@ function DeltaPill({ fraction }: { fraction: number | null }) {
   );
 }
 
-interface WidgetProps {
-  id: string;
-  customize: boolean;
-  dragged: string | null;
-  onDragStart: (id: string) => void;
-  onDrop: (id: string) => void;
-  onHide: (id: string) => void;
-  order: number;
-  delay?: number;
-  className?: string;
-  children: React.ReactNode;
-}
-
-function Widget({ id, customize, dragged, onDragStart, onDrop, onHide, order, delay = 0, className = "", children }: WidgetProps) {
-  return (
-    <section
-      draggable={customize}
-      onDragStart={() => onDragStart(id)}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => { e.preventDefault(); if (dragged && dragged !== id) onDrop(id); }}
-      style={{ order, gridColumn: `span ${WIDGET_SPAN[id]}`, animationDelay: `${delay}s` }}
-      className={`animate-rise-up relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden ${className}`}
-    >
-      {children}
-      {customize && (
-        <button
-          onClick={() => onHide(id)}
-          className="absolute top-3.5 right-3.5 w-[26px] h-[26px] rounded-lg bg-[var(--surface-3)] border border-[var(--border-strong)] text-[var(--text-secondary)] text-sm flex items-center justify-center z-10"
-          aria-label={`Ocultar ${WIDGET_LABELS[id]}`}
-        >
-          <X size={14} />
-        </button>
-      )}
-    </section>
-  );
-}
-
 export function OverviewClient() {
   const { period, privacy, customize } = useUIStore(
     useShallow((s) => ({ period: s.period, privacy: s.privacy, customize: s.customize }))
   );
   const perfPeriod = PERIOD_MAP[period];
-
-  const [order, setOrder] = useState<string[]>(DEFAULT_ORDER);
-  const [hidden, setHidden] = useState<string[]>([]);
-  const [dragged, setDragged] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.order)) setOrder(parsed.order);
-        if (Array.isArray(parsed.hidden)) setHidden(parsed.hidden);
-      }
-    } catch { /* localStorage indisponível — segue com o layout padrão */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ order, hidden })); } catch { /* ignora */ }
-  }, [order, hidden]);
-
-  const handleDrop = (targetId: string) => {
-    if (!dragged) return;
-    const next = order.slice();
-    next.splice(next.indexOf(dragged), 1);
-    next.splice(next.indexOf(targetId), 0, dragged);
-    setOrder(next);
-    setDragged(null);
-  };
-  const handleHide = (id: string) => setHidden((h) => h.concat(id));
-  const handleRestore = (id: string) => setHidden((h) => h.filter((x) => x !== id));
 
   // ── Dados ────────────────────────────────────────────────────────────────
   const { data: portfolios = [], isLoading: portfoliosLoading } = useQuery<Portfolio[]>({
@@ -182,6 +125,20 @@ export function OverviewClient() {
 
   const visibleAccounts = holder ? accounts.filter((a) => a.holder === holder) : accounts;
   const visiblePortfolios = holder ? portfolios.filter((p) => p.holder === holder) : portfolios;
+
+  // Uma conta ou carteira vira um card com id estável ("acc-<uuid>"), então
+  // a posição e a largura que o usuário escolher para ela sobrevivem a
+  // recarregar a página e a criar outras contas.
+  const cardSpecs = useMemo<DashboardCardSpec[]>(
+    () =>
+      BASE_CARDS.concat(
+        visibleAccounts.map((a) => ({ id: `acc-${a.id}`, label: a.name, defaultSpan: 3, minSpan: 3 })),
+        visiblePortfolios.map((p) => ({ id: `pf-${p.id}`, label: p.name, defaultSpan: 3, minSpan: 3 }))
+      ),
+    [visibleAccounts, visiblePortfolios]
+  );
+
+  const layout = useDashboardLayout("overview", cardSpecs, LEGACY_STORAGE_KEY);
 
   // Antes só a carteira padrão (ou a primeira) entrava no patrimônio — quem
   // tinha mais de uma carteira de investimento via o resto sumir da conta.
@@ -270,12 +227,21 @@ export function OverviewClient() {
   const financeNet = Number(finSummary?.net ?? 0);
 
   const mask = (text: string) => maskValue(text, privacy);
-  const visible = (id: string) => !hidden.includes(id);
-  const hiddenList = hidden.filter((id) => WIDGET_LABELS[id]);
+  const visible = (id: string) => !layout.isHidden(id);
 
   const widgetProps = (id: string, delay: number) => ({
-    id, customize, dragged, onDragStart: setDragged, onDrop: handleDrop, onHide: handleHide,
-    order: order.indexOf(id), delay,
+    id,
+    label: layout.specById[id]?.label ?? id,
+    customize,
+    span: layout.spanOf(id),
+    minSpan: layout.specById[id]?.minSpan,
+    dragged: layout.dragged,
+    onDragStart: layout.handleDragStart,
+    onDrop: layout.handleDrop,
+    onHide: layout.hide,
+    onSpanChange: layout.setSpan,
+    order: layout.order.indexOf(id),
+    delay,
   });
 
   return (
@@ -308,17 +274,23 @@ export function OverviewClient() {
       {customize && (
         <div className="flex items-center gap-3 flex-wrap px-4 py-3 border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] mb-5 animate-rise-up">
           <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
-            Modo edição — arraste os cartões para reordenar, use × para ocultar.
+            Modo edição — arraste para reposicionar, use ¼ ½ ⅔ 1 para redimensionar e × para ocultar.
           </span>
-          {hiddenList.map((id) => (
+          {layout.hiddenCards.map((card) => (
             <button
-              key={id}
-              onClick={() => handleRestore(id)}
+              key={card.id}
+              onClick={() => layout.restore(card.id)}
               className="flex items-center gap-1.5 text-[11.5px] px-2.5 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-secondary)]"
             >
-              + {WIDGET_LABELS[id]}
+              + {card.label}
             </button>
           ))}
+          <button
+            onClick={layout.reset}
+            className="ml-auto text-[11.5px] px-2.5 py-1.5 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)]"
+          >
+            Restaurar padrão
+          </button>
         </div>
       )}
 
@@ -326,7 +298,7 @@ export function OverviewClient() {
 
         {/* Patrimônio líquido */}
         {visible("net") && (
-          <Widget {...widgetProps("net", 0)}>
+          <DashboardCard {...widgetProps("net", 0)}>
             <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(700px 220px at 12% -10%, var(--glow), transparent 70%)" }} />
             <div className="relative flex items-start gap-5 flex-wrap">
               <div className="flex-1">
@@ -384,12 +356,12 @@ export function OverviewClient() {
                 Sem histórico de carteira suficiente ainda para o gráfico.
               </div>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
         {/* Alocação */}
         {visible("alloc") && (
-          <Widget {...widgetProps("alloc", 0.06)}>
+          <DashboardCard {...widgetProps("alloc", 0.06)}>
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-[var(--text-primary)]">Alocação</div>
             </div>
@@ -429,74 +401,76 @@ export function OverviewClient() {
                 </div>
               </>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
-        {/* Carteiras (contas + portfólios) */}
-        {visible("wallets") && (
-          <Widget {...widgetProps("wallets", 0.09)}>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-sm font-semibold text-[var(--text-primary)]">Carteiras</div>
-                <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
-                  {holder ? `Contas e investimentos de ${holder}` : "Todas as contas e carteiras de investimento"}
+        {/* Contas e carteiras: um card por conta, na mesma grade dos demais.
+            Antes era uma lista rolável dentro de um card só — o que passasse
+            da altura fixa ficava invisível. */}
+        {visibleAccounts.map((a, i) => visible(`acc-${a.id}`) && (
+          <DashboardCard key={`acc-${a.id}`} {...widgetProps(`acc-${a.id}`, 0.09 + i * 0.01)}>
+            <Link href="/finances" className="block group">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate group-hover:underline">
+                    {a.name}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    {ACCOUNT_TYPE_LABELS[a.account_type]}{a.holder ? ` · ${a.holder}` : ""}
+                  </div>
                 </div>
+                <Wallet size={15} className="text-[var(--text-muted)] flex-shrink-0" />
               </div>
-            </div>
-            {visibleAccounts.length === 0 && visiblePortfolios.length === 0 ? (
-              <EmptyState icon={Wallet} title="Nenhuma carteira ainda" description="Crie uma conta em Finanças ou uma carteira em Investimentos." />
-            ) : (
-              <ul className="flex flex-col gap-1 max-h-[280px] overflow-y-auto -mx-1.5">
-                {visibleAccounts.map((a) => (
-                  <li key={`acc-${a.id}`}>
-                    <Link
-                      href="/finances"
-                      className="flex items-center justify-between gap-2 px-1.5 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{a.name}</div>
-                        <div className="text-[11px] text-[var(--text-muted)]">
-                          {ACCOUNT_TYPE_LABELS[a.account_type]}{a.holder ? ` · ${a.holder}` : ""}
-                        </div>
-                      </div>
-                      <b
-                        className="text-[12.5px] font-semibold tabular-nums flex-shrink-0"
-                        style={{ color: Number(a.balance) < 0 ? "var(--danger)" : "var(--text-primary)" }}
-                      >
-                        {mask(formatBRLCompact(Number(a.balance)))}
-                      </b>
-                    </Link>
-                  </li>
-                ))}
-                {visiblePortfolios.map((p) => {
-                  const s = summaries.find((row) => row.portfolio_id === p.id);
-                  return (
-                    <li key={`pf-${p.id}`}>
-                      <Link
-                        href="/investments"
-                        className="flex items-center justify-between gap-2 px-1.5 py-2 rounded-xl hover:bg-[var(--surface-2)] transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{p.name}</div>
-                          <div className="text-[11px] text-[var(--text-muted)]">
-                            Investimentos{p.holder ? ` · ${p.holder}` : ""}
-                          </div>
-                        </div>
-                        <b className="text-[12.5px] font-semibold tabular-nums flex-shrink-0 text-[var(--text-primary)]">
-                          {s ? mask(formatBRLCompact(Number(s.total_market_value_brl))) : "…"}
-                        </b>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Widget>
-        )}
+              <div
+                className="mt-4 text-2xl font-semibold tracking-[-.03em] tabular-nums"
+                style={{ color: Number(a.balance) < 0 ? "var(--danger)" : "var(--text-primary)" }}
+              >
+                {mask(formatBRLExact(Number(a.balance)))}
+              </div>
+              <div className="text-[11px] text-[var(--text-muted)] mt-1">
+                {a.include_in_total ? "Entra no patrimônio" : "Fora do patrimônio"}
+              </div>
+            </Link>
+          </DashboardCard>
+        ))}
+
+        {visiblePortfolios.map((p, i) => {
+          const s = summaries.find((row) => row.portfolio_id === p.id);
+          if (!visible(`pf-${p.id}`)) return null;
+          const pnl = s ? Number(s.total_pnl_percent) : null;
+          return (
+            <DashboardCard key={`pf-${p.id}`} {...widgetProps(`pf-${p.id}`, 0.09 + i * 0.01)}>
+              <Link href="/investments" className="block group">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] font-semibold text-[var(--text-primary)] truncate group-hover:underline">
+                      {p.name}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                      Investimentos{p.holder ? ` · ${p.holder}` : ""}
+                    </div>
+                  </div>
+                  <TrendingUp size={15} className="text-[var(--text-muted)] flex-shrink-0" />
+                </div>
+                <div className="mt-4 text-2xl font-semibold tracking-[-.03em] tabular-nums text-[var(--text-primary)]">
+                  {s ? mask(formatBRLExact(Number(s.total_market_value_brl))) : "…"}
+                </div>
+                {pnl !== null && (
+                  <div
+                    className="text-[11px] mt-1 tabular-nums"
+                    style={{ color: pnl >= 0 ? "var(--accent)" : "var(--danger)" }}
+                  >
+                    {formatPercent(pnl, 1, { signed: true })} no total
+                  </div>
+                )}
+              </Link>
+            </DashboardCard>
+          );
+        })}
 
         {/* Fluxo de caixa */}
         {visible("flow") && (
-          <Widget {...widgetProps("flow", 0.12)}>
+          <DashboardCard {...widgetProps("flow", 0.12)}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-[var(--text-primary)]">Fluxo de caixa</div>
@@ -544,12 +518,12 @@ export function OverviewClient() {
                 </div>
               </>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
         {/* Fatura atual */}
         {visible("bill") && (
-          <Widget {...widgetProps("bill", 0.18)}>
+          <DashboardCard {...widgetProps("bill", 0.18)}>
             <div className="text-sm font-semibold text-[var(--text-primary)]">Fatura atual</div>
             {billCards.length === 0 ? (
               <EmptyState icon={Landmark} title="Nenhum cartão cadastrado" description="Cadastre um cartão na tela de Cartões." />
@@ -588,12 +562,12 @@ export function OverviewClient() {
                 )}
               </>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
         {/* Metas */}
         {visible("goals") && (
-          <Widget {...widgetProps("goals", 0.24)}>
+          <DashboardCard {...widgetProps("goals", 0.24)}>
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm font-semibold text-[var(--text-primary)]">Metas</div>
               <Link href="/goals" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Ver todas</Link>
@@ -620,12 +594,12 @@ export function OverviewClient() {
                 ))}
               </div>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
         {/* Movimentações recentes */}
         {visible("tx") && (
-          <Widget {...widgetProps("tx", 0.3)}>
+          <DashboardCard {...widgetProps("tx", 0.3)}>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-sm font-semibold text-[var(--text-primary)]">Movimentações recentes</div>
               <Link href="/transactions" className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Extrato completo</Link>
@@ -660,12 +634,12 @@ export function OverviewClient() {
                 })}
               </div>
             )}
-          </Widget>
+          </DashboardCard>
         )}
 
         {/* Saúde financeira */}
         {visible("health") && (
-          <Widget {...widgetProps("health", 0.36)}>
+          <DashboardCard {...widgetProps("health", 0.36)}>
             <div className="text-sm font-semibold mb-4 text-[var(--text-primary)]">Saúde financeira</div>
             <div className="flex items-center gap-4.5">
               <DonutRing size={96} strokeWidth={9} segments={[{ fraction: Math.max(0, Math.min(1, savingsFraction)), color: "var(--accent)" }]} />
@@ -688,7 +662,7 @@ export function OverviewClient() {
                 <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(burnRate))}</b>
               </div>
             </div>
-          </Widget>
+          </DashboardCard>
         )}
       </div>
     </div>
