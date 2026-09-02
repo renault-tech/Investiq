@@ -288,7 +288,6 @@ async def get_portfolio_summary(
             "pnl_absolute": pnl_abs,
             "pnl_percent": pnl_pct,
             "target_weight": pos.target_weight,
-            "fx_rate_to_brl": fx_rate,
         })
 
     # Aggregate portfolio summary

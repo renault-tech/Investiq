@@ -128,8 +128,20 @@ def calculate_portfolio_summary(positions: list[dict]) -> dict:
     """Aggregate portfolio-level metrics from a list of position dicts.
 
     Each position dict must have keys:
-        quantity (Decimal), avg_cost (Decimal), current_price (Decimal),
-        fx_rate_to_brl (Decimal, default 1)
+        quantity (Decimal), avg_cost (Decimal), current_price (Decimal)
+
+    `avg_cost` and `current_price` must already be in BRL — get_portfolio_summary
+    (the only caller) converts each position's native-currency price with the
+    day's fx_rate *before* building this dict, precisely so this function can
+    just sum. Applying fx_rate here too used to double-convert every foreign
+    position: an ETF whose real value was ~R$82 mil showed ~R$422 mil (the
+    same ~5.16 USD/BRL rate applied twice), while each position's own
+    market_value_brl elsewhere in the same response stayed correct — the two
+    numbers only ever visibly disagreed for a portfolio holding foreign
+    assets, which is why this stayed hidden through fixes aimed at the
+    historical-reconstruction chart: the summary and the chart are computed
+    by entirely different code paths, and only this one silently inflated
+    the "Carteira total" figure.
 
     Returns:
         {
@@ -146,12 +158,9 @@ def calculate_portfolio_summary(positions: list[dict]) -> dict:
         qty = d(pos["quantity"])
         avg_cost = d(pos["avg_cost"])
         current_price = d(pos["current_price"])
-        fx_rate = d(pos.get("fx_rate_to_brl", _ONE))
-        if fx_rate == _ZERO:
-            raise ValueError(f"fx_rate_to_brl cannot be zero for position {pos.get('asset_id', '?')}")
 
-        cost_brl = multiply(multiply(qty, avg_cost), fx_rate)
-        mktval_brl = multiply(multiply(qty, current_price), fx_rate)
+        cost_brl = multiply(qty, avg_cost)
+        mktval_brl = multiply(qty, current_price)
 
         total_invested = add(total_invested, cost_brl)
         total_market_value = add(total_market_value, mktval_brl)
@@ -204,9 +213,16 @@ def calculate_rebalance_suggestion(
 
     Each position dict must have keys:
         asset_id (str), ticker (str),
-        quantity (Decimal), current_price (Decimal), fx_rate_to_brl (Decimal),
+        quantity (Decimal), current_price (Decimal),
         target_weight (Decimal | None)   — 0.0–1.0 decimal fraction
         market_value_brl (Decimal)
+
+    `current_price` must already be in BRL — get_portfolio_summary converts
+    it before building this dict. Multiplying by fx_rate again here (as this
+    used to) understated delta_units for every foreign position by roughly
+    the exchange rate itself: dividing a real BRL delta by an over-converted
+    price. Same root cause as calculate_portfolio_summary's old double
+    conversion, just one function down.
 
     Returns:
         List of dicts with asset_id, ticker, current_weight, target_weight,
@@ -225,19 +241,15 @@ def calculate_rebalance_suggestion(
         target_weight = d(target_w)
         current_value_brl = d(pos["market_value_brl"])
         current_price = d(pos["current_price"])
-        fx_rate = d(pos.get("fx_rate_to_brl", _ONE))
-        if fx_rate == _ZERO:
-            raise ValueError(f"fx_rate_to_brl cannot be zero for position {pos.get('asset_id', '?')}")
 
         current_weight = divide(current_value_brl, total_portfolio_value_brl)
         target_value_brl = multiply(total_portfolio_value_brl, target_weight)
         delta_value_brl = subtract(target_value_brl, current_value_brl)
 
-        price_in_brl = multiply(current_price, fx_rate)
-        if price_in_brl == _ZERO:
+        if current_price == _ZERO:
             delta_units = _ZERO
         else:
-            delta_units = divide(delta_value_brl, price_in_brl)
+            delta_units = divide(delta_value_brl, current_price)
 
         delta_units = round_financial(delta_units)
 
