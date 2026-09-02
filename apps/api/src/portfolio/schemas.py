@@ -184,7 +184,10 @@ class TransactionCreate(BaseModel):
     quantity: Decimal = Field(..., gt=0)
     unit_price: Decimal = Field(..., gt=0)
     fees: Decimal = Field(default=Decimal("0"), ge=0)
-    fx_rate: Decimal = Field(default=Decimal("1"), gt=0)
+    # Ausente = resolvido pela moeda do ativo no momento do lançamento (ver
+    # service.record_transaction). O default 1 de antes tratava dólar como
+    # real em silêncio no custo da posição.
+    fx_rate: Optional[Decimal] = Field(default=None, gt=0)
     transaction_date: datetime
     notes: Optional[str] = None
 
@@ -247,3 +250,38 @@ class PositionResponse(BaseModel):
 
 # Os schemas de conta bancária vivem em src/finance/schemas.py desde a
 # migração 0011 — conta é um conceito de finanças, não de portfólio.
+
+# ---------------------------------------------------------------------------
+# Auditoria de cálculo
+# ---------------------------------------------------------------------------
+
+class AuditIssue(BaseModel):
+    code: str
+    message: str
+    transaction_count: int
+
+
+class AuditPosition(BaseModel):
+    position_id: uuid.UUID
+    ticker: str
+    currency: str
+    quantity: Decimal
+    price_native: Decimal
+    fx_rate: Decimal
+    market_value_brl: Decimal
+    cost_basis_brl: Decimal
+    issues: list[AuditIssue]
+
+
+class PortfolioAuditResponse(BaseModel):
+    portfolio_id: uuid.UUID
+    total_market_value_brl: Decimal
+    total_cost_basis_brl: Decimal
+    issue_count: int
+    positions: list[AuditPosition]
+
+
+class PortfolioRepairResponse(BaseModel):
+    transactions_repaired: int
+    positions_recalculated: int
+    transactions_skipped_no_rate: int

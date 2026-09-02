@@ -12,6 +12,7 @@ import { usePortfolioBenchmark } from "@/hooks/usePortfolioBenchmark";
 import { usePortfolioLookThrough } from "@/hooks/usePortfolioLookThrough";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { PositionsTable } from "./PositionsTable";
+import { AuditPanel } from "./AuditPanel";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { PERIODS, formatBRLExact, formatBRLCompact, formatCurrencyExact, formatPct } from "@/components/charts/chartTheme";
@@ -516,6 +517,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 activePortfolioId && <IncomeTab portfolioId={activePortfolioId} />
               )}
             </section>
+
+            {activeTab === "positions" && <AuditPanel portfolioId={activePortfolioId} />}
           </div>
         </div>
       )}

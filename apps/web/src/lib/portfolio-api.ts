@@ -112,7 +112,9 @@ export interface CreateTransactionInput {
   quantity: number;
   unit_price: number;
   fees: number;
-  fx_rate: number;
+  /** Omitido = o backend usa o câmbio do dia para a moeda do ativo. Mandar 1
+   *  num ativo em dólar grava o custo em dólar num campo lido como real. */
+  fx_rate?: number;
   transaction_date: string;
   notes?: string;
 }
@@ -261,4 +263,60 @@ export interface InvestmentTransaction {
 export async function listPositionTransactions(positionId: string): Promise<InvestmentTransaction[]> {
   const res = await apiClient.get<InvestmentTransaction[]>(`/portfolios/positions/${positionId}/transactions`);
   return coerceNumbersInList(res.data, ["quantity", "unit_price", "fees", "fx_rate", "total_amount"] as const);
+}
+
+// ─── Auditoria de cálculo ────────────────────────────────────────────────────
+
+export interface AuditIssue {
+  code: string;
+  message: string;
+  transaction_count: number;
+}
+
+export interface AuditPosition {
+  position_id: string;
+  ticker: string;
+  currency: string;
+  quantity: number;
+  price_native: number;
+  fx_rate: number;
+  market_value_brl: number;
+  cost_basis_brl: number;
+  issues: AuditIssue[];
+}
+
+export interface PortfolioAudit {
+  portfolio_id: string;
+  total_market_value_brl: number;
+  total_cost_basis_brl: number;
+  issue_count: number;
+  positions: AuditPosition[];
+}
+
+const AUDIT_NUMERIC = [
+  "quantity",
+  "price_native",
+  "fx_rate",
+  "market_value_brl",
+  "cost_basis_brl",
+] as const;
+
+export async function getPortfolioAudit(portfolioId: string): Promise<PortfolioAudit> {
+  const res = await apiClient.get<PortfolioAudit>(`/portfolios/${portfolioId}/audit`);
+  const data = res.data;
+  return {
+    ...coerceNumbers(data, ["total_market_value_brl", "total_cost_basis_brl"] as const),
+    positions: coerceNumbersInList(data.positions ?? [], AUDIT_NUMERIC),
+  };
+}
+
+export interface PortfolioRepairResult {
+  transactions_repaired: number;
+  positions_recalculated: number;
+  transactions_skipped_no_rate: number;
+}
+
+export async function repairPortfolioFx(portfolioId: string): Promise<PortfolioRepairResult> {
+  const res = await apiClient.post<PortfolioRepairResult>(`/portfolios/${portfolioId}/audit/repair-fx`);
+  return res.data;
 }

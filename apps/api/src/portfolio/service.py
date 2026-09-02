@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from src.portfolio.models import (
     Portfolio, PortfolioPosition, Asset, InvestmentTransaction,
-    PortfolioSnapshot,
+    PortfolioSnapshot, FxRate,
 )
 from src.portfolio.calculations import (
     calculate_position_pnl,
@@ -421,6 +421,47 @@ async def get_portfolio_performance(
     )
     snapshots = {s.snapshot_date: s for s in snap_result.scalars().all()}
 
+    # Moeda de cada ticker: um fechamento histórico vem sempre na moeda
+    # nativa do ativo, então somar VWO (USD) direto num total em reais
+    # subestima a posição pelo câmbio inteiro (~5x). Só os dias reconstruídos
+    # tinham esse problema — os dias com snapshot já gravam
+    # total_market_value_brl convertido —, o que fazia a série alternar entre
+    # duas bases diferentes e desenhar um degrau vertical a cada dia sem
+    # snapshot.
+    ticker_currency = {pos.asset.ticker: pos.asset.currency for pos in portfolio.positions}
+
+    fx_history: dict[str, list[tuple[date, Decimal]]] = {}
+    needed_currencies = {c for c in ticker_currency.values() if c and c != "BRL"}
+    if needed_currencies:
+        fx_result = await db.execute(
+            select(FxRate)
+            .where(FxRate.from_currency.in_(needed_currencies), FxRate.to_currency == "BRL")
+            .order_by(FxRate.date)
+        )
+        for row in fx_result.scalars().all():
+            fx_history.setdefault(row.from_currency, []).append((row.date, row.rate))
+
+    def rate_at(currency: str, day: date) -> Decimal:
+        """Câmbio para BRL vigente no dia — mesma regra do `close_at`.
+
+        Sem cotação até aquela data (a série de câmbio começa depois do
+        primeiro aporte), usa a mais antiga conhecida em vez de 1:1: repetir
+        a taxa mais próxima erra em alguns por cento, enquanto tratar dólar
+        como real erra em centenas.
+        """
+        if not currency or currency == "BRL":
+            return _ONE
+        history = fx_history.get(currency)
+        if not history:
+            return _ONE
+        best = None
+        for rate_date, rate in history:
+            if rate_date <= day:
+                best = rate
+            else:
+                break
+        return best if best is not None else history[0][1]
+
     # Historical closes per ticker (cache-first), only for dates not covered by snapshots
     tickers = sorted({ticker for _, ticker, _ in txns})
     provider_period = _PERIOD_TO_PROVIDER.get(period, "max")
@@ -451,14 +492,24 @@ async def get_portfolio_performance(
     closes: dict[str, list[tuple[date, Decimal]]] = dict(zip(tickers, closes_list))
 
     def close_at(ticker: str, day: date) -> Optional[Decimal]:
-        """Most recent close on or before the given date."""
+        """Most recent close on or before the given date.
+
+        Sem nenhum fechamento até a data (o histórico do provedor começa
+        depois do primeiro aporte), devolve o mais antigo conhecido em vez de
+        None: contribuir com zero por não ter preço fazia a carteira inteira
+        despencar a zero naquele dia e voltar no dia seguinte — o vale
+        vertical que aparecia no gráfico de patrimônio.
+        """
+        history = closes.get(ticker, [])
+        if not history:
+            return None
         best = None
-        for bar_date, close in closes.get(ticker, []):
+        for bar_date, close in history:
             if bar_date <= day:
                 best = close
             else:
                 break
-        return best
+        return best if best is not None else history[0][1]
 
     series = []
     for day in grid:
@@ -471,18 +522,27 @@ async def get_portfolio_performance(
             })
             continue
 
-        # Reconstruct from transactions accumulated up to this date
+        # Reconstruct from transactions accumulated up to this date.
+        # Espelha _recompute_position_from_transactions por ticker: uma venda
+        # baixa o custo proporcionalmente à fração vendida, não pelo valor
+        # recebido. Subtrair o valor da venda misturava preço de venda com
+        # preço de custo e podia zerar (ou negativar) o investido de uma
+        # carteira que continuava cheia — e é esse "investido" que o TWR lê
+        # como aporte/retirada, então o erro virava retorno fantasma.
         qty: dict[str, Decimal] = {}
-        invested = _ZERO
+        invested_by_ticker: dict[str, Decimal] = {}
         for txn_date, ticker, txn in txns:
             if txn_date > day:
                 break
+            held = qty.get(ticker, _ZERO)
             if txn.transaction_type == "buy":
-                qty[ticker] = qty.get(ticker, _ZERO) + txn.quantity
-                invested += txn.total_amount
+                qty[ticker] = held + txn.quantity
+                invested_by_ticker[ticker] = invested_by_ticker.get(ticker, _ZERO) + txn.total_amount
             else:  # sell
-                qty[ticker] = qty.get(ticker, _ZERO) - txn.quantity
-                invested -= txn.total_amount
+                if held > _ZERO:
+                    sold_fraction = min(txn.quantity / held, _ONE)
+                    invested_by_ticker[ticker] = invested_by_ticker.get(ticker, _ZERO) * (_ONE - sold_fraction)
+                qty[ticker] = held - txn.quantity
 
         total_value = _ZERO
         for ticker, quantity in qty.items():
@@ -490,7 +550,11 @@ async def get_portfolio_performance(
                 continue
             price = close_at(ticker, day)
             if price is not None:
-                total_value += quantity * price
+                total_value += quantity * price * rate_at(ticker_currency.get(ticker, "BRL"), day)
+        invested = sum(
+            (value for ticker, value in invested_by_ticker.items() if qty.get(ticker, _ZERO) > _ZERO),
+            _ZERO,
+        )
         series.append({
             "date": day,
             "total_value": total_value,
@@ -539,6 +603,25 @@ def _compute_twr_series(series: list[dict]) -> list[dict]:
         cash_flow = invested - prev_invested
         if prev_value > _ZERO:
             sub_return = (value - cash_flow) / prev_value - _ONE
+            # Um sub-período abaixo de -100% é impossível numa carteira sem
+            # alavancagem: significaria perder mais do que se tinha. Quando a
+            # conta dá isso, o dado é que está inconsistente (cotação faltando
+            # no dia, câmbio ausente, custo gravado numa moeda diferente do
+            # valor de mercado) — e propagar isso multiplicava o acumulado por
+            # um número negativo, invertendo o sinal de toda a série dali em
+            # diante e desenhando aqueles picos de -450%/-1350% alternados.
+            # Um dia ilegível não é um dia de prejuízo: pula, como já se faz
+            # quando não há valor anterior pra medir.
+            if sub_return <= -_ONE:
+                # Além de não compor o retorno, o dia ilegível também não vira
+                # base do próximo: medir o dia seguinte contra uma valorização
+                # que já se sabe furada só transfere o erro de lugar (vira um
+                # salto positivo simétrico ao buraco). A base segue sendo a
+                # última leitura confiável, e o `invested` dela também — assim
+                # o aporte que tenha acontecido no meio do vão ainda é
+                # descontado quando a série volta a ser legível.
+                out.append({"date": point["date"], "twr_pct": round_financial((cumulative - _ONE) * 100)})
+                continue
             cumulative *= _ONE + sub_return
         # prev_value <= 0 só acontece com a carteira zerada (sem posição
         # nenhuma) — sem base pra medir retorno, o composto fica parado até
@@ -677,22 +760,35 @@ async def record_transaction(
     quantity: Decimal,
     unit_price: Decimal,
     fees: Decimal,
-    fx_rate: Decimal,
+    fx_rate: Optional[Decimal],
     transaction_date,
     notes: Optional[str],
     db: AsyncSession,
 ) -> InvestmentTransaction:
-    """Record an investment transaction and update position avg cost/quantity."""
+    """Record an investment transaction and update position avg cost/quantity.
+
+    `fx_rate` ausente (None) é resolvido pela moeda do ativo, não assumido
+    como 1. Assumir 1:1 num ativo cotado em dólar gravava o custo em dólar
+    dentro de um campo que o resto do sistema lê como reais: a posição
+    aparecia com um lucro fantasma da ordem do próprio câmbio (~5x), e o
+    "investido" da série histórica saía incompatível com o valor de mercado.
+    """
     # Join through Portfolio to enforce ownership at the DB level
     result = await db.execute(
         select(PortfolioPosition)
         .join(Portfolio, Portfolio.id == PortfolioPosition.portfolio_id)
         .where(PortfolioPosition.id == position_id)
         .where(Portfolio.user_id == user_id)
+        .options(selectinload(PortfolioPosition.asset))
     )
     position = result.scalar_one_or_none()
     if position is None:
         raise NotFoundError(f"Position {position_id} not found")
+
+    if fx_rate is None:
+        currency = position.asset.currency if position.asset else "BRL"
+        rates = await _get_fx_rates_to_brl({currency}, db)
+        fx_rate = rates.get(currency, _ONE)
 
     total_amount = calculate_transaction_total(quantity, unit_price, fees, fx_rate)
 
@@ -900,6 +996,168 @@ async def delete_transaction(transaction_id: uuid.UUID, user_id: uuid.UUID, db: 
     _recompute_position_from_transactions(position, siblings_result.scalars().all())
 
     await db.commit()
+
+
+async def _historical_fx_rate(currency: str, day: date, db: AsyncSession) -> Optional[Decimal]:
+    """Câmbio para BRL vigente numa data — a cotação mais recente até ela, ou,
+    se a série só começa depois, a mais antiga conhecida."""
+    if not currency or currency == "BRL":
+        return _ONE
+    result = await db.execute(
+        select(FxRate)
+        .where(FxRate.from_currency == currency, FxRate.to_currency == "BRL", FxRate.date <= day)
+        .order_by(FxRate.date.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return row.rate
+    result = await db.execute(
+        select(FxRate)
+        .where(FxRate.from_currency == currency, FxRate.to_currency == "BRL")
+        .order_by(FxRate.date)
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    return row.rate if row is not None else None
+
+
+async def audit_portfolio(portfolio_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Confere de onde vem o valor de cada posição e aponta o que não fecha.
+
+    Existe porque um número errado no total não diz onde nasceu. Cada posição
+    é devolvida com a conta aberta (quantidade × preço × câmbio) e, quando o
+    custo foi gravado numa base incompatível com a valorização, com o problema
+    nomeado — hoje só um caso é detectável com certeza, e é o que mais
+    distorce: transação de ativo em moeda estrangeira gravada com câmbio 1,
+    que guarda dólar num campo que todo o resto lê como real.
+    """
+    result = await db.execute(
+        select(Portfolio)
+        .options(
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.asset),
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.transactions),
+        )
+        .where(Portfolio.id == portfolio_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if portfolio is None:
+        raise NotFoundError(f"Portfolio {portfolio_id} not found")
+    if portfolio.user_id != user_id:
+        raise ForbiddenError("Access denied")
+
+    currencies = {p.asset.currency for p in portfolio.positions if p.asset}
+    fx_rates = await _get_fx_rates_to_brl(currencies, db)
+
+    positions_out = []
+    issues_total = 0
+    for pos in portfolio.positions:
+        asset = pos.asset
+        currency = asset.currency if asset else "BRL"
+        fx_rate = fx_rates.get(currency, _ONE)
+        price_native = asset.last_price or _ZERO if asset else _ZERO
+        market_value_brl = round_financial(pos.quantity * price_native * fx_rate)
+
+        issues = []
+        if currency != "BRL":
+            unconverted = [
+                txn for txn in pos.transactions
+                if txn.transaction_type in ("buy", "sell") and txn.fx_rate == _ONE
+            ]
+            if unconverted:
+                issues.append({
+                    "code": "fx_rate_missing",
+                    "message": (
+                        f"{len(unconverted)} transação(ões) de um ativo em {currency} "
+                        f"gravada(s) com câmbio 1, ou seja, o custo ficou em {currency} "
+                        "num campo lido como reais — o lucro exibido fica inflado pelo câmbio."
+                    ),
+                    "transaction_count": len(unconverted),
+                })
+        issues_total += len(issues)
+
+        positions_out.append({
+            "position_id": pos.id,
+            "ticker": asset.ticker if asset else "—",
+            "currency": currency,
+            "quantity": pos.quantity,
+            "price_native": price_native,
+            "fx_rate": fx_rate,
+            "market_value_brl": market_value_brl,
+            "cost_basis_brl": pos.total_invested,
+            "issues": issues,
+        })
+
+    positions_out.sort(key=lambda p: p["market_value_brl"], reverse=True)
+    return {
+        "portfolio_id": portfolio_id,
+        "total_market_value_brl": round_financial(
+            sum((p["market_value_brl"] for p in positions_out), _ZERO)
+        ),
+        "total_cost_basis_brl": round_financial(
+            sum((p["cost_basis_brl"] for p in positions_out), _ZERO)
+        ),
+        "issue_count": issues_total,
+        "positions": positions_out,
+    }
+
+
+async def repair_portfolio_fx(portfolio_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Regrava com o câmbio histórico as transações de ativo estrangeiro que
+    ficaram com câmbio 1, e recalcula as posições afetadas.
+
+    Corrigir o código que gravava 1 não conserta o que já está no banco — e
+    reeditar transação por transação na mão não é viável. Só mexe em quem tem
+    câmbio exatamente 1 num ativo não-BRL (o rastro do bug); um câmbio 1
+    digitado de propósito nesse cenário seria, de qualquer forma, errado.
+    """
+    result = await db.execute(
+        select(Portfolio)
+        .options(
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.asset),
+            selectinload(Portfolio.positions).selectinload(PortfolioPosition.transactions),
+        )
+        .where(Portfolio.id == portfolio_id)
+    )
+    portfolio = result.scalar_one_or_none()
+    if portfolio is None:
+        raise NotFoundError(f"Portfolio {portfolio_id} not found")
+    if portfolio.user_id != user_id:
+        raise ForbiddenError("Access denied")
+
+    repaired = 0
+    positions_touched = 0
+    skipped_no_rate = 0
+    for pos in portfolio.positions:
+        asset = pos.asset
+        currency = asset.currency if asset else "BRL"
+        if currency == "BRL":
+            continue
+        changed = False
+        for txn in pos.transactions:
+            if txn.transaction_type not in ("buy", "sell") or txn.fx_rate != _ONE:
+                continue
+            rate = await _historical_fx_rate(currency, txn.transaction_date.date(), db)
+            if rate is None or rate == _ONE:
+                skipped_no_rate += 1
+                continue
+            txn.fx_rate = rate
+            txn.total_amount = calculate_transaction_total(
+                txn.quantity, txn.unit_price, txn.fees, rate
+            )
+            repaired += 1
+            changed = True
+        if changed:
+            _recompute_position_from_transactions(pos, list(pos.transactions))
+            positions_touched += 1
+
+    if repaired:
+        await db.commit()
+    return {
+        "transactions_repaired": repaired,
+        "positions_recalculated": positions_touched,
+        "transactions_skipped_no_rate": skipped_no_rate,
+    }
 
 
 async def add_position(

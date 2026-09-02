@@ -28,6 +28,8 @@ from src.portfolio.schemas import (
     TransactionUpdate,
     TransactionResponse,
     AddPositionRequest,
+    PortfolioAuditResponse,
+    PortfolioRepairResponse,
     UpdatePositionRequest,
     PositionResponse,
 )
@@ -172,6 +174,28 @@ async def get_portfolio_income(
 ):
     """Dividend income: monthly series for `year` + trailing-12m yield-on-cost per asset."""
     return await service.get_portfolio_income(portfolio_id, current_user.id, year, db)
+
+
+@router.get("/{portfolio_id}/audit", response_model=PortfolioAuditResponse)
+async def audit_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Conta aberta de cada posição (quantidade × preço × câmbio) e os
+    problemas de base detectados — de onde o total realmente vem."""
+    return await service.audit_portfolio(portfolio_id, current_user.id, db)
+
+
+@router.post("/{portfolio_id}/audit/repair-fx", response_model=PortfolioRepairResponse)
+async def repair_portfolio_fx(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Regrava com o câmbio histórico as transações de ativo estrangeiro
+    lançadas com câmbio 1 e recalcula as posições afetadas."""
+    return await service.repair_portfolio_fx(portfolio_id, current_user.id, db)
 
 
 @router.get("/{portfolio_id}/export")

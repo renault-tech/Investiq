@@ -191,3 +191,129 @@ async def test_duplicate_position_for_same_ticker_conflicts(client):
         f"/portfolios/{portfolio_id}/positions", json={"ticker": "PETR4"}, headers=headers
     )
     assert dup.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Auditoria de câmbio em ativo internacional
+# ---------------------------------------------------------------------------
+
+async def _seed_usd_fx(db_session, rate="5.40", when=None):
+    from src.portfolio.models import FxRate
+
+    db_session.add(FxRate(
+        from_currency="USD", to_currency="BRL",
+        rate=Decimal(rate), date=when or date(2026, 1, 1),
+    ))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_transaction_without_fx_rate_uses_the_asset_currency_rate(client, db_session):
+    """Lançamento em ativo de dólar sem informar câmbio não pode virar 1:1.
+
+    Era o que a UI mandava (fx_rate fixo em 1): o custo ficava gravado em
+    dólar num campo lido como real, e a posição aparecia com lucro fantasma
+    do tamanho do próprio câmbio.
+    """
+    await _seed_usd_fx(db_session)
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, position_id = await _create_portfolio_with_position(client, headers, ticker="VWO")
+
+    created = await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 100, "fees": 0,
+            "transaction_date": "2026-02-01T12:00:00Z",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert Decimal(body["fx_rate"]) == Decimal("5.40")
+    # 10 × US$100 × 5,40 = R$ 5.400, não R$ 1.000
+    assert Decimal(body["total_amount"]) == Decimal("5400")
+
+
+@pytest.mark.asyncio
+async def test_audit_flags_a_foreign_asset_bought_with_fx_rate_one(client, db_session):
+    await _seed_usd_fx(db_session)
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, position_id = await _create_portfolio_with_position(client, headers, ticker="VWO")
+
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 100, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-02-01T12:00:00Z",
+        },
+        headers=headers,
+    )
+
+    audit = await client.get(f"/portfolios/{portfolio_id}/audit", headers=headers)
+    assert audit.status_code == 200, audit.text
+    body = audit.json()
+    assert body["issue_count"] == 1
+    position = body["positions"][0]
+    assert position["ticker"] == "VWO"
+    assert position["issues"][0]["code"] == "fx_rate_missing"
+    # A conta aberta que explica o total vem junto.
+    assert Decimal(position["quantity"]) == Decimal("10")
+    assert Decimal(position["fx_rate"]) == Decimal("5.40")
+
+
+@pytest.mark.asyncio
+async def test_repair_fx_rewrites_cost_with_the_historical_rate(client, db_session):
+    await _seed_usd_fx(db_session)
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, position_id = await _create_portfolio_with_position(client, headers, ticker="VWO")
+
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 10, "unit_price": 100, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-02-01T12:00:00Z",
+        },
+        headers=headers,
+    )
+
+    repair = await client.post(f"/portfolios/{portfolio_id}/audit/repair-fx", headers=headers)
+    assert repair.status_code == 200, repair.text
+    assert repair.json()["transactions_repaired"] == 1
+    assert repair.json()["positions_recalculated"] == 1
+
+    audit = await client.get(f"/portfolios/{portfolio_id}/audit", headers=headers)
+    body = audit.json()
+    assert body["issue_count"] == 0
+    # Custo passa de R$ 1.000 (dólar lido como real) para R$ 5.400.
+    assert Decimal(body["positions"][0]["cost_basis_brl"]) == Decimal("5400")
+
+    # Idempotente: rodar de novo não acha mais nada pra corrigir.
+    again = await client.post(f"/portfolios/{portfolio_id}/audit/repair-fx", headers=headers)
+    assert again.json()["transactions_repaired"] == 0
+
+
+@pytest.mark.asyncio
+async def test_audit_leaves_brl_assets_alone(client):
+    session = await register_and_login(client)
+    headers = session["headers"]
+    portfolio_id, position_id = await _create_portfolio_with_position(client, headers)
+
+    await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 100, "unit_price": 30, "fees": 0, "fx_rate": 1,
+            "transaction_date": "2026-02-01T12:00:00Z",
+        },
+        headers=headers,
+    )
+
+    audit = await client.get(f"/portfolios/{portfolio_id}/audit", headers=headers)
+    # Câmbio 1 em ativo brasileiro é o correto — não é problema.
+    assert audit.json()["issue_count"] == 0
