@@ -74,7 +74,7 @@ export interface PortfolioSummary {
   portfolio_count?: number;
 }
 
-export type PerformancePeriod = "1m" | "3m" | "6m" | "1y" | "max";
+export type PerformancePeriod = "1m" | "3m" | "6m" | "1y" | "2y" | "max";
 
 export interface PerformancePoint {
   date: string;
