@@ -73,7 +73,7 @@ async def get_consolidated_summary(
 
 @router.get("/consolidated/performance", response_model=list[PerformancePoint])
 async def get_consolidated_performance(
-    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|2y|max)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis=Depends(_get_redis),
@@ -93,7 +93,7 @@ async def get_consolidated_performance(
 
 @router.get("/consolidated/benchmark", response_model=list[BenchmarkPoint])
 async def get_consolidated_benchmark(
-    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|2y|max)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis=Depends(_get_redis),
@@ -168,7 +168,7 @@ async def get_portfolio_summary(
 @router.get("/{portfolio_id}/performance", response_model=list[PerformancePoint])
 async def get_portfolio_performance(
     portfolio_id: uuid.UUID,
-    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|2y|max)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis=Depends(_get_redis),
@@ -189,7 +189,7 @@ async def get_portfolio_performance(
 @router.get("/{portfolio_id}/benchmark", response_model=list[BenchmarkPoint])
 async def get_portfolio_benchmark(
     portfolio_id: uuid.UUID,
-    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|max)$"),
+    period: str = Query(default="1y", pattern="^(1m|3m|6m|1y|2y|max)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis=Depends(_get_redis),

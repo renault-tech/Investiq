@@ -348,9 +348,9 @@ async def get_portfolio_summary(
     }
 
 
-_PERIOD_DAYS = {"1m": 30, "3m": 91, "6m": 182, "1y": 365}
+_PERIOD_DAYS = {"1m": 30, "3m": 91, "6m": 182, "1y": 365, "2y": 730}
 # Provider period strings large enough to cover each requested range
-_PERIOD_TO_PROVIDER = {"1m": "3mo", "3m": "6mo", "6m": "1y", "1y": "2y", "max": "max"}
+_PERIOD_TO_PROVIDER = {"1m": "3mo", "3m": "6mo", "6m": "1y", "1y": "2y", "2y": "5y", "max": "max"}
 
 
 def _build_date_grid(start: date, end: date, weekly: bool) -> list[date]:

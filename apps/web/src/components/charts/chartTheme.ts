@@ -9,6 +9,7 @@ export const PERIODS: { value: PerformancePeriod; label: string }[] = [
   { value: "3m", label: "3m" },
   { value: "6m", label: "6m" },
   { value: "1y", label: "1a" },
+  { value: "2y", label: "2a" },
   { value: "max", label: "máx" },
 ];
 
