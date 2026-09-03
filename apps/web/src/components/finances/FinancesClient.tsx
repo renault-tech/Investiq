@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Download, FileText, Layers, Plus, Tags } from "lucide-react";
-import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
+import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction, usePayTransaction, useUnpayTransaction } from "@/hooks/useFinance";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
 import { FinanceTransaction } from "@/lib/finance-api";
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { SummaryCards } from "./SummaryCards";
 import { CategoryBars } from "./CategoryBars";
 import { TransactionsTable } from "./TransactionsTable";
-import { MonthStepper, monthKey, monthLabel as monthLabelFor } from "./MonthStepper";
+import { MonthStepper, monthKey } from "./MonthStepper";
 import { PlannedVsActual } from "./PlannedVsActual";
 import { DashboardCard } from "@/components/ui/DashboardCard";
 import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
@@ -98,6 +98,7 @@ export function FinancesClient() {
   });
   const deleteMutation = useDeleteTransaction();
   const payMutation = usePayTransaction();
+  const unpayMutation = useUnpayTransaction();
 
   const shiftMonth = (delta: number) => {
     const [year, mon] = month.split("-").map(Number);
@@ -233,9 +234,9 @@ export function FinancesClient() {
 
         {visible("planned") && (
         <DashboardCard {...cardProps("planned", 0.2)}>
-          <div className="flex items-baseline justify-between gap-2 mb-4">
+          <div className="flex items-center justify-between gap-2 mb-4">
             <div className="text-sm font-semibold text-[var(--text-primary)]">Previsto × executado</div>
-            <span className="text-[11px] text-[var(--text-muted)]">{monthLabelFor(month)}</span>
+            <MonthStepper month={month} onShift={shiftMonth} compact ariaContext="previsto" />
           </div>
           <PlannedVsActual transactions={txnList?.items ?? []} isLoading={txnLoading} />
         </DashboardCard>
@@ -310,6 +311,7 @@ export function FinancesClient() {
             onEdit={(txn) => { setEditingTxn(txn); setShowTransactionModal(true); }}
             onDelete={handleDelete}
             onPay={(txn) => payMutation.mutate(txn.id)}
+            onUnpay={(txn) => unpayMutation.mutate(txn.id)}
           />
         )}
       </div>

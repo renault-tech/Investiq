@@ -94,6 +94,7 @@ class TransactionResponse(BaseModel):
     is_paid: bool
     paid_at: Optional[datetime] = None
     is_recurring: bool
+    is_recurring_occurrence: bool = False  # materializada de uma série recorrente (ainda que a própria série já não seja "is_recurring")
     recurrence_rule: Optional[str]
     installment_no: Optional[int] = None
     installment_total: Optional[int] = None

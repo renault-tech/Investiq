@@ -52,6 +52,13 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
       : ""
   );
   const [recurrence, setRecurrence] = useState(editing?.recurrence_rule ?? "");
+  // Ligar recorrência esconde o campo de vencimento (ver isRecurringSeries) —
+  // limpa qualquer data já digitada nele para não ficar um valor invisível
+  // sendo enviado se o usuário desligar a recorrência de novo depois.
+  const handleRecurrenceChange = (value: string) => {
+    setRecurrence(value);
+    if (value) setDueDate("");
+  };
   const [installments, setInstallments] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +76,15 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
   // oferecer o campo de recorrência aqui: essa linha nunca é, ela mesma, o
   // início de uma série nova.
   const isVirtualOccurrence = editing?.is_virtual === true;
+
+  // Recorrência não tem vencimento próprio — um salário ou aluguel repete
+  // igual todo mês, não fica "pendente" à espera de confirmação. Manter os
+  // dois campos aqui é o que gerava a dúvida de "preencho os dois?" quando
+  // a série já usa a mesma data para lançamento e vencimento de cada
+  // ocorrência (só uma ocorrência já materializada — editada avulsa — pode
+  // ter seu próprio vencimento deslocado, daí a exceção de isVirtualOccurrence
+  // não entrar aqui).
+  const isRecurringSeries = Boolean(recurrence) && !isVirtualOccurrence;
 
   // Parcelar só faz sentido criando uma despesa nova — editar uma parcela já
   // existente mexe naquela linha, não na série.
@@ -103,7 +119,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
       bank_account_id: accountId || undefined,
       to_bank_account_id: isTransfer ? toAccountId : undefined,
       transaction_date: `${date}T12:00:00Z`,
-      due_date: dueDate ? `${dueDate}T12:00:00Z` : undefined,
+      due_date: isRecurringSeries || !dueDate ? undefined : `${dueDate}T12:00:00Z`,
       recurrence_rule: isVirtualOccurrence || (canSplit && parcelCount > 1) ? undefined : recurrence || undefined,
       installments: canSplit ? parcelCount : undefined,
     };
@@ -227,7 +243,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
 
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Data"
+            label="Data de lançamento"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -251,7 +267,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
             <Select
               label="Recorrência"
               value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value)}
+              onChange={(e) => handleRecurrenceChange(e.target.value)}
             >
               {RECURRENCE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -262,23 +278,32 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
           )}
         </div>
 
-        <Input
-          label="Vencimento (se diferente da data de lançamento)"
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-        />
-        <p className="text-xs text-[var(--text-muted)] -mt-2.5">
-          Deixe em branco para "pago no ato". Preenchendo com uma data futura, o lançamento
-          fica pendente até você clicar em "Pagar" na tabela — ou até o vencimento chegar,
-          quando você recebe uma notificação.
-        </p>
+        {isRecurringSeries ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            Uma recorrência não tem vencimento próprio — cada ocorrência repete a data acima.
+            Marque como paga (o "check" na tabela) mês a mês, conforme ela realmente acontecer.
+          </p>
+        ) : (
+          <>
+            <Input
+              label="Vencimento (se diferente da data de lançamento)"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+            <p className="text-xs text-[var(--text-muted)] -mt-2.5">
+              Deixe em branco para "pago no ato". Preenchendo com uma data futura, o lançamento
+              aparece no mês do vencimento (não no mês acima) e fica pendente até você marcar
+              como pago — na tabela, ou quando o vencimento chegar e a notificação lembrar você.
+            </p>
+          </>
+        )}
 
         {canSplit && parcelCount === 1 && (
           <Select
             label="Recorrência"
             value={recurrence}
-            onChange={(e) => setRecurrence(e.target.value)}
+            onChange={(e) => handleRecurrenceChange(e.target.value)}
           >
             {RECURRENCE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>

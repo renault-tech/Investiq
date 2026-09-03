@@ -243,7 +243,25 @@ def _parse_tags(raw: Optional[str]) -> list[str]:
         return []
 
 
-def _txn_to_dict(txn: FinancialTransaction, *, virtual_date: Optional[datetime] = None) -> dict:
+def _txn_to_dict(
+    txn: FinancialTransaction,
+    *,
+    virtual_date: Optional[datetime] = None,
+    virtual_due_date: Optional[datetime] = None,
+) -> dict:
+    due = virtual_due_date if virtual_date else txn.due_date
+    if virtual_date:
+        # Ocorrência virtual não é uma linha real ainda — "pago" aqui é uma
+        # estimativa (o mesmo critério de create_transaction: só chega
+        # marcada se o vencimento já passou), não uma confirmação de
+        # verdade. O usuário sempre pode corrigir com o check/"Pagar" na
+        # tabela, o que materializa a ocorrência na hora.
+        now = datetime.now(timezone.utc)
+        is_paid = due <= now
+        paid_at = None
+    else:
+        is_paid = txn.is_paid
+        paid_at = txn.paid_at
     return {
         "id": f"{txn.id}:{virtual_date.date().isoformat()}" if virtual_date else str(txn.id),
         "transaction_type": txn.transaction_type,
@@ -260,12 +278,14 @@ def _txn_to_dict(txn: FinancialTransaction, *, virtual_date: Optional[datetime] 
         "to_bank_account_id": txn.to_bank_account_id,
         "to_bank_account_name": txn.to_bank_account.name if txn.to_bank_account else None,
         "transaction_date": virtual_date or txn.transaction_date,
-        # Ocorrência virtual não é uma linha real — não há o que "pagar" nela,
-        # então ela sai sempre como já paga (esconde o botão "Pagar" na UI).
-        "due_date": virtual_date or txn.due_date,
-        "is_paid": True if virtual_date else txn.is_paid,
-        "paid_at": None if virtual_date else txn.paid_at,
+        "due_date": due,
+        "is_paid": is_paid,
+        "paid_at": paid_at,
         "is_recurring": txn.is_recurring,
+        # Uma ocorrência materializada (pago/editado) vira uma linha comum com
+        # is_recurring=False — sem isso o frontend perde todo sinal de que ela
+        # veio de uma série assim que é paga, e o selo "Pago"/"Desfazer" some.
+        "is_recurring_occurrence": txn.is_recurring or txn.recurring_parent_id is not None or virtual_date is not None,
         "recurrence_rule": txn.recurrence_rule,
         "installment_no": txn.installment_no,
         "installment_total": txn.installment_total,
@@ -369,21 +389,23 @@ async def list_transactions(
     if search:
         query = query.where(FinancialTransaction.description.ilike(f"%{search}%"))
     # Bound at the SQL level too (ix_financial_transactions_active covers
-    # user_id+transaction_date) instead of always pulling the user's whole
-    # history — a recurring template's own transaction_date can predate the
-    # window and still be the source of occurrences inside it, so it's kept
-    # regardless of date_from as long as it started before date_to.
+    # user_id+due_date) instead of always pulling the user's whole history —
+    # a recurring template's own due_date can predate the window and still
+    # be the source of occurrences inside it, so it's kept regardless of
+    # date_from as long as it started before date_to. "Which month" a
+    # transaction belongs to is its due_date, not transaction_date: a bill
+    # entered in August due in October shows in October, not August.
     if date_to is not None:
-        query = query.where(FinancialTransaction.transaction_date <= date_to)
+        query = query.where(FinancialTransaction.due_date <= date_to)
     if date_from is not None:
         query = query.where(
             or_(
-                FinancialTransaction.transaction_date >= date_from,
+                FinancialTransaction.due_date >= date_from,
                 FinancialTransaction.is_recurring.is_(True),
             )
         )
 
-    result = await db.execute(query.order_by(FinancialTransaction.transaction_date.desc()))
+    result = await db.execute(query.order_by(FinancialTransaction.due_date.desc()))
     rows = list(result.scalars().all())
 
     # Ocorrências já materializadas (ver materialize_recurring_occurrence)
@@ -407,23 +429,33 @@ async def list_transactions(
     items: list[dict] = []
     for txn in rows:
         base_in_window = (
-            (date_from is None or txn.transaction_date >= date_from)
-            and (date_to is None or txn.transaction_date <= date_to)
+            (date_from is None or txn.due_date >= date_from)
+            and (date_to is None or txn.due_date <= date_to)
         )
         if base_in_window:
             items.append(_txn_to_dict(txn))
         if txn.is_recurring and txn.recurrence_rule and date_to is not None:
-            window_start = date_from or txn.transaction_date
+            # A recorrência é gerada em cima de transaction_date (a data em
+            # que a série foi criada define a cadência — todo dia 25, toda
+            # semana etc.), mas cada ocorrência "pertence" ao mês do seu
+            # vencimento. due_offset é a distância fixa entre as duas no
+            # template; buscar ocorrências na janela deslocada por ele e
+            # somar o offset de volta dá o vencimento de cada uma sem tocar
+            # em expand_recurring (que segue trabalhando só com
+            # transaction_date, sua própria unidade).
+            due_offset = txn.due_date - txn.transaction_date
+            window_start = (date_from - due_offset) if date_from else txn.transaction_date
+            window_end = date_to - due_offset
             skip_dates = materialized_dates.get(txn.id, set())
-            for occurrence in expand_recurring(txn, window_start, date_to):
+            for occurrence in expand_recurring(txn, window_start, window_end):
                 if occurrence.date() in skip_dates:
                     continue
-                items.append(_txn_to_dict(txn, virtual_date=occurrence))
+                items.append(_txn_to_dict(txn, virtual_date=occurrence, virtual_due_date=occurrence + due_offset))
 
     if tag:
         items = [item for item in items if tag in item["tags"]]
 
-    items.sort(key=lambda item: item["transaction_date"], reverse=True)
+    items.sort(key=lambda item: item["due_date"], reverse=True)
     total = len(items)
     start = (page - 1) * per_page
     return {
@@ -543,7 +575,7 @@ async def create_transaction(user_id: uuid.UUID, data: dict, db: AsyncSession) -
 
     if first.transaction_type == "expense" and first.category_id:
         await _notify_if_budget_just_exceeded(
-            user_id, first.category_id, first.amount_brl, first.transaction_date, db,
+            user_id, first.category_id, first.amount_brl, first.due_date, db,
             account_id=first.bank_account_id,
         )
 
@@ -688,14 +720,35 @@ async def update_transaction(txn_id: str, user_id: uuid.UUID, updates: dict, db:
     return _txn_to_dict(txn)
 
 
-async def mark_transaction_paid(txn_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
-    """Botão "Pagar" — confirma que o vencimento lançado antecipadamente
-    foi efetivamente pago hoje. Idempotente: clicar de novo numa transação
-    já paga só devolve o estado atual."""
-    txn = await _get_transaction(txn_id, user_id, db)
+async def mark_transaction_paid(txn_id: str, user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Botão "Pagar"/check — confirma que o lançamento (ou a ocorrência
+    daquele mês, se recorrente) de fato aconteceu. `txn_id` também aceita o
+    id de uma ocorrência virtual ("{template_id}:{data-iso}") — antes ela
+    nunca podia ser marcada porque sempre chegava com is_paid=True estimado
+    (ver _txn_to_dict); confirmar materializa a ocorrência primeiro, igual a
+    editar. Idempotente: clicar de novo numa transação já paga só devolve o
+    estado atual."""
+    real_id = await _resolve_txn_id(txn_id, user_id, db)
+    txn = await _get_transaction(real_id, user_id, db)
     if not txn.is_paid:
         txn.is_paid = True
         txn.paid_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
+    return _txn_to_dict(txn)
+
+
+async def mark_transaction_unpaid(txn_id: str, user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Desfaz uma confirmação — para o caso de marcar "pago" ou uma
+    ocorrência recorrente por engano, ou para corrigir a estimativa
+    automática de uma ocorrência virtual já vencida (ver _txn_to_dict) que
+    na prática não aconteceu naquele mês. Mesma materialização de uma
+    ocorrência virtual que `mark_transaction_paid` faz."""
+    real_id = await _resolve_txn_id(txn_id, user_id, db)
+    txn = await _get_transaction(real_id, user_id, db)
+    if txn.is_paid:
+        txn.is_paid = False
+        txn.paid_at = None
         await db.commit()
         await db.refresh(txn, attribute_names=["category", "bank_account", "to_bank_account"])
     return _txn_to_dict(txn)
@@ -766,14 +819,14 @@ async def get_summary(
     def month_key(dt: datetime) -> str:
         return f"{dt.year:04d}-{dt.month:02d}"
 
-    current = [i for i in items if start <= i["transaction_date"] <= end]
+    current = [i for i in items if start <= i["due_date"] <= end]
     income = sum((i["amount_brl"] for i in current if i["transaction_type"] == "income"), _ZERO)
     expense = sum((i["amount_brl"] for i in current if i["transaction_type"] == "expense"), _ZERO)
 
     # previous month for variation
     prev_month_end = start - timedelta(microseconds=1)
     prev_start = prev_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    prev = [i for i in items if prev_start <= i["transaction_date"] <= prev_month_end]
+    prev = [i for i in items if prev_start <= i["due_date"] <= prev_month_end]
     prev_income = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "income"), _ZERO)
     prev_expense = sum((i["amount_brl"] for i in prev if i["transaction_type"] == "expense"), _ZERO)
 
@@ -807,7 +860,7 @@ async def get_summary(
         months[month_key(cursor)] = {"month": month_key(cursor), "income": _ZERO, "expense": _ZERO}
         cursor = datetime(cursor.year + 1, 1, 1, tzinfo=timezone.utc) if cursor.month == 12 else datetime(cursor.year, cursor.month + 1, 1, tzinfo=timezone.utc)
     for item in items:
-        bucket = months.get(month_key(item["transaction_date"]))
+        bucket = months.get(month_key(item["due_date"]))
         if bucket is None:
             continue
         if item["transaction_type"] == "income":
