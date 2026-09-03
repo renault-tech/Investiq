@@ -22,6 +22,11 @@ interface MonthStepperProps {
   onShift: (delta: number) => void;
   /** Compacto para usar no meio da tela, ao lado de filtros. */
   compact?: boolean;
+  /** Só quando existe mais de uma instância compacta na tela ao mesmo
+   * tempo (ex.: esta e a da lista de lançamentos) — sem isso os dois
+   * aria-label ficariam idênticos, e um matcher por role+nome (Testing
+   * Library, Playwright) bate nas duas ao mesmo tempo. */
+  ariaContext?: string;
 }
 
 /** Passar de mês. Aparece no topo da tela e de novo junto da lista de
@@ -31,9 +36,16 @@ interface MonthStepperProps {
  * compacto usa palavras diferentes (não só um sufixo) porque a checagem de
  * nome acessível do Playwright/Testing Library é por substring: um sufixo
  * ainda deixaria "Próximo mês" batendo nos dois botões. */
-export function MonthStepper({ month, onShift, compact = false }: MonthStepperProps) {
-  const prevLabel = compact ? "Voltar um mês" : "Mês anterior";
-  const nextLabel = compact ? "Avançar um mês" : "Próximo mês";
+export function MonthStepper({ month, onShift, compact = false, ariaContext }: MonthStepperProps) {
+  // Troca a frase inteira, não só acrescenta um sufixo: um matcher de
+  // nome acessível (Testing Library, Playwright) casa por substring, então
+  // "Avançar um mês (x)" ainda bateria em "Avançar um mês" sozinho.
+  const prevLabel = ariaContext
+    ? `Retroceder no período de ${ariaContext}`
+    : compact ? "Voltar um mês" : "Mês anterior";
+  const nextLabel = ariaContext
+    ? `Avançar no período de ${ariaContext}`
+    : compact ? "Avançar um mês" : "Próximo mês";
   return (
     <div
       className={`flex items-center gap-1 ${

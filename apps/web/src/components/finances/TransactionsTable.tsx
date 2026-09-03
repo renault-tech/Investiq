@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, CheckCircle2, CircleDollarSign, Pencil, Repeat, Trash2 } from "lucide-react";
+import { ArrowLeftRight, CheckCircle2, CircleDollarSign, Pencil, Repeat, RotateCcw, Trash2 } from "lucide-react";
 import { FinanceTransaction, TransactionSource } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 
@@ -18,13 +18,30 @@ interface TransactionsTableProps {
   onEdit: (txn: FinanceTransaction) => void;
   onDelete: (txn: FinanceTransaction) => void;
   onPay: (txn: FinanceTransaction) => void;
+  onUnpay: (txn: FinanceTransaction) => void;
   /** Drill-down opcional: quando presente, a linha vira clicável (fora dos
    * botões de ação) e destaca a transação selecionada. */
   onRowClick?: (txn: FinanceTransaction) => void;
   selectedId?: string | null;
 }
 
-export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, onPay, onRowClick, selectedId }: TransactionsTableProps) {
+/** Lançamento comum, pago no mesmo dia, não precisa de selo nem de botão de
+ * confirmação — só quando "pago" é uma pergunta de verdade (recorrência,
+ * ocorrência projetada, ou vencimento diferente da data de lançamento) que
+ * vale a poluição visual de mostrar o estado e deixar trocá-lo. */
+export function hasCheckableStatus(txn: FinanceTransaction): boolean {
+  // is_recurring_occurrence cobre a série em si e qualquer ocorrência já
+  // materializada dela (paga/editada) — sem isso, pagar uma ocorrência a
+  // "desligava" de is_recurring e o selo/Desfazer sumiam da hora pra noite.
+  return (
+    txn.is_recurring ||
+    txn.is_recurring_occurrence ||
+    txn.is_virtual ||
+    txn.due_date.slice(0, 10) !== txn.transaction_date.slice(0, 10)
+  );
+}
+
+export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, onPay, onUnpay, onRowClick, selectedId }: TransactionsTableProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -91,10 +108,10 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                       </span>
                     )}
                     {/* Vence/Pago só aparece pra lançamento com cara de conta a pagar
-                        (vencimento diferente da data de lançamento) — numa transação
-                        comum, lançada e paga no mesmo dia, o selo seria óbvio demais
-                        pra valer a poluição visual. */}
-                    {!txn.is_virtual && txn.due_date.slice(0, 10) !== txn.transaction_date.slice(0, 10) && (
+                        (recorrente, ocorrência projetada, ou vencimento diferente da
+                        data de lançamento) — numa transação comum, lançada e paga no
+                        mesmo dia, o selo seria óbvio demais pra valer a poluição visual. */}
+                    {hasCheckableStatus(txn) && (
                       txn.is_paid ? (
                         <span
                           className="inline-flex items-center gap-0.5 text-[10px] rounded px-1 border"
@@ -162,14 +179,25 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                   {formatBRLExact(Number(txn.amount))}
                 </td>
                 <td className="px-2 py-2 text-right whitespace-nowrap">
-                  {!txn.is_virtual && !txn.is_paid && (
+                  {!txn.is_paid && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onPay(txn); }}
                       className="inline-flex items-center gap-1 px-1.5 py-1 mr-1 text-[11px] font-medium rounded-md"
                       style={{ color: "var(--accent)", background: "var(--glow)" }}
                       aria-label={`Marcar ${txn.description ?? "transação"} como paga`}
+                      title={txn.is_virtual ? "Confirma esta ocorrência (materializa a linha)" : undefined}
                     >
                       <CircleDollarSign size={13} /> Pagar
+                    </button>
+                  )}
+                  {txn.is_paid && hasCheckableStatus(txn) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onUnpay(txn); }}
+                      className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      aria-label={`Desfazer confirmação de ${txn.description ?? "transação"}`}
+                      title="Desfazer confirmação"
+                    >
+                      <RotateCcw size={13} />
                     </button>
                   )}
                   <button

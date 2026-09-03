@@ -2,14 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { Search, X, Pencil, ArrowLeftRight, Layers, CheckCircle2 } from "lucide-react";
-import { useCategories, useTransactions, useDeleteTransaction, usePayTransaction } from "@/hooks/useFinance";
+import { useCategories, useTransactions, useDeleteTransaction, usePayTransaction, useUnpayTransaction } from "@/hooks/useFinance";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useUIStore, maskValue } from "@/store/useUIStore";
-import { TransactionsTable } from "@/components/finances/TransactionsTable";
+import { TransactionsTable, hasCheckableStatus } from "@/components/finances/TransactionsTable";
 import { TransactionModal } from "@/components/finances/TransactionModal";
 import { DeleteTransactionModal, type DeleteScope } from "@/components/finances/DeleteTransactionModal";
 import { AccountsBar } from "@/components/finances/AccountsBar";
@@ -74,6 +74,7 @@ export function TransactionsClient() {
   const { data: analytics } = useAnalytics(6, activeAccountId, holder || undefined);
   const deleteMutation = useDeleteTransaction();
   const payMutation = usePayTransaction();
+  const unpayMutation = useUnpayTransaction();
 
   const items = txPage?.items ?? [];
   const selected = items.find((t) => t.id === selectedId);
@@ -151,6 +152,7 @@ export function TransactionsClient() {
             onEdit={(txn) => { setEditingTxn(txn); setShowModal(true); }}
             onDelete={handleDelete}
             onPay={(txn) => payMutation.mutate(txn.id)}
+            onUnpay={(txn) => unpayMutation.mutate(txn.id)}
             onRowClick={(txn) => setSelectedId(txn.id === selectedId ? null : txn.id)}
             selectedId={selectedId}
           />
@@ -183,7 +185,7 @@ export function TransactionsClient() {
           <div className="text-[12.5px] text-[var(--text-secondary)] mt-1">
             {new Date(selected.transaction_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
           </div>
-          {!selected.is_virtual && selected.due_date.slice(0, 10) !== selected.transaction_date.slice(0, 10) && (
+          {hasCheckableStatus(selected) && (
             selected.is_paid ? (
               <div className="inline-flex items-center gap-1 mt-2 text-[11px] rounded px-1.5 py-0.5 border w-fit" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>
                 <CheckCircle2 size={11} />
@@ -240,7 +242,7 @@ export function TransactionsClient() {
           )}
 
           <div className="flex gap-2 mt-5">
-            {!selected.is_virtual && !selected.is_paid && (
+            {!selected.is_paid && (
               <button
                 onClick={() => payMutation.mutate(selected.id)}
                 disabled={payMutation.isPending}
@@ -248,6 +250,15 @@ export function TransactionsClient() {
                 style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
               >
                 Pagar
+              </button>
+            )}
+            {selected.is_paid && hasCheckableStatus(selected) && (
+              <button
+                onClick={() => unpayMutation.mutate(selected.id)}
+                disabled={unpayMutation.isPending}
+                className="px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-[12.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                Desfazer
               </button>
             )}
             <button

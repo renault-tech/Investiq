@@ -29,6 +29,7 @@ export interface FinanceTransaction {
   is_paid: boolean;
   paid_at: string | null;
   is_recurring: boolean;
+  is_recurring_occurrence: boolean;
   recurrence_rule: string | null;
   installment_no: number | null;
   installment_total: number | null;
@@ -152,10 +153,17 @@ export async function updateTransaction(
   return res.data;
 }
 
-/** Confirma o pagamento de um lançamento cujo vencimento foi lançado antes
- * do pagamento em si — o botão "Pagar" da linha. */
+/** Confirma que um lançamento (ou uma ocorrência recorrente daquele mês)
+ * de fato aconteceu — o "check" da linha. Aceita o id de uma ocorrência
+ * virtual ("{uuid}:{data}"): o backend materializa antes de marcar. */
 export async function payTransaction(id: string): Promise<FinanceTransaction> {
   const res = await apiClient.post<FinanceTransaction>(`/finance/transactions/${id}/pay`);
+  return res.data;
+}
+
+/** Desfaz uma confirmação feita por engano. */
+export async function unpayTransaction(id: string): Promise<FinanceTransaction> {
+  const res = await apiClient.post<FinanceTransaction>(`/finance/transactions/${id}/unpay`);
   return res.data;
 }
 

@@ -10,6 +10,7 @@ import {
   updateTransaction,
   deleteTransaction,
   payTransaction,
+  unpayTransaction,
   getFinanceSummary,
   TransactionFilters,
   CreateTransactionInput,
@@ -75,10 +76,22 @@ export function usePayTransaction() {
   return useMutation({
     mutationFn: (id: string) => payTransaction(id),
     onSuccess: () => {
-      toast.success("Pagamento confirmado.");
+      toast.success("Confirmado.");
       invalidate();
     },
-    onError: () => toast.error("Falha ao confirmar pagamento."),
+    onError: () => toast.error("Falha ao confirmar."),
+  });
+}
+
+export function useUnpayTransaction() {
+  const invalidate = useInvalidateFinance();
+  return useMutation({
+    mutationFn: (id: string) => unpayTransaction(id),
+    onSuccess: () => {
+      toast.success("Confirmação desfeita.");
+      invalidate();
+    },
+    onError: () => toast.error("Falha ao desfazer confirmação."),
   });
 }
 

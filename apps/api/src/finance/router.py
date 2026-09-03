@@ -229,11 +229,24 @@ async def update_transaction(
 
 @router.post("/transactions/{txn_id}/pay", response_model=TransactionResponse)
 async def pay_transaction(
-    txn_id: uuid.UUID,
+    txn_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """`txn_id` também aceita o id de uma ocorrência virtual de recorrência
+    ("{template_id}:{data-iso}") — confirmar uma delas materializa a
+    ocorrência numa linha própria antes de marcar como paga."""
     return await service.mark_transaction_paid(txn_id, current_user.id, db)
+
+
+@router.post("/transactions/{txn_id}/unpay", response_model=TransactionResponse)
+async def unpay_transaction(
+    txn_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Desfaz uma confirmação de pagamento feita por engano."""
+    return await service.mark_transaction_unpaid(txn_id, current_user.id, db)
 
 
 @router.delete("/transactions/{txn_id}", status_code=status.HTTP_204_NO_CONTENT)
