@@ -281,3 +281,63 @@ async def get_portfolio_look_through(
         "by_asset_class": _to_buckets(asset_class_totals),
         "country_coverage": resolved_country_value / total_value,
     }
+
+
+async def get_consolidated_look_through(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    redis=None,
+    preferred_provider: str = "yahoo",
+    brapi_key: Optional[str] = None,
+) -> dict:
+    """Mesma distribuição de get_portfolio_look_through, somando todas as
+    carteiras do usuário — cada carteira é resolvida (e cacheada) de forma
+    independente e depois os baldes de setor/país/classe são somados em
+    valor absoluto, com os pesos recalculados contra o total combinado."""
+    portfolios = await portfolio_service.get_user_portfolios(user_id, db)
+    empty = {
+        "total_market_value_brl": _ZERO,
+        "by_sector": [],
+        "by_country": [],
+        "by_asset_class": [],
+        "country_coverage": _ZERO,
+    }
+    if not portfolios:
+        return empty
+
+    per_portfolio = await asyncio.gather(*(
+        get_portfolio_look_through(p.id, user_id, db, redis, preferred_provider, brapi_key)
+        for p in portfolios
+    ))
+
+    total_value = sum((p["total_market_value_brl"] for p in per_portfolio), _ZERO)
+    if total_value <= _ZERO:
+        return empty
+
+    sector_totals: dict[str, Decimal] = {}
+    country_totals: dict[str, Decimal] = {}
+    asset_class_totals: dict[str, Decimal] = {}
+    resolved_country_value = _ZERO
+
+    for result in per_portfolio:
+        for bucket in result["by_sector"]:
+            _add(sector_totals, bucket["label"], bucket["value_brl"])
+        for bucket in result["by_country"]:
+            _add(country_totals, bucket["label"], bucket["value_brl"])
+        for bucket in result["by_asset_class"]:
+            _add(asset_class_totals, bucket["label"], bucket["value_brl"])
+        resolved_country_value += result["country_coverage"] * result["total_market_value_brl"]
+
+    def _to_buckets(totals: dict[str, Decimal]) -> list[dict]:
+        return [
+            {"label": label, "value_brl": value, "weight": value / total_value}
+            for label, value in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+
+    return {
+        "total_market_value_brl": total_value,
+        "by_sector": _to_buckets(sector_totals),
+        "by_country": _to_buckets(country_totals),
+        "by_asset_class": _to_buckets(asset_class_totals),
+        "country_coverage": resolved_country_value / total_value,
+    }

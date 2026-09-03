@@ -98,7 +98,8 @@ export interface LookThroughBucket {
 }
 
 export interface PortfolioLookThrough {
-  portfolio_id: string;
+  /** Ausente na visão consolidada (soma de todas as carteiras). */
+  portfolio_id?: string;
   total_market_value_brl: number;
   by_sector: LookThroughBucket[];
   by_country: LookThroughBucket[];
@@ -227,7 +228,10 @@ const LOOK_THROUGH_NUMERIC = ["total_market_value_brl", "country_coverage"] as c
 const LOOK_THROUGH_BUCKET_NUMERIC = ["value_brl", "weight"] as const;
 
 export async function getPortfolioLookThrough(portfolioId: string): Promise<PortfolioLookThrough> {
-  const res = await apiClient.get<PortfolioLookThrough>(`/portfolios/${portfolioId}/look-through`);
+  const isConsolidated = portfolioId === CONSOLIDATED_ID;
+  const res = await apiClient.get<PortfolioLookThrough>(
+    isConsolidated ? "/portfolios/consolidated/look-through" : `/portfolios/${portfolioId}/look-through`
+  );
   const data = coerceNumbers(res.data, LOOK_THROUGH_NUMERIC);
   return {
     ...data,
