@@ -29,38 +29,67 @@ function slugifyForTicker(name: string): string {
   return `CX-${slug}`.slice(0, 20);
 }
 
+type InvestmentKind = "market" | "fixed_income" | "cash";
+
+const KIND_OPTIONS: { value: InvestmentKind; label: string }[] = [
+  { value: "market", label: "Renda variável (ação, FII, ETF, cripto...)" },
+  { value: "fixed_income", label: "Renda fixa (CDB, Tesouro, LCI/LCA...)" },
+  { value: "cash", label: "Reserva / caixa (cofrinho, saldo em conta)" },
+];
+
 export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps) {
   const queryClient = useQueryClient();
-  const [kind, setKind] = useState<"market" | "cash">("market");
+  const [kind, setKind] = useState<InvestmentKind>("market");
   const [ticker, setTicker] = useState("");
   const [cashName, setCashName] = useState("");
+  const [fixedIncomeName, setFixedIncomeName] = useState("");
+  const [fixedIncomeRate, setFixedIncomeRate] = useState("");
+  const [fixedIncomeMaturity, setFixedIncomeMaturity] = useState("");
   const [broker, setBroker] = useState("");
   const [targetPct, setTargetPct] = useState("");
 
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [cashAmount, setCashAmount] = useState("");
+  const [fixedIncomeAmount, setFixedIncomeAmount] = useState("");
 
   const mutation = useMutation({
     mutationFn: async () => {
       const isCash = kind === "cash";
-      const displayName = isCash ? cashName.trim() : ticker.toUpperCase().trim();
-      const resolvedTicker = isCash ? slugifyForTicker(cashName) : ticker.toUpperCase().trim();
+      const isFixedIncome = kind === "fixed_income";
+      // Renda fixa não tem cotação de mercado — mesmo golpe do caixa/reserva
+      // (quantidade = valor investido, preço travado em 1). Taxa/vencimento
+      // não têm campo próprio no Asset (evita migração pra um v1); entram
+      // como texto no nome, onde aparecem em qualquer lista/gráfico que já
+      // mostra o nome do ativo.
+      const rawName = isCash ? cashName : isFixedIncome ? fixedIncomeName : "";
+      const fixedIncomeSuffix = isFixedIncome
+        ? [fixedIncomeRate.trim(), fixedIncomeMaturity ? `venc. ${new Date(fixedIncomeMaturity + "T12:00:00").toLocaleDateString("pt-BR")}` : ""]
+            .filter(Boolean)
+            .join(" · ")
+        : "";
+      const displayName =
+        kind === "market"
+          ? ticker.toUpperCase().trim()
+          : fixedIncomeSuffix
+            ? `${rawName.trim()} (${fixedIncomeSuffix})`
+            : rawName.trim();
+      const resolvedTicker = kind === "market" ? ticker.toUpperCase().trim() : slugifyForTicker(rawName);
 
       // 1. Cria a posição
       const position = await addPosition(portfolioId, {
         ticker: resolvedTicker,
         broker: broker.trim() || undefined,
         target_weight: parseBRNumber(targetPct) != null ? parseBRNumber(targetPct)! / 100 : undefined,
-        asset_type: isCash ? "cash" : undefined,
-        name: isCash ? displayName : undefined,
+        asset_type: isCash ? "cash" : isFixedIncome ? "fixed_income_br" : undefined,
+        name: kind !== "market" ? displayName : undefined,
       }) as { id: string };
 
-      // 2. Registra transação inicial — caixa/reserva sempre a R$1,00 por
-      // "unidade" (a quantidade já É o valor guardado); ativo de mercado só
-      // se qty+preço informados.
-      const numQty = isCash ? parseBRNumber(cashAmount) : parseBRQuantity(quantity);
-      const numPrice = isCash ? 1 : parseBRNumber(price);
+      // 2. Registra transação inicial — caixa/reserva e renda fixa sempre a
+      // R$1,00 por "unidade" (a quantidade já É o valor investido/guardado);
+      // ativo de mercado só se qty+preço informados.
+      const numQty = isCash ? parseBRNumber(cashAmount) : isFixedIncome ? parseBRNumber(fixedIncomeAmount) : parseBRQuantity(quantity);
+      const numPrice = isCash || isFixedIncome ? 1 : parseBRNumber(price);
       if (numQty != null && numPrice != null && numQty > 0) {
         await createTransaction({
           position_id: position.id,
@@ -117,7 +146,10 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
           <Button
             size="sm"
             onClick={() => mutation.mutate()}
-            disabled={!(kind === "cash" ? cashName.trim() : ticker.trim()) || mutation.isPending}
+            disabled={
+              !(kind === "market" ? ticker.trim() : kind === "cash" ? cashName.trim() : fixedIncomeName.trim()) ||
+              mutation.isPending
+            }
             loading={mutation.isPending}
           >
             {mutation.isPending ? "Adicionando..." : "Adicionar"}
@@ -127,31 +159,19 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
     >
       <div className="space-y-3">
         <div>
-          <span className="block text-[10px] text-[var(--text-muted)] mb-1">Tipo</span>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setKind("market")}
-              className={`px-2.5 py-1.5 rounded-md text-[11px] border transition-colors ${
-                kind === "market"
-                  ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              Ativo de mercado
-            </button>
-            <button
-              type="button"
-              onClick={() => setKind("cash")}
-              className={`px-2.5 py-1.5 rounded-md text-[11px] border transition-colors ${
-                kind === "cash"
-                  ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              Caixa / reserva
-            </button>
-          </div>
+          <label htmlFor="position-kind" className="block text-[10px] text-[var(--text-muted)] mb-1">
+            Tipo de investimento
+          </label>
+          <select
+            id="position-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as InvestmentKind)}
+            className={fieldClass}
+          >
+            {KIND_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
 
         {kind === "market" ? (
@@ -197,6 +217,65 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
                 />
               </div>
             </div>
+          </>
+        ) : kind === "fixed_income" ? (
+          <>
+            <div>
+              <label htmlFor="position-fi-name" className="block text-[10px] text-[var(--text-muted)] mb-1">
+                Nome do título <span className="text-[var(--danger)]">*</span>
+              </label>
+              <input
+                id="position-fi-name"
+                type="text"
+                value={fixedIncomeName}
+                onChange={(e) => setFixedIncomeName(e.target.value)}
+                maxLength={60}
+                className={fieldClass}
+                placeholder="Ex: CDB Banco X, Tesouro IPCA+ 2029"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="pos-fi-amount" className="block text-[10px] text-[var(--text-muted)] mb-1">Valor investido</label>
+              <input
+                id="pos-fi-amount"
+                type="text"
+                inputMode="decimal"
+                value={fixedIncomeAmount}
+                onChange={(e) => setFixedIncomeAmount(sanitizeNumericInput(e.target.value))}
+                className={fieldClass}
+                placeholder="R$ Opcional"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="pos-fi-rate" className="block text-[10px] text-[var(--text-muted)] mb-1">Taxa / indexador</label>
+                <input
+                  id="pos-fi-rate"
+                  type="text"
+                  value={fixedIncomeRate}
+                  onChange={(e) => setFixedIncomeRate(e.target.value)}
+                  maxLength={40}
+                  className={fieldClass}
+                  placeholder="Ex: CDI + 2%, IPCA + 6%"
+                />
+              </div>
+              <div>
+                <label htmlFor="pos-fi-maturity" className="block text-[10px] text-[var(--text-muted)] mb-1">Vencimento</label>
+                <input
+                  id="pos-fi-maturity"
+                  type="date"
+                  value={fixedIncomeMaturity}
+                  onChange={(e) => setFixedIncomeMaturity(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-[var(--text-muted)]">
+              Sem cotação de mercado — o valor investido é o próprio saldo, sempre a R$ 1,00 por unidade.
+              Taxa e vencimento aparecem junto ao nome do título.
+            </p>
           </>
         ) : (
           <>
@@ -249,7 +328,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
           </div>
           <div>
             <label htmlFor="position-broker" className="block text-[10px] text-[var(--text-muted)] mb-1">
-              {kind === "cash" ? "Instituição" : "Corretora"}
+              {kind === "market" ? "Corretora" : "Instituição"}
             </label>
             <input
               id="position-broker"
@@ -257,7 +336,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
               value={broker}
               onChange={(e) => setBroker(e.target.value)}
               className={fieldClass}
-              placeholder={kind === "cash" ? "Ex: Mercado Pago" : "Ex: NuInvest"}
+              placeholder={kind === "market" ? "Ex: NuInvest" : "Ex: Banco X"}
             />
           </div>
         </div>
