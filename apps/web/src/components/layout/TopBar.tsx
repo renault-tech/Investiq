@@ -150,11 +150,16 @@ export function TopBar() {
         <Eye size={16} />
       </button>
 
-      {/* Customize (Visão geral only) */}
+      {/* Customize (Visão geral only) — só o rótulo some no mobile (sem
+          espaço pro texto ao lado de busca/período/troca de conta); o botão
+          em si fica sempre visível, senão quem usa o celular não tem como
+          descobrir que dá pra redimensionar/mover/ocultar os cards. */}
       {isCustomizable && (
         <button
           onClick={toggleCustomize}
-          className="hidden md:flex items-center gap-2 px-3.5 h-[34px] rounded-[11px] text-[12.5px] font-medium transition-colors flex-shrink-0"
+          aria-label={customize ? "Concluir personalização" : "Personalizar cards"}
+          title={customize ? "Concluir personalização" : "Personalizar cards"}
+          className="flex items-center gap-2 px-2.5 md:px-3.5 h-[34px] rounded-[11px] text-[12.5px] font-medium transition-colors flex-shrink-0"
           style={{
             border: `1px solid ${customize ? "var(--accent)" : "var(--border)"}`,
             background: customize ? "var(--glow)" : "var(--surface-2)",
@@ -162,7 +167,7 @@ export function TopBar() {
           }}
         >
           {customize ? <Check size={15} /> : <LayoutGrid size={15} />}
-          {customize ? "Concluir" : "Personalizar"}
+          <span className="hidden md:inline">{customize ? "Concluir" : "Personalizar"}</span>
         </button>
       )}
 
