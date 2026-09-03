@@ -109,9 +109,9 @@ export function AccountsBar({ holder, onHolderChange, bare = false }: Props) {
       {isError && !isLoading ? (
         <ErrorState title="Não foi possível carregar as contas." onRetry={refetch} />
       ) : isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className="h-8 w-28 rounded-full" />
           ))}
         </div>
       ) : visible.length === 0 ? (
@@ -126,40 +126,49 @@ export function AccountsBar({ holder, onHolderChange, bare = false }: Props) {
           action={<Button onClick={openNew}>Criar conta</Button>}
         />
       ) : (
-        <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        // Chips compactos numa linha só (quebrando quando não couber) em vez
+        // de uma grade 2x4 de cartões de ~80px de altura cada — a mesma
+        // informação (nome, saldo, editar) cabe numa tira bem mais fina, e o
+        // card de Contas para de "engolir" a tela sozinho.
+        <ul className="flex flex-wrap gap-1.5">
           {visible.map((account) => {
             const balance = Number(account.balance);
             const active = account.id === activeAccountId;
             return (
-              <li
-                key={account.id}
-                role="button"
-                tabIndex={0}
-                aria-pressed={active}
-                onClick={() => setActiveAccountId(active ? null : account.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setActiveAccountId(active ? null : account.id);
-                  }
-                }}
-                className="group relative border rounded-2xl p-4 transition-colors cursor-pointer"
-                style={{
-                  borderColor: active ? "var(--accent)" : "var(--border)",
-                  background: active ? "var(--glow)" : "var(--surface-2)",
-                }}
-                title={active ? "Clique para ver o consolidado" : `Ver só ${account.name}`}
-              >
-                <div className="flex items-start justify-between gap-1">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-[var(--text-primary)] truncate">
-                      {account.name}
-                    </p>
-                    <p className="text-[10px] text-[var(--text-muted)] truncate">
-                      {ACCOUNT_TYPE_LABELS[account.account_type]}
-                      {account.holder ? ` · ${account.holder}` : ""}
-                    </p>
-                  </div>
+              <li key={account.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={active}
+                  onClick={() => setActiveAccountId(active ? null : account.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setActiveAccountId(active ? null : account.id);
+                    }
+                  }}
+                  className="group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border transition-colors cursor-pointer"
+                  style={{
+                    borderColor: active ? "var(--accent)" : "var(--border)",
+                    background: active ? "var(--glow)" : "var(--surface-2)",
+                  }}
+                  title={active ? "Clique para ver o consolidado" : `Ver só ${account.name}`}
+                >
+                  <span className="text-xs font-medium text-[var(--text-primary)] truncate max-w-[96px]">
+                    {account.name}
+                  </span>
+                  <span
+                    className={`font-mono text-[11px] whitespace-nowrap ${
+                      balance < 0 ? "text-[var(--danger)]" : "text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {mask(formatBRLExact(balance))}
+                  </span>
+                  {!account.include_in_total && (
+                    <span title="Fora do total">
+                      <Wallet size={10} className="text-[var(--text-muted)]" />
+                    </span>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -170,26 +179,12 @@ export function AccountsBar({ holder, onHolderChange, bare = false }: Props) {
                     // Revelar só no group-hover deixava o botão invisível no
                     // toque (sem :hover, o dedo não tem como "passar por
                     // cima" antes de tocar) — visível sempre até md, esconde
-                    // e revela por hover só a partir do desktop. -m-2 some
-                    // com o deslocamento visual que o padding (área de toque
-                    // maior, ~29px) causaria no ícone.
-                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 p-2 -m-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
+                    // e revela por hover só a partir do desktop.
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
                   >
-                    <Pencil size={13} />
+                    <Pencil size={11} />
                   </button>
                 </div>
-                <p
-                  className={`mt-2 font-mono text-sm ${
-                    balance < 0 ? "text-[var(--danger)]" : "text-[var(--text-primary)]"
-                  }`}
-                >
-                  {mask(formatBRLExact(balance))}
-                </p>
-                {!account.include_in_total && (
-                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1">
-                    <Wallet size={10} /> fora do total
-                  </p>
-                )}
               </li>
             );
           })}
