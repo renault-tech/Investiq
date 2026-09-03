@@ -105,7 +105,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     usePortfolioBenchmark(activePortfolioId, performancePeriod);
   const isConsolidated = activePortfolioId === CONSOLIDATED_ID;
   const { data: lookThrough, isLoading: isLookThroughLoading, isError: isLookThroughError, refetch: refetchLookThrough } =
-    usePortfolioLookThrough(isConsolidated ? null : activePortfolioId);
+    usePortfolioLookThrough(activePortfolioId);
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -417,9 +417,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </section>
             )}
 
-            {/* Raio-X da carteira: look-through geográfico e setorial — sem
-                equivalente consolidado ainda, selecione uma carteira específica. */}
-            {!isConsolidated && (
+            {/* Raio-X da carteira: look-through geográfico e setorial —
+                também disponível em "Consolidado", somando todas as carteiras. */}
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".11s" }}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
@@ -479,7 +478,6 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                 </p>
               )}
             </section>
-            )}
 
             {/* Benchmark */}
             <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>

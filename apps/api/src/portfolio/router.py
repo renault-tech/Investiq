@@ -25,6 +25,7 @@ from src.portfolio.schemas import (
     BenchmarkPoint,
     PortfolioIncomeResponse,
     PortfolioLookThroughResponse,
+    ConsolidatedLookThroughResponse,
     TransactionCreate,
     TransactionUpdate,
     TransactionResponse,
@@ -103,6 +104,24 @@ async def get_consolidated_benchmark(
     return await service.get_consolidated_benchmark(
         user_id=current_user.id,
         period=period,
+        db=db,
+        redis=redis,
+        preferred_provider=provider_settings["preferred"],
+        brapi_key=provider_settings["brapi_key"],
+    )
+
+
+@router.get("/consolidated/look-through", response_model=ConsolidatedLookThroughResponse)
+async def get_consolidated_look_through(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(_get_redis),
+    provider_settings: dict = Depends(_get_user_provider_settings),
+):
+    """Distribuição por setor, país e classe de ativo somando todas as
+    carteiras do usuário."""
+    return await look_through.get_consolidated_look_through(
+        user_id=current_user.id,
         db=db,
         redis=redis,
         preferred_provider=provider_settings["preferred"],

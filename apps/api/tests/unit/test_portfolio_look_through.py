@@ -130,3 +130,54 @@ async def test_fundo_sem_composicao_disponivel_cai_em_nao_classificado():
     assert result["by_sector"][0]["value_brl"] == Decimal("1000")
     assert result["by_country"][0]["label"] == "Não mapeado"
     assert result["country_coverage"] == Decimal("0")
+
+
+class _FakePortfolio:
+    def __init__(self, id_):
+        self.id = id_
+
+
+@pytest.mark.asyncio
+async def test_consolidado_sem_carteiras_devolve_baldes_vazios():
+    with patch.object(look_through.portfolio_service, "get_user_portfolios", AsyncMock(return_value=[])):
+        result = await look_through.get_consolidated_look_through(uuid.uuid4(), db=None)
+    assert result["by_sector"] == []
+    assert result["total_market_value_brl"] == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_consolidado_soma_baldes_de_cada_carteira_e_repondera():
+    p1, p2 = _FakePortfolio(uuid.uuid4()), _FakePortfolio(uuid.uuid4())
+    per_portfolio = {
+        p1.id: {
+            "portfolio_id": p1.id,
+            "total_market_value_brl": Decimal("6000"),
+            "by_sector": [{"label": "Tecnologia", "value_brl": Decimal("6000"), "weight": Decimal("1")}],
+            "by_country": [{"label": "Estados Unidos", "value_brl": Decimal("6000"), "weight": Decimal("1")}],
+            "by_asset_class": [{"label": "Ações", "value_brl": Decimal("6000"), "weight": Decimal("1")}],
+            "country_coverage": Decimal("1"),
+        },
+        p2.id: {
+            "portfolio_id": p2.id,
+            "total_market_value_brl": Decimal("4000"),
+            "by_sector": [{"label": "Industrial", "value_brl": Decimal("4000"), "weight": Decimal("1")}],
+            "by_country": [{"label": "Brasil", "value_brl": Decimal("4000"), "weight": Decimal("1")}],
+            "by_asset_class": [{"label": "Ações", "value_brl": Decimal("4000"), "weight": Decimal("1")}],
+            "country_coverage": Decimal("0"),
+        },
+    }
+
+    async def fake_get_portfolio_look_through(portfolio_id, user_id, db, redis=None, preferred_provider="yahoo", brapi_key=None):
+        return per_portfolio[portfolio_id]
+
+    with patch.object(look_through.portfolio_service, "get_user_portfolios", AsyncMock(return_value=[p1, p2])), \
+         patch.object(look_through, "get_portfolio_look_through", fake_get_portfolio_look_through):
+        result = await look_through.get_consolidated_look_through(uuid.uuid4(), db=None)
+
+    assert result["total_market_value_brl"] == Decimal("10000")
+    by_sector = {b["label"]: b["value_brl"] for b in result["by_sector"]}
+    assert by_sector == {"Tecnologia": Decimal("6000"), "Industrial": Decimal("4000")}
+    by_class = {b["label"]: b["value_brl"] for b in result["by_asset_class"]}
+    assert by_class["Ações"] == Decimal("10000")
+    # coverage: (1*6000 + 0*4000) / 10000
+    assert result["country_coverage"] == Decimal("0.6")

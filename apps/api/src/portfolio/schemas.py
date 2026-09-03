@@ -151,6 +151,16 @@ class PortfolioLookThroughResponse(BaseModel):
     country_coverage: Decimal
 
 
+class ConsolidatedLookThroughResponse(BaseModel):
+    """Mesma forma de PortfolioLookThroughResponse, somando todas as
+    carteiras do usuário — sem portfolio_id (não é uma carteira)."""
+    total_market_value_brl: Decimal
+    by_sector: list[LookThroughBucket]
+    by_country: list[LookThroughBucket]
+    by_asset_class: list[LookThroughBucket]
+    country_coverage: Decimal
+
+
 # ---------------------------------------------------------------------------
 # Performance series
 # ---------------------------------------------------------------------------
