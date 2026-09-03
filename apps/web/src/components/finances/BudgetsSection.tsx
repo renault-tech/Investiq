@@ -14,6 +14,9 @@ import { parseBRNumber } from "@/lib/number-format";
 
 interface BudgetsSectionProps {
   categories: FinanceCategory[];
+  /** Sem o cartão próprio (borda/sombra/padding) — para quando o pai já
+   * embrulha isto num DashboardCard da grade ajustável (Finanças). */
+  bare?: boolean;
 }
 
 function barColor(pctUsed: number): string {
@@ -22,7 +25,7 @@ function barColor(pctUsed: number): string {
   return "bg-[var(--accent)]";
 }
 
-export function BudgetsSection({ categories }: BudgetsSectionProps) {
+export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps) {
   const { data: budgets = [] } = useBudgets();
   const upsertMutation = useUpsertBudget();
   const deleteMutation = useDeleteBudget();
@@ -50,7 +53,7 @@ export function BudgetsSection({ categories }: BudgetsSectionProps) {
   };
 
   return (
-    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] p-5 shadow-[var(--shadow)]">
+    <div className={bare ? "" : "bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] p-5 shadow-[var(--shadow)]"}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">

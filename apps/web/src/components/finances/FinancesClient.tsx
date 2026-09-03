@@ -34,6 +34,7 @@ const FINANCE_CARDS: DashboardCardSpec[] = [
   // antes ficava fora da grade, numa seção fixa mais abaixo, desalinhada dos
   // demais cards e sem poder ser movida ou redimensionada como eles.
   { id: "accounts", label: "Contas", defaultSpan: 6, minSpan: 4 },
+  { id: "budgets", label: "Orçamentos", defaultSpan: 6, minSpan: 4 },
 ];
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -247,10 +248,12 @@ export function FinancesClient() {
           <AccountsBar holder={holder} onHolderChange={setHolder} bare />
         </DashboardCard>
         )}
-      </div>
 
-      <div data-tour="budgets-section">
-        <BudgetsSection categories={categories} />
+        {visible("budgets") && (
+        <DashboardCard {...cardProps("budgets", 0.28)} data-tour="budgets-section">
+          <BudgetsSection categories={categories} bare />
+        </DashboardCard>
+        )}
       </div>
 
       {/* Filtros + tabela */}
