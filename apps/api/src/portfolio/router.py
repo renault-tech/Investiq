@@ -330,6 +330,8 @@ async def add_position_to_portfolio(
         broker=body.broker,
         target_weight=body.target_weight,
         db=db,
+        asset_type=body.asset_type,
+        name=body.name,
     )
 
 

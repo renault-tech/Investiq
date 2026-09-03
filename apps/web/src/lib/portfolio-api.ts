@@ -117,6 +117,12 @@ export interface AddPositionInput {
   ticker: string;
   broker?: string;
   target_weight?: number;
+  /** "cash" = reserva/caixa (cofrinho, saldo em conta digital): sem cotação
+   * de mercado, preço fixo em 1. Omitido preserva o padrão antigo ("stock"). */
+  asset_type?: string;
+  /** Nome de exibição — só relevante pra "cash", onde o ticker é um código
+   * sintético sem significado próprio (ex.: "Cofrinho Mercado Pago"). */
+  name?: string;
 }
 
 export interface CreateTransactionInput {

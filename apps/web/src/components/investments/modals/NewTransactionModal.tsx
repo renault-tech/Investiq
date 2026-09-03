@@ -24,6 +24,13 @@ const TRANSACTION_TYPES = [
   { value: "bonus", label: "Bonificação" },
 ] as const;
 
+/** Caixa/reserva não "compra" nem "vende" — deposita ou saca. Mesmos values
+ * (buy/sell) por baixo, só o rótulo muda pra bater com o mental model. */
+const CASH_TRANSACTION_TYPES = [
+  { value: "buy", label: "Depósito" },
+  { value: "sell", label: "Saque" },
+] as const;
+
 const fieldClass =
   "w-full px-2.5 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-md text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--accent)]";
 
@@ -43,13 +50,18 @@ export function NewTransactionModal({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
 
+  const selectedPosition = positions.find((p) => p.position_id === positionId);
+  // Caixa/reserva não tem cotação de mercado — a quantidade já É o valor em
+  // reais, sempre a R$1,00 por "unidade", então o preço nem é pedido.
+  const isCash = selectedPosition?.asset_type === "cash";
+
   const mutation = useMutation({
     mutationFn: () =>
       createTransaction({
         position_id: positionId,
         transaction_type: txType as "buy" | "sell" | "dividend" | "split" | "bonus",
         quantity: parseBRQuantityOr(quantity, 0),
-        unit_price: parseBRNumberOr(unitPrice, 0),
+        unit_price: isCash ? 1 : parseBRNumberOr(unitPrice, 0),
         fees: parseBRNumberOr(fees, 0),
         // Vazio = o backend usa o câmbio do dia da moeda do ativo. Mandar 1
         // por padrão gravava o custo de ativo em dólar como se fosse real.
@@ -83,7 +95,7 @@ export function NewTransactionModal({
   });
 
   const isValid =
-    !!positionId && parseBRQuantityOr(quantity, 0) > 0 && parseBRNumberOr(unitPrice, 0) > 0;
+    !!positionId && parseBRQuantityOr(quantity, 0) > 0 && (isCash || parseBRNumberOr(unitPrice, 0) > 0);
 
   return (
     <Modal
@@ -118,7 +130,7 @@ export function NewTransactionModal({
             <option value="">Selecione um ativo</option>
             {positions.map((p) => (
               <option key={p.position_id} value={p.position_id}>
-                {p.ticker} {p.broker ? `(${p.broker})` : ""}
+                {p.asset_type === "cash" ? p.asset_name : p.ticker} {p.broker ? `(${p.broker})` : ""}
               </option>
             ))}
           </select>
@@ -132,7 +144,7 @@ export function NewTransactionModal({
             onChange={(e) => setTxType(e.target.value)}
             className={fieldClass}
           >
-            {TRANSACTION_TYPES.map((t) => (
+            {(isCash ? CASH_TRANSACTION_TYPES : TRANSACTION_TYPES).map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
@@ -140,7 +152,9 @@ export function NewTransactionModal({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label htmlFor="tx-quantity" className="block text-[10px] text-[var(--text-muted)] mb-1">Quantidade *</label>
+            <label htmlFor="tx-quantity" className="block text-[10px] text-[var(--text-muted)] mb-1">
+              {isCash ? "Valor (R$) *" : "Quantidade *"}
+            </label>
             <input
               id="tx-quantity"
               type="text"
@@ -148,9 +162,21 @@ export function NewTransactionModal({
               value={quantity}
               onChange={(e) => setQuantity(sanitizeNumericInput(e.target.value))}
               className={fieldClass}
-              placeholder="100"
+              placeholder={isCash ? "500,00" : "100"}
             />
           </div>
+          {isCash ? (
+            <div>
+              <label className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Unit.</label>
+              <input
+                type="text"
+                disabled
+                value="R$ 1,00 (fixo)"
+                className={`${fieldClass} opacity-60 cursor-not-allowed`}
+                title="Caixa/reserva não tem cotação de mercado — a quantidade já é o valor em reais"
+              />
+            </div>
+          ) : (
           <div>
             <label htmlFor="tx-price" className="block text-[10px] text-[var(--text-muted)] mb-1">Preço Unit. *</label>
             <input
@@ -163,6 +189,7 @@ export function NewTransactionModal({
               placeholder="32,50"
             />
           </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
