@@ -29,11 +29,11 @@ import { ForecastChart } from "./ForecastChart";
 const FINANCE_CARDS: DashboardCardSpec[] = [
   { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
   { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
+  // Contas não é mais um card daqui — vive como tira compacta no cabeçalho
+  // (ao lado do seletor de mês), já que a maior parte de um card dedicado só
+  // pras contas ficava vazia. "Orçamentos" preenche o resto da linha ao lado
+  // de "Previsto × executado" no lugar dela.
   { id: "planned", label: "Previsto × executado", defaultSpan: 6, minSpan: 4 },
-  // Preenche o resto da linha ao lado de "Previsto × executado" por padrão —
-  // antes ficava fora da grade, numa seção fixa mais abaixo, desalinhada dos
-  // demais cards e sem poder ser movida ou redimensionada como eles.
-  { id: "accounts", label: "Contas", defaultSpan: 6, minSpan: 4 },
   { id: "budgets", label: "Orçamentos", defaultSpan: 6, minSpan: 4 },
 ];
 
@@ -135,8 +135,8 @@ export function FinancesClient() {
   return (
     <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Finanças</h2>
           {activeAccount && (
             <button
@@ -152,7 +152,13 @@ export function FinancesClient() {
             <MonthStepper month={month} onShift={shiftMonth} />
           </div>
         </div>
-        <div className="flex gap-2">
+        {/* Contas mora aqui — tira compacta preenchendo o espaço ocioso do
+            cabeçalho em vez de reservar um card inteiro (a maior parte dele
+            vazia) só pra isso. */}
+        <div className="flex-1 min-w-0" data-tour="accounts-bar">
+          <AccountsBar holder={holder} onHolderChange={setHolder} inline />
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={() => setShowExport(true)}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] rounded-[11px] hover:text-[var(--text-primary)] transition-colors"
@@ -243,14 +249,8 @@ export function FinancesClient() {
         </DashboardCard>
         )}
 
-        {visible("accounts") && (
-        <DashboardCard {...cardProps("accounts", 0.24)} data-tour="accounts-bar">
-          <AccountsBar holder={holder} onHolderChange={setHolder} bare />
-        </DashboardCard>
-        )}
-
         {visible("budgets") && (
-        <DashboardCard {...cardProps("budgets", 0.28)} data-tour="budgets-section">
+        <DashboardCard {...cardProps("budgets", 0.24)} data-tour="budgets-section">
           <BudgetsSection categories={categories} bare />
         </DashboardCard>
         )}
