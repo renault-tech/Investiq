@@ -494,3 +494,42 @@ async def test_consolidated_performance_spans_the_earliest_transaction_across_po
         "/portfolios/consolidated/benchmark", params={"period": "max"}, headers=headers
     )
     assert benchmark.status_code == 200, benchmark.text
+
+
+@pytest.mark.asyncio
+async def test_cash_position_has_no_market_quote_and_values_at_one_to_one(client):
+    """Caixa/reserva (cofrinho, saldo em conta digital) não tem ticker de
+    mercado de verdade — o "preço" é sempre 1, e a quantidade lançada já É
+    o valor guardado em reais, sem esperar nenhuma cotação chegar."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    portfolio = await client.post("/portfolios/", json={"name": "Carteira BR", "currency": "BRL"}, headers=headers)
+    portfolio_id = portfolio.json()["id"]
+
+    position = await client.post(
+        f"/portfolios/{portfolio_id}/positions",
+        json={"ticker": "CX-COFRINHO-MP", "asset_type": "cash", "name": "Cofrinho Mercado Pago"},
+        headers=headers,
+    )
+    assert position.status_code == 201, position.text
+    position_id = position.json()["id"]
+
+    buy = await client.post(
+        "/portfolios/transactions",
+        json={
+            "position_id": position_id, "transaction_type": "buy",
+            "quantity": 500, "unit_price": 1, "fees": 0,
+            "transaction_date": "2026-01-15T12:00:00Z",
+        },
+        headers=headers,
+    )
+    assert buy.status_code == 201, buy.text
+
+    summary = await client.get(f"/portfolios/{portfolio_id}/summary", headers=headers)
+    assert summary.status_code == 200, summary.text
+    pos = summary.json()["positions"][0]
+    assert pos["asset_type"] == "cash"
+    assert pos["quantity"] == "500.00000000"
+    assert Decimal(pos["market_value_brl"]) == Decimal("500")
+    assert Decimal(pos["current_price"]) == Decimal("1")

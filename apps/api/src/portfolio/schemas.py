@@ -250,6 +250,12 @@ class AddPositionRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=20)
     broker: Optional[str] = Field(None, max_length=100)
     target_weight: Optional[Decimal] = Field(None, ge=0, le=1)
+    # "stock" quando omitido preserva o comportamento anterior (todo ativo
+    # novo virava genericamente "stock"). "cash" é reserva/caixa (cofrinho,
+    # CDB de liquidez diária tratado como dinheiro) — não tem cotação de
+    # mercado, então nem pede nem busca uma.
+    asset_type: Optional[str] = Field(None, max_length=30)
+    name: Optional[str] = Field(None, max_length=200)
 
 
 class UpdatePositionRequest(BaseModel):

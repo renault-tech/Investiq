@@ -228,8 +228,11 @@ async def get_portfolio_summary(
             "allocation_by_type": [],
         }
 
-    # Fetch live prices
-    tickers = [p.asset.ticker for p in positions]
+    # Fetch live prices — caixa/reserva não tem cotação de mercado (o "preço"
+    # é fixo em 1, a quantidade já É o valor em reais), então nem entra na
+    # lista de tickers a buscar: nenhum provider reconheceria esse ticker
+    # sintético, e a chamada só desperdiçaria uma requisição fadada a falhar.
+    tickers = [p.asset.ticker for p in positions if p.asset.asset_type != "cash"]
     cache = get_cache(redis) if redis else None
     live_prices: dict[str, Decimal] = {}
 
@@ -1474,6 +1477,8 @@ async def add_position(
     broker: Optional[str],
     target_weight: Optional[Decimal],
     db: AsyncSession,
+    asset_type: Optional[str] = None,
+    name: Optional[str] = None,
 ) -> dict:
     """Add a new asset position to a portfolio (quantity=0, avg_cost=0)."""
     # 1. Verify ownership
@@ -1491,10 +1496,16 @@ async def add_position(
     result = await db.execute(select(Asset).where(Asset.ticker == ticker_upper))
     asset = result.scalar_one_or_none()
     if asset is None:
-        # Create minimal asset record — prices will be fetched on next summary call
+        resolved_type = asset_type or "stock"
+        # Reserva/caixa não tem cotação de mercado — o "preço" é sempre 1 (a
+        # quantidade já É o valor em reais), fixado na criação em vez de
+        # esperar a próxima atualização de cotação (que nunca viria, já que
+        # nenhum provider conhece esse ticker sintético).
+        last_price = Decimal("1") if resolved_type == "cash" else None
+        currency = "BRL" if resolved_type == "cash" else default_currency_for_ticker(ticker_upper)
         asset = Asset(
-            ticker=ticker_upper, name=ticker_upper, asset_type="stock",
-            currency=default_currency_for_ticker(ticker_upper),
+            ticker=ticker_upper, name=(name or "").strip() or ticker_upper, asset_type=resolved_type,
+            currency=currency, last_price=last_price,
         )
         db.add(asset)
         await db.flush()

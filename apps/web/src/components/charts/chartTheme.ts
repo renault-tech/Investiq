@@ -35,6 +35,7 @@ export const ASSET_TYPE_LABELS: Record<string, string> = {
   crypto: "Cripto",
   commodity: "Commodities",
   fixed_income_br: "Renda Fixa",
+  cash: "Caixa/Reserva",
   other: "Outros",
 };
 
