@@ -115,6 +115,16 @@ async def test_summary_converts_usd_market_value_to_brl(client, db_session, monk
     allocation = summary.json()["allocation_by_type"]
     assert allocation[0]["value"] == "6600.00"
 
+    # Regression: calculate_portfolio_summary used to multiply by fx_rate a
+    # second time on top of current_price, which is already BRL-converted
+    # above — total_market_value_brl came out ~5.5x too high (matching this
+    # test's own fx rate) while each position's own market_value_brl (the
+    # assertion above) stayed correct the whole time. A user only ever
+    # noticed the two disagreeing on a foreign-currency portfolio.
+    body = summary.json()
+    assert body["total_market_value_brl"] == "6600.00"
+    assert body["total_invested_brl"] == "5000.00"
+
 
 @pytest.mark.asyncio
 async def test_summary_falls_back_to_1to1_when_fx_rate_missing(client, db_session, monkeypatch):
