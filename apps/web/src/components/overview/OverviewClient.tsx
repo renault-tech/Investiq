@@ -193,6 +193,22 @@ export function OverviewClient() {
   const netWorth = liquid + invested - billTotal;
   const netWorthLoading = accountsLoading || cardsLoading || investmentsLoading;
 
+  // Nacional × internacional: pela moeda de cada posição, não da carteira —
+  // uma "carteira internacional" pode ter uma sobra em BRL, e o contrário
+  // também acontece. Soma por posição em vez de por carteira dá o número
+  // certo nos dois casos. Cada carteira visível também vira uma linha própria
+  // (nome + valor) pra mostrar onde o total "Investido" está distribuído,
+  // sem precisar abrir cada carteira uma por uma.
+  const nationalInvested = summaries.reduce(
+    (sum, s) => sum + s.positions.filter((p) => p.currency === "BRL").reduce((a, p) => a + Number(p.market_value_brl), 0),
+    0
+  );
+  const internationalInvested = invested - nationalInvested;
+  const byPortfolio = summaries
+    .map((s) => ({ id: s.portfolio_id, name: s.portfolio_name, value: Number(s.total_market_value_brl) }))
+    .filter((p) => p.value > 0)
+    .sort((a, b) => b.value - a.value);
+
   const perfValues = performance.map((p) => Number(p.total_value));
   const netDeltaFraction = perfValues.length >= 2 && perfValues[0] !== 0
     ? (perfValues[perfValues.length - 1] - perfValues[0]) / Math.abs(perfValues[0])
@@ -336,6 +352,18 @@ export function OverviewClient() {
                     <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
                   )}
                 </div>
+                {!netWorthLoading && invested > 0 && (
+                  <>
+                    <div>
+                      <div className="text-[11.5px] text-[var(--text-secondary)]">· Nacional</div>
+                      <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(nationalInvested))}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11.5px] text-[var(--text-secondary)]">· Internacional</div>
+                      <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(internationalInvested))}</div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <div className="text-[11.5px] text-[var(--text-secondary)]">Passivos</div>
                   {netWorthLoading ? (
@@ -358,6 +386,24 @@ export function OverviewClient() {
             ) : (
               <div className="h-[120px] flex items-center justify-center text-[12.5px] text-[var(--text-muted)]">
                 Sem histórico de carteira suficiente ainda para o gráfico.
+              </div>
+            )}
+            {/* Onde o "Investido" está distribuído — sem isso, quem tem mais
+                de uma carteira só via o total somado, e precisava abrir
+                Investimentos e trocar de carteira uma por uma pra saber de
+                onde vinha cada parte. */}
+            {!netWorthLoading && byPortfolio.length > 0 && (
+              <div className="relative flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-[var(--border)]">
+                <span className="text-[10.5px] text-[var(--text-muted)] mr-1">Por carteira</span>
+                {byPortfolio.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-xs"
+                  >
+                    <span className="font-medium text-[var(--text-primary)] truncate max-w-[110px]">{p.name}</span>
+                    <span className="font-mono text-[11px] text-[var(--text-secondary)]">{mask(formatBRLCompact(p.value))}</span>
+                  </span>
+                ))}
               </div>
             )}
           </DashboardCard>
