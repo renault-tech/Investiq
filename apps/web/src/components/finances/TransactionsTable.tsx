@@ -66,7 +66,8 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
-            <th className="px-2 py-2 font-medium">Data</th>
+            <th className="px-2 py-2 font-medium">Lançamento</th>
+            <th className="px-2 py-2 font-medium">Vencimento</th>
             <th className="px-2 py-2 font-medium">Descrição</th>
             <th className="px-2 py-2 font-medium">Categoria</th>
             <th className="px-2 py-2 font-medium">Conta</th>
@@ -89,6 +90,28 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                 <td className="px-2 py-2 whitespace-nowrap text-[var(--text-secondary)] font-mono text-xs">
                   {new Date(txn.transaction_date).toLocaleDateString("pt-BR")}
                 </td>
+                <td className="px-2 py-2 whitespace-nowrap font-mono text-xs">
+                  {/* Só mostra data aqui quando o vencimento é uma pergunta de
+                      verdade (recorrência, ocorrência projetada, ou vencimento
+                      diferente do lançamento) — um lançamento comum, pago no
+                      mesmo dia, não tem vencimento próprio pra mostrar. */}
+                  {hasCheckableStatus(txn) ? (
+                    <span
+                      className="inline-flex items-center gap-1"
+                      style={{ color: txn.is_paid ? "var(--accent)" : "var(--danger)" }}
+                      title={
+                        txn.is_paid
+                          ? (txn.paid_at ? `Pago em ${new Date(txn.paid_at).toLocaleDateString("pt-BR")}` : "Pago")
+                          : `Vence em ${new Date(txn.due_date).toLocaleDateString("pt-BR")}`
+                      }
+                    >
+                      {txn.is_paid && <CheckCircle2 size={11} />}
+                      {new Date(txn.due_date).toLocaleDateString("pt-BR")}
+                    </span>
+                  ) : (
+                    <span className="text-[var(--text-muted)]">—</span>
+                  )}
+                </td>
                 <td className="px-2 py-2 text-[var(--text-primary)]">
                   <span className="flex items-center gap-1.5 flex-wrap">
                     {txn.description || "—"}
@@ -106,29 +129,6 @@ export function TransactionsTable({ transactions, isLoading, onEdit, onDelete, o
                       <span className="text-[10px] font-mono text-[var(--text-muted)] border border-[var(--border)] rounded px-1">
                         {txn.installment_no}/{txn.installment_total}
                       </span>
-                    )}
-                    {/* Vence/Pago só aparece pra lançamento com cara de conta a pagar
-                        (recorrente, ocorrência projetada, ou vencimento diferente da
-                        data de lançamento) — numa transação comum, lançada e paga no
-                        mesmo dia, o selo seria óbvio demais pra valer a poluição visual. */}
-                    {hasCheckableStatus(txn) && (
-                      txn.is_paid ? (
-                        <span
-                          className="inline-flex items-center gap-0.5 text-[10px] rounded px-1 border"
-                          style={{ color: "var(--accent)", borderColor: "var(--accent)" }}
-                          title={txn.paid_at ? `Pago em ${new Date(txn.paid_at).toLocaleDateString("pt-BR")}` : "Pago"}
-                        >
-                          <CheckCircle2 size={10} /> Pago
-                        </span>
-                      ) : (
-                        <span
-                          className="text-[10px] rounded px-1 border"
-                          style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
-                          title={`Vence em ${new Date(txn.due_date).toLocaleDateString("pt-BR")}`}
-                        >
-                          Vence {new Date(txn.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                        </span>
-                      )
                     )}
                     {txn.source === "manual" ? (
                       <span
