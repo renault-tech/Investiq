@@ -67,6 +67,37 @@ async def snapshot_job() -> None:
                     logger.warning("Snapshot failed for portfolio %s: %s", portfolio.id, exc)
                     continue
 
+                # Uma cotação "ao vivo" ruim (glitch do provedor, cache
+                # corrompido, split aplicado com atraso) gravada aqui fica
+                # congelada pra sempre — este snapshot nunca é revisitado
+                # depois. Compara com o snapshot anterior antes de confiar
+                # na cotação de hoje: um pulo grande sem aporte/resgate
+                # proporcional não vira snapshot, e o dia cai no fallback de
+                # reconstrução (get_portfolio_performance) até uma leitura
+                # futura confirmar (ou não) que o valor era real.
+                prev_result = await db.execute(
+                    select(PortfolioSnapshot)
+                    .where(
+                        PortfolioSnapshot.portfolio_id == portfolio.id,
+                        PortfolioSnapshot.snapshot_date < today,
+                    )
+                    .order_by(PortfolioSnapshot.snapshot_date.desc())
+                    .limit(1)
+                )
+                prev_snapshot = prev_result.scalars().first()
+                if prev_snapshot and portfolio_service.is_value_jump_suspicious(
+                    summary["total_market_value_brl"],
+                    summary["total_invested_brl"],
+                    prev_snapshot.total_value,
+                    prev_snapshot.total_invested,
+                ):
+                    logger.warning(
+                        "Snapshot suspeito ignorado para carteira %s: R$ %s -> R$ %s "
+                        "sem aporte/resgate correspondente",
+                        portfolio.id, prev_snapshot.total_value, summary["total_market_value_brl"],
+                    )
+                    continue
+
                 stmt = pg_insert(PortfolioSnapshot).values(
                     portfolio_id=portfolio.id,
                     user_id=portfolio.user_id,
