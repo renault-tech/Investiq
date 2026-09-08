@@ -513,24 +513,18 @@ async def get_portfolio_performance(
                 break
         return best if best is not None else history[0][1]
 
-    series = []
-    for day in grid:
-        snap = snapshots.get(day)
-        if snap:
-            series.append({
-                "date": day,
-                "total_value": snap.total_value,
-                "total_invested": snap.total_invested,
-            })
-            continue
+    def _reconstruct_at(day: date) -> tuple[Decimal, Decimal]:
+        """Valor e total investido no dia, a partir das transações + fechamento
+        histórico — usado tanto para os dias sem snapshot quanto para
+        substituir um snapshot suspeito (ver _despike_series).
 
-        # Reconstruct from transactions accumulated up to this date.
-        # Espelha _recompute_position_from_transactions por ticker: uma venda
-        # baixa o custo proporcionalmente à fração vendida, não pelo valor
-        # recebido. Subtrair o valor da venda misturava preço de venda com
-        # preço de custo e podia zerar (ou negativar) o investido de uma
-        # carteira que continuava cheia — e é esse "investido" que o TWR lê
-        # como aporte/retirada, então o erro virava retorno fantasma.
+        Espelha _recompute_position_from_transactions por ticker: uma venda
+        baixa o custo proporcionalmente à fração vendida, não pelo valor
+        recebido. Subtrair o valor da venda misturava preço de venda com
+        preço de custo e podia zerar (ou negativar) o investido de uma
+        carteira que continuava cheia — e é esse "investido" que o TWR lê
+        como aporte/retirada, então o erro virava retorno fantasma.
+        """
         qty: dict[str, Decimal] = {}
         invested_by_ticker: dict[str, Decimal] = {}
         for txn_date, ticker, txn in txns:
@@ -557,13 +551,83 @@ async def get_portfolio_performance(
             (value for ticker, value in invested_by_ticker.items() if qty.get(ticker, _ZERO) > _ZERO),
             _ZERO,
         )
-        series.append({
-            "date": day,
-            "total_value": total_value,
-            "total_invested": invested if invested > _ZERO else _ZERO,
-        })
+        return total_value, (invested if invested > _ZERO else _ZERO)
 
+    series = []
+    for day in grid:
+        snap = snapshots.get(day)
+        if snap:
+            series.append({
+                "date": day,
+                "total_value": snap.total_value,
+                "total_invested": snap.total_invested,
+            })
+        else:
+            total_value, invested = _reconstruct_at(day)
+            series.append({"date": day, "total_value": total_value, "total_invested": invested})
+
+    _despike_series(series, _reconstruct_at)
     return series
+
+
+# Um snapshot é gravado uma vez por dia a partir da cotação "ao vivo" do
+# provedor (workers/snapshot_worker.py) e nunca mais revisitado — uma
+# cotação ruim isolada num único dia (glitch do provedor, cache corrompido,
+# split/provento aplicado com atraso) fica congelada ali pra sempre e
+# aparece no gráfico como um pico que sobe e volta ao normal no dia
+# seguinte, o que nenhum investimento de verdade faz de um dia pro outro.
+# Detecta esse padrão comparando cada ponto com os dois vizinhos: um pulo
+# grande de ida E de volta, vizinhos que concordam entre si (então a
+# variação "normal" ali era pequena) e nenhum aporte/resgate proporcional
+# que explique o pulo (uma compra ou venda grande de verdade move
+# total_invested junto) — só nesse caso o ponto é trocado pelo valor
+# reconstruído a partir das transações + fechamento histórico, a mesma
+# fonte já usada nos dias sem snapshot. Não pega uma sequência de dois ou
+# mais dias ruins seguidos (os vizinhos deixam de concordar entre si), mas
+# cobre o caso relatado — e o pior cenário de um falso positivo é substituir
+# um número por outro igualmente correto, nunca por um pior.
+_DESPIKE_JUMP_PCT = Decimal("25")
+_DESPIKE_NEIGHBOR_AGREE_PCT = Decimal("8")
+_DESPIKE_INVESTED_JUMP_PCT = Decimal("5")
+
+
+def _despike_series(series: list[dict], reconstruct_at) -> None:
+    for i in range(1, len(series) - 1):
+        prev, cur, nxt = series[i - 1], series[i], series[i + 1]
+        v_prev, v_cur, v_next = prev["total_value"], cur["total_value"], nxt["total_value"]
+        if v_prev <= _ZERO or v_cur <= _ZERO:
+            continue
+        jump_in = abs(pct_change(v_cur, v_prev))
+        jump_out = abs(pct_change(v_next, v_cur))
+        neighbor_diff = abs(pct_change(v_next, v_prev))
+        invested_jump = abs(pct_change(cur["total_invested"], prev["total_invested"]))
+        if (
+            jump_in > _DESPIKE_JUMP_PCT
+            and jump_out > _DESPIKE_JUMP_PCT
+            and neighbor_diff < _DESPIKE_NEIGHBOR_AGREE_PCT
+            and invested_jump < _DESPIKE_INVESTED_JUMP_PCT
+        ):
+            corrected_value, _ = reconstruct_at(cur["date"])
+            cur["total_value"] = corrected_value
+
+
+def is_value_jump_suspicious(
+    new_value: Decimal, new_invested: Decimal, prev_value: Decimal, prev_invested: Decimal
+) -> bool:
+    """Mesmo critério de _despike_series, mas olhando só pra trás — usado
+    pelo worker de snapshot (workers/snapshot_worker.py) antes de gravar,
+    que ainda não tem o dia seguinte pra comparar. Um pulo grande sem
+    aporte/resgate proporcional é motivo pra não confiar na cotação "ao
+    vivo" daquele dia: melhor não gravar nada e deixar o dia cair no
+    fallback de reconstrução (get_portfolio_performance) do que congelar um
+    número suspeito no banco pra sempre."""
+    if prev_value <= _ZERO:
+        return False
+    jump = abs(pct_change(new_value, prev_value))
+    if jump <= _DESPIKE_JUMP_PCT:
+        return False
+    invested_jump = abs(pct_change(new_invested, prev_invested))
+    return invested_jump < _DESPIKE_INVESTED_JUMP_PCT
 
 
 def _compute_twr_series(series: list[dict]) -> list[dict]:

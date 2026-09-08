@@ -146,3 +146,70 @@ def test_consolidated_series_sums_two_portfolios_day_by_day():
     assert combined[0]["total_value"] == Decimal("500")
     assert combined[1]["total_value"] == Decimal("500")
     assert combined[0]["total_invested"] == Decimal("500")
+
+
+# ---------------------------------------------------------------------------
+# _despike_series / is_value_jump_suspicious — um snapshot ruim isolado (a
+# cotação "ao vivo" do dia veio errada e ficou congelada no banco) aparece
+# como um pico que sobe e volta ao normal no dia seguinte, o que nenhum
+# investimento de verdade faz de um dia pro outro.
+# ---------------------------------------------------------------------------
+
+from src.portfolio.service import _despike_series, is_value_jump_suspicious
+
+
+def test_despike_replaces_an_isolated_spike_with_the_reconstructed_value():
+    series = [
+        _point(1, 1000, 1000),
+        _point(2, 5000, 1000),  # pico isolado: sem aporte, some no dia seguinte
+        _point(3, 1050, 1000),
+    ]
+    reconstructed = {date(2026, 7, 2): (Decimal("1020"), Decimal("1000"))}
+    _despike_series(series, lambda day: reconstructed[day])
+    assert series[1]["total_value"] == Decimal("1020")
+    # vizinhos não mexidos
+    assert series[0]["total_value"] == Decimal("1000")
+    assert series[2]["total_value"] == Decimal("1050")
+
+
+def test_despike_leaves_a_real_contribution_alone():
+    # Mesmo pulo grande, mas com aporte proporcional no mesmo dia — não é
+    # bug, é dinheiro novo entrando, então não deve ser tocado.
+    series = [
+        _point(1, 1000, 1000),
+        _point(2, 5000, 5000),
+        _point(3, 5100, 5000),
+    ]
+    calls = []
+    _despike_series(series, lambda day: calls.append(day) or (Decimal("0"), Decimal("0")))
+    assert calls == []
+    assert series[1]["total_value"] == Decimal("5000")
+
+
+def test_despike_leaves_a_real_sustained_move_alone():
+    # Sobe e continua no patamar novo (sem voltar) — não é o padrão de pico,
+    # é o mercado tendo subido de verdade.
+    series = [_point(1, 1000, 1000), _point(2, 1500, 1000), _point(3, 1550, 1000)]
+    _despike_series(series, lambda day: (Decimal("0"), Decimal("0")))
+    assert series[1]["total_value"] == Decimal("1500")
+
+
+def test_value_jump_suspicious_without_matching_contribution():
+    assert is_value_jump_suspicious(
+        new_value=Decimal("5000"), new_invested=Decimal("1000"),
+        prev_value=Decimal("1000"), prev_invested=Decimal("1000"),
+    )
+
+
+def test_value_jump_not_suspicious_with_matching_contribution():
+    assert not is_value_jump_suspicious(
+        new_value=Decimal("5000"), new_invested=Decimal("5000"),
+        prev_value=Decimal("1000"), prev_invested=Decimal("1000"),
+    )
+
+
+def test_value_jump_not_suspicious_below_threshold():
+    assert not is_value_jump_suspicious(
+        new_value=Decimal("1050"), new_invested=Decimal("1000"),
+        prev_value=Decimal("1000"), prev_invested=Decimal("1000"),
+    )
