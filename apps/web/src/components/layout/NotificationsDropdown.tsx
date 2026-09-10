@@ -8,6 +8,9 @@ import { Notification } from "@/lib/notifications-api";
 const ICONS: Record<Notification["type"], typeof Bell> = {
   price_alert: TrendingUp,
   budget_exceeded: Wallet,
+  // Não se produz mais notificação bill_due (conta vencendo é assunto da
+  // Central de Ações), mas as já gravadas continuam no banco e precisam de
+  // ícone — sem esta chave, ICONS[notif.type] vira undefined e a lista quebra.
   bill_due: CircleDollarSign,
   system: Info,
 };

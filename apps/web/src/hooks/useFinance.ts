@@ -43,7 +43,13 @@ export function useFinanceSummary(month: string, accountId?: string | null, hold
 
 function useInvalidateFinance() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["finance"] });
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["finance"] });
+    // A Central de Ações lista contas a vencer e vencidas em aberto — pagar,
+    // criar, editar ou apagar um lançamento muda o inbox. Sem isto o badge
+    // continuaria contando uma conta que o usuário acabou de quitar.
+    queryClient.invalidateQueries({ queryKey: ["actions"] });
+  };
 }
 
 export function useCreateTransaction() {

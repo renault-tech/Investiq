@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, Search, ChevronDown, LogOut, LayoutGrid, Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -9,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/api-client";
 import { useMarketQuotes } from "@/hooks/useAssetData";
 import { NotificationsDropdown } from "./NotificationsDropdown";
+import { ActionCenterDropdown } from "./ActionCenterDropdown";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
 
@@ -117,6 +119,7 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const wide = useIsWideScreen();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -132,6 +135,13 @@ export function TopBar() {
     setMenuOpen(false);
     await logout();
     setUser(null);
+    // router.push é navegação client-side: o QueryClient da raiz sobrevive
+    // à troca de tela. Sem limpar, quem logasse em seguida na mesma aba
+    // leria do cache do usuário anterior enquanto os dados ainda estivessem
+    // frescos — vale para ["actions"], mas igualmente para ["finance"],
+    // ["cards"], ["notifications"] e o resto. (Pelo 401 não acontece: ali o
+    // redirect é window.location, que recarrega a página e destrói o cache.)
+    queryClient.clear();
     router.push("/login");
   }
 
@@ -251,6 +261,11 @@ export function TopBar() {
               <span className="hidden md:inline">{customize ? "Concluir" : "Personalizar"}</span>
             </button>
           )}
+
+          {/* Inbox e sino lado a lado, e sem repetição: pendência de
+              vencimento vive só na Central de Ações, evento que já
+              aconteceu vive só no sino. */}
+          <ActionCenterDropdown />
 
           <NotificationsDropdown />
 

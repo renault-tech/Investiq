@@ -2,6 +2,11 @@ import { apiClient } from "./api-client";
 
 export interface Notification {
   id: string;
+  // "bill_due" não é mais gerado: o worker que criava esse tipo saiu quando
+  // a Central de Ações passou a ser o lugar de conta vencendo. Fica na união
+  // porque notificações antigas já gravadas continuam com esse type — tirar
+  // daqui faria o ICONS do NotificationsDropdown devolver undefined e quebrar
+  // a renderização delas.
   type: "price_alert" | "budget_exceeded" | "bill_due" | "system";
   title: string;
   body: string | null;
