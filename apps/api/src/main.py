@@ -30,6 +30,7 @@ from src.workers.scheduler import start_scheduler, stop_scheduler
 from src.cards.router import router as cards_router
 from src.reports.router import router as reports_router
 from src.watchlist.router import router as watchlist_router
+from src.actions.router import router as actions_router
 
 # cards' PDF invoice upload (src/cards/parser.py::_parse_pdf) imports pypdf
 # lazily rather than at module level, purely as a defensive fallback: if it
@@ -98,6 +99,7 @@ app.include_router(cards_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(watchlist_router, prefix="/api/v1")
 app.include_router(feedback_router, prefix="/api/v1")
+app.include_router(actions_router, prefix="/api/v1")
 
 
 @app.get("/health")
