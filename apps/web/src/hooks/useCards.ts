@@ -16,6 +16,15 @@ import {
   InvoiceItem,
 } from "@/lib/cards-api";
 
+/** A Central de Ações lista faturas em revisão e os lançamentos sem
+ * categoria dentro delas — subir, confirmar ou excluir uma fatura (ou o
+ * cartão inteiro, que cascateia as faturas), e categorizar um item, mudam o
+ * inbox. Sem isto o badge fica contando pendência que já foi resolvida. */
+function useInvalidateActions() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ["actions"] });
+}
+
 export function useCards() {
   return useQuery({ queryKey: ["cards"], queryFn: listCards, staleTime: 5 * 60_000 });
 }
@@ -64,11 +73,13 @@ export function useUpdateCard() {
 
 export function useDeleteCard() {
   const queryClient = useQueryClient();
+  const invalidateActions = useInvalidateActions();
   return useMutation({
     mutationFn: (id: string) => deleteCard(id),
     onSuccess: () => {
       toast.success("Cartão removido.");
       queryClient.invalidateQueries({ queryKey: ["cards"] });
+      invalidateActions();
     },
     onError: () => toast.error("Falha ao remover cartão."),
   });
@@ -91,15 +102,6 @@ function uploadErrorMessage(err: unknown, fallback: string): string {
     if (first && typeof first === "object" && "msg" in first) return String((first as { msg: unknown }).msg);
   }
   return fallback;
-}
-
-/** A Central de Ações lista faturas em revisão e os lançamentos sem
- * categoria dentro delas — subir, confirmar ou excluir uma fatura, e
- * categorizar um item, mudam o inbox. Sem isto o badge fica contando
- * pendência que já foi resolvida. */
-function useInvalidateActions() {
-  const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ["actions"] });
 }
 
 export function useUploadInvoice(cardId: string | null) {

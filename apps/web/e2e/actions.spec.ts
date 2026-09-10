@@ -174,3 +174,82 @@ test("badge passa em contraste AA nos dois temas", async ({ page }) => {
   await page.waitForTimeout(500);
   await medir();
 });
+
+test("logout limpa o cache e o próximo login na mesma aba entra limpo", async ({ page }) => {
+  // Faz dois ciclos de autenticação e volta pra /overview duas vezes; com a
+  // suíte inteira em paralelo o dev server ainda compila rota sob demanda,
+  // então este é naturalmente mais lento que os vizinhos.
+  test.setTimeout(90_000);
+  // O logout usa router.push, que é navegação client-side: o QueryClient da
+  // raiz sobrevive. Sem limpá-lo, duas coisas dão errado, e este teste falha
+  // se a limpeza for removida:
+  //   1. as queries do usuário anterior continuam montadas e refazendo
+  //      busca; elas passam a tomar 401, o interceptor tenta renovar, falha
+  //      e manda um window.location para /login — que recarrega a página no
+  //      meio do formulário e impede o próximo login de concluir (é aqui
+  //      que ele falha primeiro, sem a correção);
+  //   2. dentro da janela de staleTime, o TopBar do usuário B seria servido
+  //      do cache de A — títulos e valores de contas alheias. As duas
+  //      asserções do fim cobrem isso.
+  //
+  // O login de B tem que ser feito PELO FORMULÁRIO, sem page.goto: um goto é
+  // carregamento completo, destrói o QueryClient e o vazamento não acontece
+  // (foi assim que a primeira versão deste teste passou sem a correção).
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await registerAndLogin(page);
+  await criarConta(page, { amount: 777, description: "Conta secreta do A", dueInDays: -1 });
+  await page.reload();
+  await dismissTourIfPresent(page);
+  await expect(page.locator(BADGE)).toHaveText("1", { timeout: 15_000 });
+
+  // B precisa existir antes, mas registrar por fetch não navega — a SPA de A
+  // segue viva, que é a condição do vazamento.
+  const emailB = `e2e-b-${Date.now()}-${Math.floor(Math.random() * 100000)}@example.com`;
+  const senha = "SenhaSegura123!";
+  const criado = await page.evaluate(
+    async ([email, password]) => {
+      const res = await fetch("http://localhost:8000/api/v1/auth/register", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      return res.status;
+    },
+    [emailB, senha] as const
+  );
+  expect(criado).toBe(201);
+
+  await page.getByRole("button", { name: "Menu da conta" }).click();
+  await page.getByRole("button", { name: /Sair/ }).click();
+  await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
+
+  // O /login chegou por navegação client-side e ainda está hidratando: um
+  // fill antes disso é descartado quando o React assume o input controlado
+  // (o campo fica vazio e o submit não sai). Repete até o valor grudar.
+  // Marcador de sessão de JS: o cenário só faz sentido enquanto a SPA de A
+  // continua viva — se a página recarregar, o QueryClient morre junto e o
+  // teste passaria à toa. Melhor falhar dizendo isso do que passar em falso.
+  await page.evaluate(() => { (window as Window & { __spaViva?: boolean }).__spaViva = true; });
+  const spaViva = () => page.evaluate(() => !!(window as Window & { __spaViva?: boolean }).__spaViva);
+
+  // O componente de /login pode remontar logo depois do logout (a proteção
+  // de rota reavalia e empurra /login de novo), e a remontagem zera o
+  // estado do formulário — inclusive um valor recém-digitado. Remontar é
+  // inofensivo para o cenário (o JS é o mesmo), então basta repreencher;
+  // recarregar não seria, e é o que o marcador acima detecta.
+  await expect(async () => {
+    expect(await spaViva(), "a página recarregou: o cenário exige a mesma sessão de JS").toBe(true);
+    await page.getByLabel("Email").fill(emailB);
+    await page.getByLabel("Senha", { exact: true }).fill(senha);
+    await expect(page.getByLabel("Email")).toHaveValue(emailB, { timeout: 1_000 });
+    await expect(page.getByLabel("Senha", { exact: true })).toHaveValue(senha, { timeout: 1_000 });
+  }).toPass({ timeout: 30_000 });
+
+  expect(await spaViva(), "a página recarregou antes do login").toBe(true);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/overview/, { timeout: 30_000 });
+  await dismissTourIfPresent(page);
+
+  await expect(page.getByText("Conta secreta do A")).toHaveCount(0);
+  await page.locator(BOTAO).click();
+  await expect(painel(page).getByText("Tudo em dia — nenhuma pendência.")).toBeVisible({ timeout: 15_000 });
+});

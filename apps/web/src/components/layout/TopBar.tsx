@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, Search, ChevronDown, LogOut, LayoutGrid, Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period } from "@/store/useUIStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -118,6 +119,7 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const wide = useIsWideScreen();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -133,6 +135,13 @@ export function TopBar() {
     setMenuOpen(false);
     await logout();
     setUser(null);
+    // router.push é navegação client-side: o QueryClient da raiz sobrevive
+    // à troca de tela. Sem limpar, quem logasse em seguida na mesma aba
+    // leria do cache do usuário anterior enquanto os dados ainda estivessem
+    // frescos — vale para ["actions"], mas igualmente para ["finance"],
+    // ["cards"], ["notifications"] e o resto. (Pelo 401 não acontece: ali o
+    // redirect é window.location, que recarrega a página e destrói o cache.)
+    queryClient.clear();
     router.push("/login");
   }
 
