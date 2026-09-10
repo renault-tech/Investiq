@@ -97,6 +97,39 @@ async def test_paid_bill_does_not_show_up(client):
 
 
 @pytest.mark.asyncio
+async def test_recurring_bill_shows_up_even_after_the_template_was_paid(client):
+    """Uma despesa recorrente tem UMA linha real (o template); as ocorrências
+    seguintes existem virtualmente até alguém pagar ou editar. Lendo a tabela
+    crua, uma recorrência cujo template já foi pago sumia do inbox para
+    sempre — justamente a classe de conta que um inbox de vencimentos
+    precisa mostrar."""
+    session = await register_and_login(client)
+    headers = session["headers"]
+
+    # Template vencido há ~1 mês, mensal: a próxima ocorrência cai agora.
+    first_due = date.today() - timedelta(days=30)
+    created = await client.post(
+        "/finance/transactions",
+        json={
+            "transaction_type": "expense",
+            "amount": 120,
+            "description": "Assinatura mensal",
+            "transaction_date": first_due.isoformat() + "T12:00:00Z",
+            "due_date": first_due.isoformat() + "T12:00:00Z",
+            "recurrence_rule": "RRULE:FREQ=MONTHLY",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    # O template nasce pago (vencimento no passado) — é esse o cenário.
+    assert created.json()["is_paid"] is True
+
+    items = (await client.get("/actions", headers=headers)).json()["items"]
+    assinaturas = [i for i in items if i["title"] == "Assinatura mensal"]
+    assert assinaturas, f"ocorrência virtual não apareceu no inbox: {items}"
+
+
+@pytest.mark.asyncio
 async def test_inbox_is_scoped_to_the_user(client):
     a = await register_and_login(client)
     b = await register_and_login(client)
