@@ -195,3 +195,48 @@ async def test_cannot_update_card_of_another_user(client):
 
     still_named = await client.get("/cards", headers=a["headers"])
     assert still_named.json()[0]["name"] == "Nubank"
+
+
+async def _upload_invoice(client, headers, card_id, reference_month):
+    files = {"file": ("fatura.csv", b"data;descricao;valor\n10/06;MERCADO SILVA;152.30\n", "text/csv")}
+    res = await client.post(
+        f"/cards/{card_id}/invoices",
+        data={"reference_month": reference_month},
+        files=files,
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    return res.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_invoice_analytics_returns_breakdown_trend_and_top_items(client):
+    session = await register_and_login(client)
+    headers = session["headers"]
+    card_id = await _create_card(client, headers)
+    await _upload_invoice(client, headers, card_id, "2026-05-01")
+    invoice_id = await _upload_invoice(client, headers, card_id, "2026-06-01")
+
+    res = await client.get(f"/cards/invoices/{invoice_id}/analytics", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+
+    assert body["invoice_id"] == invoice_id
+    # As duas categorias sugeridas pelo LLM falso, maior primeiro.
+    assert [s["category"] for s in body["category_breakdown"]] == ["Alimentação", "Assinaturas"]
+    # A fatura anterior do mesmo cartão entra na tendência, mais antiga primeiro.
+    assert [p["reference_month"] for p in body["trend"]] == ["2026-05-01", "2026-06-01"]
+    assert [i["description"] for i in body["top_items"]] == ["MERCADO SILVA", "NETFLIX.COM"]
+    # Uma fatura de histórico só não é suficiente para acusar estouro.
+    assert [f for f in body["findings"] if f["kind"] == "category_spike"] == []
+
+
+@pytest.mark.asyncio
+async def test_invoice_analytics_of_another_user_is_not_found(client):
+    a = await register_and_login(client)
+    b = await register_and_login(client)
+    card_id = await _create_card(client, a["headers"])
+    invoice_id = await _upload_invoice(client, a["headers"], card_id, "2026-06-01")
+
+    res = await client.get(f"/cards/invoices/{invoice_id}/analytics", headers=b["headers"])
+    assert res.status_code == 404

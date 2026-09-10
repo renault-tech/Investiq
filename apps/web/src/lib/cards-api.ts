@@ -1,4 +1,5 @@
 import { apiClient } from "./api-client";
+import { coerceNumbers, coerceNumbersInList } from "./coerce";
 
 export interface CreditCard {
   id: string;
@@ -118,4 +119,52 @@ export async function confirmInvoice(invoiceId: string): Promise<CardInvoice> {
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
   await apiClient.delete(`/cards/invoices/${invoiceId}`);
+}
+
+export interface CategoryBreakdownSlice {
+  category_id: string | null;
+  category: string;
+  amount: number;
+  /** null = sem histórico com que comparar (a UI mostra "—", não 0%). */
+  delta_pct: number | null;
+}
+
+export interface InvoiceTrendPoint {
+  reference_month: string;
+  total_amount: number;
+}
+
+export interface InvoiceFinding {
+  kind: "duplicate" | "category_spike" | "uncategorized";
+  title: string;
+  description: string;
+  amount: number | null;
+}
+
+export interface InvoiceAnalytics {
+  invoice_id: string;
+  category_breakdown: CategoryBreakdownSlice[];
+  trend: InvoiceTrendPoint[];
+  avg_amount: number;
+  top_items: InvoiceItem[];
+  findings: InvoiceFinding[];
+}
+
+const BREAKDOWN_NUMERIC = ["amount", "delta_pct"] as const;
+const TREND_NUMERIC = ["total_amount"] as const;
+const FINDING_NUMERIC = ["amount"] as const;
+const TOP_ITEM_NUMERIC = ["amount"] as const;
+
+export async function getInvoiceAnalytics(invoiceId: string): Promise<InvoiceAnalytics> {
+  const res = await apiClient.get<InvoiceAnalytics>(`/cards/invoices/${invoiceId}/analytics`);
+  // Decimal do Pydantic chega como string: sem coagir aqui, delta_pct.toFixed()
+  // derruba o painel em runtime (ver lib/coerce.ts).
+  const data = coerceNumbers(res.data, ["avg_amount"] as const);
+  return {
+    ...data,
+    category_breakdown: coerceNumbersInList(data.category_breakdown ?? [], BREAKDOWN_NUMERIC),
+    trend: coerceNumbersInList(data.trend ?? [], TREND_NUMERIC),
+    findings: coerceNumbersInList(data.findings ?? [], FINDING_NUMERIC),
+    top_items: coerceNumbersInList(data.top_items ?? [], TOP_ITEM_NUMERIC),
+  };
 }

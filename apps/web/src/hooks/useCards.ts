@@ -11,6 +11,7 @@ import {
   updateInvoiceItem,
   confirmInvoice,
   deleteInvoice,
+  getInvoiceAnalytics,
   CardInput,
   InvoiceItem,
 } from "@/lib/cards-api";
@@ -145,5 +146,14 @@ export function useDeleteInvoice(cardId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["cards", cardId, "invoices"] });
     },
     onError: () => toast.error("Falha ao excluir fatura."),
+  });
+}
+
+export function useInvoiceAnalytics(invoiceId: string | null) {
+  return useQuery({
+    queryKey: ["cards", "invoice", invoiceId, "analytics"],
+    queryFn: () => getInvoiceAnalytics(invoiceId as string),
+    enabled: invoiceId !== null,
+    staleTime: 30_000,
   });
 }
