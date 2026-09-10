@@ -57,9 +57,14 @@ function useIsWideScreen() {
   return wide;
 }
 
-/** Faixa de cotações ao vivo. Usa o mesmo `useMarketQuotes` da watchlist
- * (hooks/useAssetData.ts) — mesma queryKey, mesmo cache: abrir o Trader não
- * dispara uma segunda busca das mesmas cotações. Nenhuma API nova. */
+/** Faixa de cotações ao vivo, sobre o `useMarketQuotes` que já existe em
+ * hooks/useAssetData.ts — nenhuma API nova.
+ *
+ * A queryKey daquele hook é a lista inteira de tickers, então caches só são
+ * compartilhados entre chamadas com EXATAMENTE a mesma lista: estes 4 são um
+ * subconjunto dos 9 do MarketOverviewStrip, mas isso não os faz reaproveitar
+ * nada. Daí a faixa não ser montada no Trader (ver `showTicker`) — senão as
+ * duas consultas conviveriam ali, cada uma repetindo de minuto em minuto. */
 function TickerStrip() {
   const { data } = useMarketQuotes(TICKERS);
   const items = data ?? [];
@@ -144,9 +149,15 @@ export function TopBar() {
     pathname.startsWith("/overview") || pathname === "/finances" || pathname.startsWith("/finances?");
   const page = PAGE_TITLES.find((p) => pathname.startsWith(p.prefix)) ?? PAGE_TITLES[0];
 
+  // No Trader a faixa fica de fora: o MarketOverviewStrip da própria tela já
+  // mostra estes 4 instrumentos (e mais 5), num formato bem melhor. Além da
+  // redundância visual, as duas consultas têm queryKeys diferentes — a faixa
+  // aqui abriria um segundo ciclo de busca das mesmas cotações, a cada minuto.
+  const showTicker = wide && !pathname.startsWith("/trader");
+
   return (
     <div className="sticky top-0 z-20 flex-shrink-0">
-      {wide && <TickerStrip />}
+      {showTicker && <TickerStrip />}
       <header
         className="flex items-start gap-[18px] px-[30px] py-4 border-b border-[var(--border)] flex-wrap"
         style={{ background: "var(--surface)", backdropFilter: "blur(20px)" }}

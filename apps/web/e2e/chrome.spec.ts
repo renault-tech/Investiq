@@ -156,6 +156,31 @@ test("faixa de cotações formata em pt-BR e sobrevive ao Decimal-como-string", 
   expect(strip).not.toContain("NaN");
 });
 
+test("no Trader a faixa sai de cena e não duplica a busca de cotações", async ({ page }) => {
+  // A queryKey de useMarketQuotes é a lista inteira de tickers, então os 4 da
+  // faixa NÃO reaproveitam o cache dos 9 do MarketOverviewStrip mesmo sendo
+  // subconjunto: manter as duas na mesma tela dobraria o polling.
+  const listasPedidas: string[] = [];
+  await page.route("**/market/quotes**", (route) => {
+    listasPedidas.push(new URL(route.request().url()).searchParams.get("tickers") ?? "");
+    return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await registerAndLogin(page);
+  // A faixa monta em /overview, então zera antes de ir pro Trader: o que
+  // interessa é o que sai de lá.
+  listasPedidas.length = 0;
+  await page.goto("/trader");
+  await dismissTourIfPresent(page);
+  await page.waitForTimeout(2500);
+
+  expect(await page.getByText("Mercado", { exact: true }).count()).toBe(0);
+  // Só a consulta do MarketOverviewStrip (a que tem Dow Jones, Euro, etc.)
+  expect(listasPedidas.filter((l) => l.includes("^DJI")).length).toBeGreaterThan(0);
+  expect(listasPedidas.filter((l) => !l.includes("^DJI")), "consulta extra só da faixa").toEqual([]);
+});
+
 test("a faixa de cotações nem monta no mobile", async ({ page }) => {
   // Esconder por CSS deixaria a query rodando de minuto em minuto em toda
   // tela, pra quem nunca vê a faixa.
