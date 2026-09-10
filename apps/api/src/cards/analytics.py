@@ -28,6 +28,13 @@ SPIKE_MULTIPLIER = Decimal("1.4")
 # Abaixo disso não dá para falar em desvio de padrão — uma fatura só de
 # histórico faz qualquer variação parecer um estouro.
 MIN_HISTORY_FOR_SPIKE = 2
+# Faturas que de fato têm dado. Um upload que falhou fica gravado como
+# 'failed' (service.py marca a linha já criada), sem itens e sem total, e
+# 'processing' é o estado intermediário — incluir qualquer um dos dois
+# desenha uma barra zerada na tendência e, pior, conta como histórico:
+# uma categoria com uma única fatura anterior utilizável passaria o piso do
+# spike e geraria um achado falso.
+USABLE_STATUSES = ("review", "confirmed")
 
 
 async def get_invoice_analytics(invoice_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> dict:
@@ -39,6 +46,7 @@ async def get_invoice_analytics(invoice_id: uuid.UUID, user_id: uuid.UUID, db: A
             CardInvoice.card_id == invoice.card_id,
             CardInvoice.user_id == user_id,
             CardInvoice.reference_month < invoice.reference_month,
+            CardInvoice.status.in_(USABLE_STATUSES),
         )
         .options(selectinload(CardInvoice.items))
         .order_by(CardInvoice.reference_month.desc())
@@ -140,9 +148,13 @@ def _findings(
     # tem installment_no diferente) nem recorrência normal (mês diferente).
     # Conta as ocorrências antes de relatar: três cobranças iguais são um
     # achado de três, não dois achados separados.
+    # purchase_date é obrigatório na chave: o extrator admite não conseguir
+    # identificar a data, e sem ela dois lançamentos sem relação nenhuma (só
+    # com mesma descrição e valor) cairiam no mesmo grupo e seriam acusados
+    # de acontecer "no mesmo dia" — que é justamente o que não se sabe.
     groups: dict[tuple, list[InvoiceItem]] = defaultdict(list)
     for item in active_items:
-        if item.installment_no is None:
+        if item.installment_no is None and item.purchase_date is not None:
             groups[(item.description.strip().casefold(), item.amount, item.purchase_date)].append(item)
     for repeated in groups.values():
         if len(repeated) < 2:

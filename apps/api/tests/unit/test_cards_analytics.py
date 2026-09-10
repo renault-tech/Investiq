@@ -14,12 +14,15 @@ from src.cards.analytics import (
 )
 
 
+_DEFAULT_DATE = object()  # sentinela: permite passar purchase_date=None de propósito
+
+
 class _Item:
-    def __init__(self, description, amount, purchase_date=None, installment_no=None,
+    def __init__(self, description, amount, purchase_date=_DEFAULT_DATE, installment_no=None,
                  category_id=None, is_ignored=False):
         self.description = description
         self.amount = Decimal(str(amount))
-        self.purchase_date = purchase_date or date(2026, 6, 10)
+        self.purchase_date = date(2026, 6, 10) if purchase_date is _DEFAULT_DATE else purchase_date
         self.installment_no = installment_no
         self.category_id = category_id
         self.is_ignored = is_ignored
@@ -49,6 +52,14 @@ def test_three_identical_charges_are_one_finding_not_two():
     assert "3 vezes" in out[0]["description"]
     # O valor do achado é o excedente (2 cobranças a mais), não o total nem uma só.
     assert out[0]["amount"] == Decimal("304.60")
+
+
+def test_items_without_a_purchase_date_are_not_flagged_as_duplicates():
+    # O extrator admite não achar a data. Sem ela, dois lançamentos sem
+    # relação nenhuma não podem ser acusados de cair "no mesmo dia".
+    items = [_Item("POSTO", 100, purchase_date=None), _Item("POSTO", 100, purchase_date=None)]
+    out = [f for f in _findings(items, _totals_by_category(items), {}, {}, 0) if f["kind"] == "duplicate"]
+    assert out == []
 
 
 def test_installments_are_not_flagged_as_duplicates():
