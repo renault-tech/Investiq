@@ -157,7 +157,7 @@ export function TransactionModal({ categories, editing, onClose }: TransactionMo
                   ? value === "expense"
                     ? "bg-[var(--danger)] text-white"
                     : value === "income"
-                      ? "bg-[var(--accent)] text-white"
+                      ? "bg-[var(--accent)] text-[var(--on-accent)]"
                       : "bg-[var(--navy)] text-white"
                   : "text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}

@@ -10,7 +10,10 @@ export interface AccentOption {
 }
 
 export const ACCENT_PALETTE: AccentOption[] = [
-  { id: "green", label: "Verde", light: "#0FA97C", dark: "#37D6A6" },
+  // Tem que bater com o fallback de --accent em globals.css: sem isso, quem
+  // escolhe "Verde" explicitamente vê um verde diferente de quem nunca
+  // escolheu nada.
+  { id: "green", label: "Verde", light: "#12B981", dark: "#7DF9C4" },
   { id: "blue", label: "Azul", light: "#2563EB", dark: "#6C9BFF" },
   { id: "purple", label: "Roxo", light: "#7C3AED", dark: "#A78BFA" },
   { id: "pink", label: "Rosa", light: "#DB2777", dark: "#F472B6" },

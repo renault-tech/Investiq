@@ -115,7 +115,7 @@ export function InvoiceReviewTable({ invoice, categories, onConfirm, onDelete, c
           <button
             onClick={onConfirm}
             disabled={confirming || activeItems.length === 0}
-            className="px-4 py-2 text-sm bg-[var(--accent)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-[var(--accent)] text-[var(--on-accent)] rounded-lg hover:opacity-90 disabled:opacity-50"
           >
             {confirming ? "Confirmando…" : "Confirmar fatura"}
           </button>
