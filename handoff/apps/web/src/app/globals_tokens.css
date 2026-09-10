@@ -1,0 +1,118 @@
+/* Substituição completa dos tokens de tema — cores, radii, sombra EXATOS do
+design InvestIQ Wealth OS (.dc.html), mapeados 1:1 para as variáveis que o
+repo já usa (mesmo NOME de variável, valor novo — nenhum componente que lê
+var(--surface) etc. precisa mudar). Cole por cima do bloco :root{...} e
+.dark{...} em apps/web/src/app/globals.css — mantenha tudo abaixo (keyframes,
+.responsive-grid-12, @media) como está. */
+
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background:    #F4F6F8;
+  --surface:       #FFFFFF;
+  --surface-2:     rgba(14,18,24,.05);
+  --surface-3:     rgba(14,18,24,.1);
+  --border:        rgba(14,18,24,.1);
+  --border-strong: rgba(14,18,24,.24);
+
+  --navy:          #0A7C57;
+  --accent:        var(--accent-override-light, #12B981);
+  --accent-2:      #6D5AE0;
+  --danger:        #E23B34;
+  --warning:       #C98A0B;
+  --glow:          color-mix(in srgb, var(--accent) 12%, transparent);
+
+  --text-primary:  #0E1218;
+  --text-secondary:#5E6779;
+  --text-muted:    #8A93A2;
+
+  --shadow:        0 24px 60px rgba(14,18,24,.14);
+  --grid-line:      rgba(14,18,24,.06);
+  --radius-card:   18px;
+  --radius-card-sm:14px;
+  --radius-pill:   11px;
+
+  /* Paleta categórica fixa do gráfico de benchmark — mesma lógica do repo
+     (desacoplada de --accent, que o usuário customiza em Configurações).
+     Cores exatas do design de referência. */
+  --chart-portfolio: #12B981;
+  --chart-cdi:        #DC6A34;
+  --chart-ibov:        #1E7FC4;
+  --chart-nasdaq:      #C98A0B;
+  --chart-sp500:       #C8548A;
+
+  /* Cores categóricas gerais do design (violeta, laranja, rosa) — usadas em
+     ícones de cartão, badges de titular, chips de categoria. */
+  --violet: #6D5AE0;
+  --orange: #DC6A34;
+  --pink:   #C8548A;
+
+  /* Camadas de sobreposição sutil usadas no fundo dos cards do design de
+     referência (gradiente vertical t4→t1) — não existem no repo real
+     (que usa --surface plano); adicionadas só para could reproduzir o
+     efeito visual dos cards da Visão geral/Cartões sem mexer em --surface. */
+  --t1: rgba(14,18,24,.008);
+  --t4: rgba(255,255,255,.5);
+
+  --font-scale: 1.0;
+}
+
+.dark {
+  --background:    #07080A;
+  --surface:       #0E1116;
+  --surface-2:     rgba(255,255,255,.045);
+  --surface-3:     rgba(255,255,255,.1);
+  --border:        rgba(255,255,255,.07);
+  --border-strong: rgba(255,255,255,.2);
+
+  --navy:          #7DF9C4;
+  --accent:        var(--accent-override-dark, #7DF9C4);
+  --accent-2:      #8B7CFF;
+  --danger:        #FF6B6B;
+  --warning:       #F5C86B;
+  --glow:          color-mix(in srgb, var(--accent) 16%, transparent);
+
+  --text-primary:  #E9EDF2;
+  --text-secondary:#8A93A2;
+  --text-muted:    #3A4152;
+
+  --shadow:        0 24px 60px rgba(0,0,0,.5);
+  --grid-line:      rgba(255,255,255,.055);
+
+  --chart-portfolio: #7DF9C4;
+  --chart-cdi:        #FF8A5C;
+  --chart-ibov:        #4FB3F9;
+  --chart-nasdaq:      #F5C86B;
+  --chart-sp500:       #F58BB8;
+
+  --violet: #8B7CFF;
+  --orange: #FF8A5C;
+  --pink:   #F58BB8;
+
+  --t1: rgba(255,255,255,.008);
+  --t4: rgba(255,255,255,.035);
+}
+
+/* Instrument Sans + IBM Plex Mono (mono) — mesmas famílias do design de
+   referência; troca Geist Mono do repo pelo Plex Mono usado em todo número
+   tabular do .dc.html. Se preferir manter Geist Mono, pular este bloco e
+   deixar @theme inline como estava. */
+@theme inline {
+  --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html { background: var(--background); color: var(--text-primary); }
+body { min-height: 100%; letter-spacing: -.01em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* --- do ponto em diante, MANTER exatamente o que já existia no arquivo
+   real (keyframes riseUp/growY/slideIn/etc., .animate-*, .responsive-grid-12,
+   .dashboard-card, @media prefers-reduced-motion) --- não reescrever. */
