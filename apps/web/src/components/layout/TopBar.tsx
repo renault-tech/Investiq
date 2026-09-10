@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/api-client";
 import { useMarketQuotes } from "@/hooks/useAssetData";
 import { NotificationsDropdown } from "./NotificationsDropdown";
+import { ActionCenterDropdown } from "./ActionCenterDropdown";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
 
@@ -251,6 +252,11 @@ export function TopBar() {
               <span className="hidden md:inline">{customize ? "Concluir" : "Personalizar"}</span>
             </button>
           )}
+
+          {/* Inbox e sino lado a lado, e sem repetição: pendência de
+              vencimento vive só na Central de Ações, evento que já
+              aconteceu vive só no sino. */}
+          <ActionCenterDropdown />
 
           <NotificationsDropdown />
 

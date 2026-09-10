@@ -93,13 +93,24 @@ function uploadErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** A Central de Ações lista faturas em revisão e os lançamentos sem
+ * categoria dentro delas — subir, confirmar ou excluir uma fatura, e
+ * categorizar um item, mudam o inbox. Sem isto o badge fica contando
+ * pendência que já foi resolvida. */
+function useInvalidateActions() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ["actions"] });
+}
+
 export function useUploadInvoice(cardId: string | null) {
   const queryClient = useQueryClient();
+  const invalidateActions = useInvalidateActions();
   return useMutation({
     mutationFn: ({ referenceMonth, file }: { referenceMonth: string; file: File }) =>
       uploadInvoice(cardId as string, referenceMonth, file),
     onSuccess: (invoice) => {
       queryClient.invalidateQueries({ queryKey: ["cards", cardId, "invoices"] });
+      invalidateActions();
       if (invoice.status === "failed") {
         toast.error(invoice.error_message ?? "Falha ao processar a fatura.");
       } else {
@@ -114,17 +125,21 @@ export function useUploadInvoice(cardId: string | null) {
 
 export function useUpdateInvoiceItem(invoiceId: string | null) {
   const queryClient = useQueryClient();
+  const invalidateActions = useInvalidateActions();
   return useMutation({
     mutationFn: ({ itemId, input }: { itemId: string; input: Partial<InvoiceItem> }) =>
       updateInvoiceItem(invoiceId as string, itemId, input),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["cards", "invoice", invoiceId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cards", "invoice", invoiceId] });
+      invalidateActions();
+    },
     onError: () => toast.error("Falha ao atualizar item."),
   });
 }
 
 export function useConfirmInvoice(cardId: string | null) {
   const queryClient = useQueryClient();
+  const invalidateActions = useInvalidateActions();
   return useMutation({
     mutationFn: (invoiceId: string) => confirmInvoice(invoiceId),
     onSuccess: (_, invoiceId) => {
@@ -132,6 +147,7 @@ export function useConfirmInvoice(cardId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["cards", cardId, "invoices"] });
       queryClient.invalidateQueries({ queryKey: ["cards", "invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["finance"] });
+      invalidateActions();
     },
     onError: () => toast.error("Falha ao confirmar fatura."),
   });
@@ -139,11 +155,13 @@ export function useConfirmInvoice(cardId: string | null) {
 
 export function useDeleteInvoice(cardId: string | null) {
   const queryClient = useQueryClient();
+  const invalidateActions = useInvalidateActions();
   return useMutation({
     mutationFn: (invoiceId: string) => deleteInvoice(invoiceId),
     onSuccess: () => {
       toast.success("Fatura excluída.");
       queryClient.invalidateQueries({ queryKey: ["cards", cardId, "invoices"] });
+      invalidateActions();
     },
     onError: () => toast.error("Falha ao excluir fatura."),
   });
