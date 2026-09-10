@@ -15,6 +15,7 @@ from src.settings.service import get_decrypted_api_keys
 from src.shared.limiter import limiter
 from src.shared.exceptions import ValidationError
 from src.cards import service
+from src.cards import analytics
 from src.cards.schemas import (
     CardCreate,
     CardUpdate,
@@ -23,6 +24,7 @@ from src.cards.schemas import (
     InvoiceDetailResponse,
     InvoiceItemResponse,
     InvoiceItemUpdate,
+    InvoiceAnalyticsResponse,
 )
 
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -130,6 +132,18 @@ async def get_invoice(
     db: AsyncSession = Depends(get_db),
 ):
     return await service.get_invoice(invoice_id, current_user.id, db)
+
+
+@router.get("/invoices/{invoice_id}/analytics", response_model=InvoiceAnalyticsResponse)
+async def get_invoice_analytics(
+    invoice_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Breakdown por categoria, tendência das últimas faturas do mesmo cartão,
+    maiores gastos e achados (duplicidade, categoria acima do normal, itens
+    sem categoria) — tudo calculado sob demanda, sem tabela nova."""
+    return await analytics.get_invoice_analytics(invoice_id, current_user.id, db)
 
 
 @router.patch("/invoices/{invoice_id}/items/{item_id}", response_model=InvoiceItemResponse)

@@ -20,6 +20,7 @@ import { useMask } from "@/hooks/useMask";
 import { CardModal } from "./CardModal";
 import { InvoiceUploadZone } from "./InvoiceUploadZone";
 import { InvoiceReviewTable } from "./InvoiceReviewTable";
+import { InvoiceAnalytics } from "./InvoiceAnalytics";
 
 const STATUS_LABEL: Record<CardInvoice["status"], { label: string; className: string }> = {
   processing: { label: "processando", className: "text-[var(--warning)]" },
@@ -252,13 +253,16 @@ export function CardsClient() {
 
           {/* Revisão da fatura selecionada */}
           {invoiceDetail && activeInvoiceId && (
-            <InvoiceReviewTable
-              invoice={invoiceDetail}
-              categories={categories}
-              onConfirm={() => confirmMutation.mutate(invoiceDetail.id)}
-              onDelete={() => setConfirmingInvoiceDelete(true)}
-              confirming={confirmMutation.isPending}
-            />
+            <>
+              <InvoiceReviewTable
+                invoice={invoiceDetail}
+                categories={categories}
+                onConfirm={() => confirmMutation.mutate(invoiceDetail.id)}
+                onDelete={() => setConfirmingInvoiceDelete(true)}
+                confirming={confirmMutation.isPending}
+              />
+              <InvoiceAnalytics invoiceId={invoiceDetail.id} />
+            </>
           )}
         </>
       )}
