@@ -14,42 +14,44 @@
    --grid-line and --radius-card are new tokens the handoff introduced with
    no prior equivalent. */
 :root {
-  --background:    #F4F5F7;
+  --background:    #F4F6F8;
   --surface:       #FFFFFF;
-  --surface-2:     #F7F8FA;
-  --surface-3:     #EDEFF3;
-  --border:        rgba(9,12,20,.08);
-  --border-strong: rgba(9,12,20,.16);
+  --surface-2:     rgba(14,18,24,.05);
+  --surface-3:     rgba(14,18,24,.1);
+  --border:        rgba(14,18,24,.1);
+  --border-strong: rgba(14,18,24,.24);
 
   /* --navy era a cor de ação primária pré-redesign (usada com text-white
      em ~28 componentes: botões ativos, ícones de app, títulos de destaque).
-     Vira verde-escuro da mesma família do accent — mantém contraste com
-     texto branco (~5.8:1) sem precisar editar cada um desses arquivos. */
-  --navy:          #0E6E53;
+     Verde-escuro da mesma família do accent — mantém contraste com texto
+     branco (~5.3:1) sem precisar editar cada um desses arquivos. */
+  --navy:          #0A7C57;
   /* --accent-override-light/dark: setadas via JS (useUIStore) quando o
      usuário escolhe uma cor em Configurações → Aparência. Sem override,
      caem no fallback (o verde padrão) — a troca de tema não precisa saber
      qual cor está selecionada, só resolve a variável certa por cascata. */
-  --accent:        var(--accent-override-light, #0FA97C);
-  --accent-2:      #5A6BF0;
-  --danger:        #E1495C;
-  --warning:       #C77A17;
+  --accent:        var(--accent-override-light, #12B981);
+  --accent-2:      #6D5AE0;
+  --danger:        #E23B34;
+  --warning:       #C98A0B;
   /* Derivado de --accent (não um literal fixo) — trocar a cor de destaque
      nas Configurações atualiza o glow junto, em qualquer tela, sem JS. */
   --glow:          color-mix(in srgb, var(--accent) 12%, transparent);
 
-  --text-primary:  #0B0E14;
-  --text-secondary:#666D7A;
+  --text-primary:  #0E1218;
+  --text-secondary:#5E6779;
   /* Era #9AA1AE (~2.6:1 contra --surface) — abaixo do mínimo de 4.5:1 do
      WCAG AA para texto normal. #646971 mantém o mesmo tom (só mais escuro)
      e passa em todo fundo onde --text-muted aparece (surface, background,
-     surface-2, surface-3), com folga de pelo menos ~4.8:1. */
+     surface-2, surface-3), com folga de pelo menos ~4.8:1.
+     Mantido de propósito na rodada de tokens de 2026-09: o design pedia
+     #8A93A2, que recai no mesmo patamar reprovado antes. */
   --text-muted:    #646971;
 
-  --shadow:        0 20px 50px -28px rgba(12,18,30,.35);
-  --grid-line:      rgba(9,12,20,.06);
-  --radius-card:   24px;
-  --radius-card-sm:20px;
+  --shadow:        0 24px 60px rgba(14,18,24,.14);
+  --grid-line:      rgba(14,18,24,.06);
+  --radius-card:   18px;
+  --radius-card-sm:14px;
   --radius-pill:   11px;
 
   /* Paleta categórica fixa para o gráfico de comparação de carteira x
@@ -67,33 +69,53 @@
   --chart-nasdaq:      #EDA100;
   --chart-sp500:       #E87BA4;
 
+  /* Cores categóricas gerais do design — ícones de cartão, badges de
+     titular, chips de categoria. Diferente de --chart-*, estas são para
+     elementos avulsos, não para séries de um mesmo gráfico. */
+  --violet: #6D5AE0;
+  --orange: #DC6A34;
+  --pink:   #C8548A;
+
+  /* Camadas de sobreposição sutil do design (gradiente vertical t4→t1 no
+     fundo dos cards). Ficam por cima de --surface, que segue plano. */
+  --t1: rgba(14,18,24,.008);
+  --t4: rgba(255,255,255,.5);
+
   --font-scale: 1.0;
 }
 
 .dark {
   --background:    #07080A;
-  --surface:       #101216;
-  --surface-2:     #171A20;
-  --surface-3:     #1E222A;
-  --border:        rgba(255,255,255,.075);
-  --border-strong: rgba(255,255,255,.14);
+  --surface:       #0E1116;
+  --surface-2:     rgba(255,255,255,.045);
+  --surface-3:     rgba(255,255,255,.1);
+  --border:        rgba(255,255,255,.07);
+  --border-strong: rgba(255,255,255,.2);
 
+  /* Mantido verde-escuro de propósito. O design pedia #7DF9C4 (menta
+     claro), mas aqui --navy é FUNDO de botão com text-white em 10+ telas
+     (Button, TransactionModal, CardModal, telas de auth...) — menta claro
+     sob texto branco dá ~1.2:1, ilegível. --accent é que assumiu o tom
+     claro do design, e ali funciona porque o texto por cima é escuro
+     (Button.tsx usa text-[#04120D]). */
   --navy:          #12876A;
-  --accent:        var(--accent-override-dark, #37D6A6);
-  --accent-2:      #7C8CFF;
-  --danger:        #FF6B7A;
-  --warning:       #FFB35C;
+  --accent:        var(--accent-override-dark, #7DF9C4);
+  --accent-2:      #8B7CFF;
+  --danger:        #FF6B6B;
+  --warning:       #F5C86B;
   --glow:          color-mix(in srgb, var(--accent) 16%, transparent);
 
-  --text-primary:  #EDEFF3;
-  --text-secondary:#8B929E;
+  --text-primary:  #E9EDF2;
+  --text-secondary:#8A93A2;
   /* Era #5C6270 (~3.1:1 contra --surface) — abaixo do mínimo de 4.5:1 do
      WCAG AA para texto normal. #81899D mantém o mesmo tom (só mais claro)
      e passa em todo fundo onde --text-muted aparece (surface, background,
-     surface-2, surface-3), com folga de pelo menos ~4.6:1. */
+     surface-2, surface-3), com folga de pelo menos ~4.6:1.
+     Mantido de propósito na rodada de tokens de 2026-09: o design pedia
+     #3A4152, ainda mais escuro que o valor já reprovado acima. */
   --text-muted:    #81899D;
 
-  --shadow:        0 24px 60px -24px rgba(0,0,0,.75);
+  --shadow:        0 24px 60px rgba(0,0,0,.5);
   --grid-line:      rgba(255,255,255,.055);
 
   --chart-portfolio: #3987E5;
@@ -101,6 +123,13 @@
   --chart-ibov:        #199E70;
   --chart-nasdaq:      #C98500;
   --chart-sp500:       #D55181;
+
+  --violet: #8B7CFF;
+  --orange: #FF8A5C;
+  --pink:   #F58BB8;
+
+  --t1: rgba(255,255,255,.008);
+  --t4: rgba(255,255,255,.035);
 }
 
 /* Tailwind v4 utility-generating theme — without this, font-sans/font-mono
@@ -109,7 +138,7 @@
    despite downloading both families. */
 @theme inline {
   --font-sans: var(--font-instrument-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-mono: var(--font-ibm-plex-mono), var(--font-geist-mono), ui-monospace, monospace;
 }
 
 html {
