@@ -19,12 +19,6 @@ interface BudgetsSectionProps {
   bare?: boolean;
 }
 
-function barColor(pctUsed: number): string {
-  if (pctUsed > 1) return "bg-[var(--danger)]";
-  if (pctUsed > 0.8) return "bg-[var(--warning)]";
-  return "bg-[var(--accent)]";
-}
-
 export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps) {
   const { data: budgets = [] } = useBudgets();
   const upsertMutation = useUpsertBudget();
@@ -68,7 +62,7 @@ export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps
         {availableCategories.length > 0 && (
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1 py-1.5 text-xs text-[var(--navy)] dark:text-[var(--accent)] hover:underline"
+            className="flex items-center gap-1 py-1.5 text-xs text-[var(--accent)] hover:underline"
           >
             <Plus size={13} /> Novo orçamento
           </button>
@@ -111,18 +105,21 @@ export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps
       ) : (
         <ul className="space-y-3">
           {budgets.map((budget) => {
-            const pct = Math.min(Number(budget.pct_used) * 100, 100);
+            const pctUsed = Number(budget.pct_used);
+            const pct = Math.min(pctUsed * 100, 100);
+            const overrun = pctUsed > 1;
+            const color = budget.category_color ?? "var(--accent)";
             return (
               <li key={budget.id}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="flex items-center gap-1.5 text-[var(--text-primary)] font-medium">
                     <span
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: budget.category_color ?? "#94A3B8" }}
+                      style={{ backgroundColor: color }}
                     />
                     {budget.category_name}
                   </span>
-                  <span className="flex items-center gap-2 font-mono text-[var(--text-secondary)]">
+                  <span className="flex items-center gap-2 font-mono" style={{ color: overrun ? "var(--danger)" : "var(--text-secondary)" }}>
                     {formatBRLExact(Number(budget.spent))} / {formatBRLExact(Number(budget.amount))}
                     <button
                       onClick={() => deleteMutation.mutate(budget.category_id)}
@@ -133,10 +130,18 @@ export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps
                     </button>
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div className="h-2 rounded-full bg-[var(--surface-3)] overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${barColor(Number(budget.pct_used))}`}
-                    style={{ width: `${pct}%` }}
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${pct}%`,
+                      // Estoura o orçamento: hachura por cima da cor da categoria em vez
+                      // de trocar a cor inteira — a cor identifica a categoria em toda
+                      // a tela, então não pode virar sinalização de status aqui.
+                      background: overrun
+                        ? `repeating-linear-gradient(135deg, ${color}, ${color} 4px, var(--danger) 4px, var(--danger) 8px)`
+                        : color,
+                    }}
                   />
                 </div>
               </li>

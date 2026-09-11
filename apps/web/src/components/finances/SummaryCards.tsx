@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { FinanceSummary } from "@/lib/finance-api";
 import { formatBRLExact } from "@/components/charts/chartTheme";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useBudgets } from "@/hooks/useBudgets";
 import { useMask } from "@/hooks/useMask";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { formatPercent } from "@/lib/number-format";
@@ -13,77 +13,83 @@ interface SummaryCardsProps {
   isLoading: boolean;
 }
 
-function Variation({ pct, invert = false }: { pct: number | null; invert?: boolean }) {
-  if (pct === null) return null;
-  const value = pct * 100;
-  // para despesas, subir é ruim (invert)
-  const good = invert ? value <= 0 : value >= 0;
-  return (
-    <span className={`flex items-center gap-0.5 text-xs ${good ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-      {value >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-      {Math.abs(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% vs mês anterior
-    </span>
-  );
-}
-
 export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
-  // A taxa de poupança fica ao lado de receitas/despesas, que já respeitam a
-  // carteira ativa — sem o mesmo escopo aqui, o card mostrava a poupança de
-  // todas as contas somadas ao lado do saldo de uma só.
+  // A taxa de poupança e o orçamento total ficam ao lado de receitas/despesas,
+  // que já respeitam a carteira ativa — sem o mesmo escopo aqui, o card
+  // misturaria o orçamento de uma carteira com o saldo de outra.
   const activeAccountId = useFinanceScopeStore((s) => s.activeAccountId);
   const { data: analytics } = useAnalytics(6, activeAccountId);
+  const { data: budgets = [] } = useBudgets();
   const mask = useMask();
   const savingsSeries = analytics?.savings_series ?? [];
   const lastRate = savingsSeries[savingsSeries.length - 1]?.savings_rate;
 
-  const cards = [
-    {
-      label: "Receitas · mês",
-      value: mask(formatBRLExact(Number(summary?.income ?? 0))),
-      sub: <Variation pct={summary?.income_prev_pct ?? null} />,
-      color: "var(--accent)",
-    },
-    {
-      label: "Despesas · mês",
-      value: mask(formatBRLExact(Number(summary?.expense ?? 0))),
-      sub: <Variation pct={summary?.expense_prev_pct ?? null} invert />,
-      color: "var(--danger)",
-    },
-    {
-      label: "Sobra",
-      value: mask(formatBRLExact(Number(summary?.net ?? 0))),
-      sub: <span className="text-xs text-[var(--text-secondary)]">Receitas − despesas do mês</span>,
-      color: Number(summary?.net ?? 0) >= 0 ? "var(--accent)" : "var(--danger)",
-    },
-    {
-      label: "Taxa de poupança",
-      value: lastRate != null ? formatPercent(Number(lastRate) * 100) : "—",
-      sub: <span className="text-xs text-[var(--text-secondary)]">Últimos meses</span>,
-      color: "var(--text-primary)",
-    },
-  ];
+  const expense = Number(summary?.expense ?? 0);
+  const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
+  const budgetPct = totalBudget > 0 ? (expense / totalBudget) * 100 : null;
+  // Extrapola o gasto atual pelo dia do mês corrido — mesma lógica de
+  // projeção que ForecastSection já usa para o saldo futuro, aqui aplicada
+  // ao orçamento do mês em vez de ao saldo em conta.
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const projectedPct = totalBudget > 0 && dayOfMonth > 0
+    ? (expense / (dayOfMonth / daysInMonth) / totalBudget) * 100
+    : null;
+
+  if (isLoading) {
+    return (
+      <div className="border border-[var(--border)] rounded-[var(--radius-card)] p-5 animate-rise-up" style={{ background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
+        <div className="h-4 w-24 rounded bg-[var(--surface-3)] animate-pulse" />
+        <div className="h-9 w-40 mt-3 rounded bg-[var(--surface-3)] animate-pulse" />
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[18px]">
-      {cards.map((card, i) => (
-        <div
-          key={card.label}
-          className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-5 animate-rise-up"
-          style={{ animationDelay: `${i * 0.05}s` }}
-        >
-          <p className="text-[11.5px] text-[var(--text-secondary)] tracking-[.06em] uppercase">{card.label}</p>
-          {isLoading ? (
-            <div className="h-7 w-28 mt-2 rounded bg-[var(--surface-3)] animate-pulse" />
-          ) : (
-            <>
-              <p className="text-2xl font-semibold mt-2 tracking-[-.03em] tabular-nums" style={{ color: card.color }}>
-                {card.value}
-              </p>
-              <div className="mt-1">{card.sub}</div>
-            </>
-          )}
+    <div className="border border-[var(--border)] rounded-[var(--radius-card)] p-5 animate-rise-up" style={{ background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
+      <p className="text-[11.5px] text-[var(--text-secondary)]">Gasto no mês</p>
+      <div className="flex items-baseline gap-2.5 mt-2 flex-wrap">
+        <span className="font-mono font-medium text-[clamp(24px,2.7vw,33px)] tracking-[-.035em] text-[var(--text-primary)] whitespace-nowrap">
+          {mask(formatBRLExact(expense))}
+        </span>
+        {totalBudget > 0 && (
+          <span className="text-[11.5px] text-[var(--text-secondary)]">de {mask(formatBRLExact(totalBudget))}</span>
+        )}
+      </div>
+      {totalBudget > 0 && (
+        <>
+          <div className="h-[9px] rounded-full overflow-hidden mt-4" style={{ background: "var(--border)" }}>
+            <div className="h-full" style={{ width: `${Math.min(100, budgetPct ?? 0)}%`, background: "linear-gradient(90deg,var(--accent),var(--accent-2))" }} />
+          </div>
+          <div className="flex justify-between text-[10.5px] text-[var(--text-secondary)] mt-2">
+            <span>{Math.round(budgetPct ?? 0)}% usado</span>
+            {projectedPct !== null && (
+              <span style={{ color: projectedPct > 100 ? "var(--warning)" : "var(--text-secondary)" }}>
+                projeção {Math.round(projectedPct)}%
+              </span>
+            )}
+          </div>
+        </>
+      )}
+      <div className="flex gap-3.5 flex-wrap mt-4 pt-3.5 border-t border-[var(--border)]">
+        <div className="flex-1 min-w-[96px]">
+          <div className="text-[10.5px] text-[var(--text-secondary)]">Entrou</div>
+          <div className="font-mono text-base mt-0.5" style={{ color: "var(--accent)" }}>{mask(formatBRLExact(Number(summary?.income ?? 0)))}</div>
         </div>
-      ))}
+        <div className="flex-1 min-w-[96px]">
+          <div className="text-[10.5px] text-[var(--text-secondary)]">Sobrou</div>
+          <div className="font-mono text-base mt-0.5" style={{ color: Number(summary?.net ?? 0) >= 0 ? "var(--text-primary)" : "var(--danger)" }}>
+            {mask(formatBRLExact(Number(summary?.net ?? 0)))}
+          </div>
+        </div>
+        <div className="flex-1 min-w-[96px]">
+          <div className="text-[10.5px] text-[var(--text-secondary)]">Taxa de poupança</div>
+          <div className="font-mono text-base mt-0.5 text-[var(--text-primary)]">
+            {lastRate != null ? formatPercent(Number(lastRate) * 100) : "—"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
