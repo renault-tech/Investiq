@@ -24,7 +24,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period, maskValue } from "@/store/useUIStore";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { assetTypeLabel, formatBRLExact, formatBRLCompact, CATEGORICAL } from "@/components/charts/chartTheme";
-import { AreaLineChart } from "@/components/charts/AreaLineChart";
 import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -74,6 +73,24 @@ function mergePerformanceSeries(seriesList: PerformancePoint[][]): PerformancePo
   return Array.from(byDate.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, v]) => ({ date, total_value: v.total_value, total_invested: v.total_invested } as PerformancePoint));
+}
+
+// Desenha a série de patrimônio como linha + área com gradiente (design),
+// no lugar da barra fina do AreaLineChart genérico. viewBox fixo 1000x300
+// com preserveAspectRatio="none" deixa o SVG esticar pro tamanho do card
+// sem recalcular nada em JS.
+function buildAreaPath(values: number[]): { area: string; line: string } {
+  if (values.length < 2) return { area: "", line: "" };
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 1000;
+    const y = 280 - ((v - min) / span) * 260;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(" ");
+  const area = `0,300 ${line} 1000,300`;
+  return { area, line };
 }
 
 function relativeDate(iso: string): string {
@@ -378,8 +395,26 @@ export function OverviewClient() {
             </div>
             {perfValues.length >= 2 ? (
               <>
-                <AreaLineChart values={perfValues} className="mt-3.5" />
-                <div className="flex justify-between px-0.5 pb-1 text-[11px] text-[var(--text-muted)]">
+                <div className="mt-3.5 relative" style={{ height: 126 }}>
+                  <svg viewBox="0 0 1000 300" preserveAspectRatio="none" style={{ width: "100%", height: "100%", overflow: "visible" }}>
+                    <defs>
+                      <linearGradient id="ovFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--accent)" stopOpacity=".32" />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <polygon points={buildAreaPath(perfValues).area} fill="url(#ovFill)" />
+                    <polyline
+                      points={buildAreaPath(perfValues).line}
+                      fill="none"
+                      stroke="var(--accent)"
+                      strokeWidth={2.4}
+                      vectorEffect="non-scaling-stroke"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div className="flex justify-between px-0.5 pb-1 pt-2 text-[11px] text-[var(--text-muted)]">
                   {axisLabels.map((l, i) => <span key={i}>{l}</span>)}
                 </div>
               </>
@@ -539,8 +574,8 @@ export function OverviewClient() {
                   {flowSeries.map((m) => (
                     <div key={m.month} className="flex-1 flex flex-col items-center gap-2">
                       <div className="w-full flex items-end justify-center gap-1.5 h-[130px]">
-                        <div className="w-[44%] rounded-t-[6px] rounded-b-[3px] animate-grow-y" style={{ background: "var(--accent)", height: `${(m.income / flowMax) * 100}%` }} />
-                        <div className="w-[44%] rounded-t-[6px] rounded-b-[3px] animate-grow-y" style={{ background: "var(--surface-3)", height: `${(m.expense / flowMax) * 100}%`, animationDelay: ".1s" }} />
+                        <div className="w-[44%] rounded-t-[6px] rounded-b-[3px] animate-grow-y" style={{ background: "linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 25%,transparent))", height: `${(m.income / flowMax) * 100}%` }} />
+                        <div className="w-[44%] rounded-t-[6px] rounded-b-[3px] animate-grow-y" style={{ background: "linear-gradient(180deg,var(--danger),color-mix(in srgb,var(--danger) 22%,transparent))", height: `${(m.expense / flowMax) * 100}%`, animationDelay: ".1s" }} />
                       </div>
                       <span className="text-[11px] text-[var(--text-muted)]">
                         {new Date(m.month + "-01").toLocaleDateString("pt-BR", { month: "short" })}
@@ -692,7 +727,22 @@ export function OverviewClient() {
           <DashboardCard {...widgetProps("health", 0.36)}>
             <div className="text-sm font-semibold mb-4 text-[var(--text-primary)]">Saúde financeira</div>
             <div className="flex items-center gap-4.5">
-              <DonutRing size={96} strokeWidth={9} segments={[{ fraction: Math.max(0, Math.min(1, savingsFraction)), color: "var(--accent)" }]} />
+              <div
+                className="relative flex-shrink-0"
+                style={{
+                  width: 88, height: 88, borderRadius: "50%",
+                  background: `conic-gradient(var(--accent) 0% ${Math.max(0, Math.min(1, savingsFraction)) * 100}%, var(--border) ${Math.max(0, Math.min(1, savingsFraction)) * 100}% 100%)`,
+                }}
+              >
+                <div className="absolute inset-[11px] rounded-full flex items-center justify-center" style={{ background: "var(--background)" }}>
+                  <div className="text-center">
+                    <div className="font-mono text-[20px] font-medium text-[var(--text-primary)]">
+                      {lastSavings?.savings_rate != null ? Math.round(savingsFraction * 100) : "—"}
+                    </div>
+                    <div className="text-[9px] text-[var(--text-muted)]">% poupado</div>
+                  </div>
+                </div>
+              </div>
               <div>
                 <div className="text-[32px] font-semibold tracking-[-.04em] text-[var(--text-primary)]">
                   {lastSavings?.savings_rate != null ? `${Math.round(savingsFraction * 100)}%` : "—"}

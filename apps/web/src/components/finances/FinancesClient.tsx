@@ -7,11 +7,13 @@ import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
 import { FinanceTransaction } from "@/lib/finance-api";
 import { apiClient } from "@/lib/api-client";
+import { formatBRLCompact } from "@/components/charts/chartTheme";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SummaryCards } from "./SummaryCards";
 import { CategoryBars } from "./CategoryBars";
+import { CategoryDonut } from "./CategoryDonut";
 import { TransactionsTable } from "./TransactionsTable";
 import { MonthStepper, monthKey } from "./MonthStepper";
 import { PlannedVsActual } from "./PlannedVsActual";
@@ -29,6 +31,7 @@ import { ForecastChart } from "./ForecastChart";
 const FINANCE_CARDS: DashboardCardSpec[] = [
   { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
   { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
+  { id: "donut", label: "Onde o dinheiro foi", defaultSpan: 4, minSpan: 3 },
   // Contas não é mais um card daqui — vive como tira compacta no cabeçalho
   // (ao lado do seletor de mês), já que a maior parte de um card dedicado só
   // pras contas ficava vazia. "Orçamentos" preenche o resto da linha ao lado
@@ -175,7 +178,7 @@ export function FinancesClient() {
             data-tour="new-transaction"
             onClick={() => { setEditingTxn(undefined); setShowTransactionModal(true); }}
             className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px] transition-colors"
-            style={{ background: "var(--accent)", color: "#04120D" }}
+            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
           >
             <Plus size={15} /> Nova transação
           </button>
@@ -239,6 +242,24 @@ export function FinancesClient() {
         </DashboardCard>
         )}
 
+        {visible("donut") && (
+        <DashboardCard {...cardProps("donut", 0.18)}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-semibold text-[var(--text-primary)]">Onde o dinheiro foi</div>
+            <span className="text-[11px] text-[var(--text-muted)]">
+              {new Date(month + "-01").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}
+            </span>
+          </div>
+          {summaryLoading ? (
+            <Skeleton className="h-24" />
+          ) : (summary?.by_category ?? []).length === 0 ? (
+            <p className="text-[12.5px] text-[var(--text-muted)]">Sem gastos no período.</p>
+          ) : (
+            <CategoryDonut byCategory={summary?.by_category ?? []} totalLabel={formatBRLCompact(Number(summary?.expense ?? 0))} />
+          )}
+        </DashboardCard>
+        )}
+
         {visible("planned") && (
         <DashboardCard {...cardProps("planned", 0.2)}>
           <div className="flex items-center justify-between gap-2 mb-4">
@@ -288,7 +309,7 @@ export function FinancesClient() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar descrição…"
-            className="flex-1 min-w-40 px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
+            className="flex-1 min-w-40 px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             aria-label="Buscar por descrição"
           />
           <button
