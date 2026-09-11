@@ -15,7 +15,7 @@ const SOURCE_LABELS: Partial<Record<TransactionSource, string>> = {
   card_invoice: "Fatura",
 };
 
-export type SortKey = "due_date" | "description" | "amount";
+export type SortKey = "due_date" | "transaction_date" | "description" | "amount";
 export type SortDir = "asc" | "desc";
 
 interface TransactionsTableProps {
@@ -56,6 +56,15 @@ export function hasCheckableStatus(txn: FinanceTransaction): boolean {
 /** Ordenação das colunas clicáveis, fora do componente para poder ser
  * testada direto.
  *
+ * `due_date` e `transaction_date` são chaves distintas de propósito: a coluna
+ * "Lançamento" exibe `transaction_date` e a "Vencimento" exibe `due_date` —
+ * são datas diferentes sempre que o vencimento não cai no mesmo dia do
+ * lançamento (recorrência, parcela, ocorrência projetada). Ligar o cabeçalho
+ * "Lançamento" a `due_date` ordenaria por uma coluna que não é a que aparece
+ * embaixo dele. `due_date` continua existindo como chave só para o `sortKey`
+ * inicial, que replica a ordem padrão da API (`service.py` list_transactions,
+ * `due_date.desc()`) sem depender de nenhum cabeçalho estar "ativo".
+ *
  * O `Number()` em `amount` é defensivo: hoje `listTransactions` já coage o
  * Decimal-como-string na fronteira (finance-api.ts:140), então aqui chega
  * número. Se essa coerção sumir, ou se algum consumidor passar linhas não
@@ -71,6 +80,7 @@ export function sortTransactions(
   rows.sort((a, b) => {
     let cmp = 0;
     if (key === "due_date") cmp = a.due_date.localeCompare(b.due_date);
+    else if (key === "transaction_date") cmp = a.transaction_date.localeCompare(b.transaction_date);
     else if (key === "description") cmp = (a.description ?? "").localeCompare(b.description ?? "");
     else cmp = Number(a.amount) - Number(b.amount);
     return dir === "asc" ? cmp : -cmp;
@@ -223,7 +233,7 @@ export function TransactionsTable({
                 </th>
               )}
               <th className="px-2 py-2">
-                <SortHeader label="Lançamento" active={sortKey === "due_date"} dir={sortDir} onClick={() => toggleSort("due_date")} />
+                <SortHeader label="Lançamento" active={sortKey === "transaction_date"} dir={sortDir} onClick={() => toggleSort("transaction_date")} />
               </th>
               <th className="px-2 py-2 font-medium">Vencimento</th>
               <th className="px-2 py-2">

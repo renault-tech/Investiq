@@ -44,6 +44,28 @@ describe("sortTransactions", () => {
     ]);
   });
 
+  it("Lançamento ordena por transaction_date, não por due_date", () => {
+    // Regressão apontada em revisão: a coluna "Lançamento" exibe
+    // transaction_date, mas o cabeçalho estava ligado a "due_date" — numa
+    // linha com vencimento bem diferente do lançamento (recorrência,
+    // parcela), a ordem "por Lançamento" na tela não batia com as datas
+    // visíveis na própria coluna. As duas transações abaixo têm
+    // transaction_date e due_date deliberadamente invertidos entre si, para
+    // que ordenar pela chave errada dê o resultado oposto ao certo.
+    const rows = [
+      txn({ id: "lancada-cedo-vence-tarde", transaction_date: "2026-06-01T00:00:00Z", due_date: "2026-06-30T00:00:00Z" }),
+      txn({ id: "lancada-tarde-vence-cedo", transaction_date: "2026-06-15T00:00:00Z", due_date: "2026-06-02T00:00:00Z" }),
+    ];
+    expect(sortTransactions(rows, "transaction_date", "asc").map((t) => t.id)).toEqual([
+      "lancada-cedo-vence-tarde", "lancada-tarde-vence-cedo",
+    ]);
+    // Pela chave errada (due_date) a ordem sairia invertida — é exatamente o
+    // bug: a coluna Lançamento pareceria fora de ordem.
+    expect(sortTransactions(rows, "due_date", "asc").map((t) => t.id)).toEqual([
+      "lancada-tarde-vence-cedo", "lancada-cedo-vence-tarde",
+    ]);
+  });
+
   it("ordena por descrição e trata descrição vazia", () => {
     const rows = [
       txn({ id: "b", description: "Boleto" }),
