@@ -44,12 +44,12 @@ export function CardModal({ card, onClose }: CardModalProps) {
   };
 
   const inputClass =
-    "w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--navy)]";
+    "w-full px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
-        className="bg-[var(--surface)] border border-[var(--border)] rounded-lg w-full max-w-md"
+        className="bg-[var(--surface)] border border-[var(--border-strong)] rounded-[var(--radius-card-sm)] w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="card-modal-title"
@@ -104,7 +104,8 @@ export function CardModal({ card, onClose }: CardModalProps) {
             <button
               type="submit"
               disabled={saving || !name.trim()}
-              className="px-4 py-2 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-[10px] hover:opacity-90 disabled:opacity-50"
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
             >
               {saving ? "Salvando…" : "Salvar"}
             </button>

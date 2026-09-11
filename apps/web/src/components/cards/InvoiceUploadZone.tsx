@@ -68,6 +68,14 @@ export function InvoiceUploadZone({ onUpload, uploading }: InvoiceUploadZoneProp
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
           />
+          <div className="w-full flex gap-4 flex-wrap justify-center pt-1">
+            <span className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1.5">
+              <span style={{ color: "var(--accent)" }}>●</span>IA revisada por você antes de confirmar
+            </span>
+            <span className="text-[10.5px] text-[var(--text-muted)] flex items-center gap-1.5">
+              <span style={{ color: "var(--accent)" }}>●</span>Salvo na nuvem · histórico em qualquer lugar
+            </span>
+          </div>
         </div>
       )}
     </div>
