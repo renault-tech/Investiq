@@ -41,7 +41,7 @@ export function IndicatorToggle({ state, onChange }: IndicatorToggleProps) {
           style={{
             background: state[key] ? "var(--accent)" : "transparent",
             borderColor: state[key] ? "var(--accent)" : "var(--border)",
-            color: state[key] ? "#04120D" : "var(--text-secondary)",
+            color: state[key] ? "var(--on-accent)" : "var(--text-secondary)",
           }}
         >
           {label}
