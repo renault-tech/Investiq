@@ -25,6 +25,9 @@ import { DeleteTransactionModal, type DeleteScope } from "./DeleteTransactionMod
 import { CategoryManager } from "./CategoryManager";
 import { AccountsBar } from "./AccountsBar";
 import { BudgetsSection } from "./BudgetsSection";
+import { SubscriptionsSection } from "./SubscriptionsSection";
+import { ProjectionCard } from "./ProjectionCard";
+import { CardsMiniList } from "./CardsMiniList";
 import { ExportReportModal } from "@/components/reports/ExportReportModal";
 import { ForecastChart } from "./ForecastChart";
 
@@ -38,6 +41,9 @@ const FINANCE_CARDS: DashboardCardSpec[] = [
   // de "Previsto × executado" no lugar dela.
   { id: "planned", label: "Previsto × executado", defaultSpan: 6, minSpan: 4 },
   { id: "budgets", label: "Orçamentos", defaultSpan: 6, minSpan: 4 },
+  { id: "subscriptions", label: "Assinaturas e recorrentes", defaultSpan: 4, minSpan: 3 },
+  { id: "projection", label: "Projeção do mês", defaultSpan: 4, minSpan: 3 },
+  { id: "cards", label: "Cartões", defaultSpan: 4, minSpan: 3 },
 ];
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -273,6 +279,24 @@ export function FinancesClient() {
         {visible("budgets") && (
         <DashboardCard {...cardProps("budgets", 0.24)} data-tour="budgets-section">
           <BudgetsSection categories={categories} bare />
+        </DashboardCard>
+        )}
+
+        {visible("subscriptions") && (
+        <DashboardCard {...cardProps("subscriptions", 0.28)}>
+          <SubscriptionsSection transactions={txnList?.items ?? []} />
+        </DashboardCard>
+        )}
+
+        {visible("projection") && (
+        <DashboardCard {...cardProps("projection", 0.32)}>
+          <ProjectionCard expense={Number(summary?.expense ?? 0)} byCategory={summary?.by_category ?? []} />
+        </DashboardCard>
+        )}
+
+        {visible("cards") && (
+        <DashboardCard {...cardProps("cards", 0.36)}>
+          <CardsMiniList />
         </DashboardCard>
         )}
       </div>
