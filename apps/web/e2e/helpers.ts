@@ -5,7 +5,10 @@ export function uniqueEmail(prefix = "e2e"): string {
 }
 
 /** Registers a fresh user through the real UI and waits for the post-login redirect. */
-export async function registerAndLogin(page: Page, opts?: { fullName?: string }): Promise<{ email: string }> {
+export async function registerAndLogin(
+  page: Page,
+  opts?: { fullName?: string; skipTourDismiss?: boolean }
+): Promise<{ email: string }> {
   const email = uniqueEmail();
   const password = "SenhaSegura123!";
 
@@ -27,7 +30,13 @@ export async function registerAndLogin(page: Page, opts?: { fullName?: string })
   // ser fechado. "Não mostrar mais" desativa o tour pro resto da sessão
   // (persistido em localStorage), então os testes não precisam lidar com
   // ele de novo a cada navegação.
-  await dismissTourIfPresent(page);
+  //
+  // skipTourDismiss existe só para o cenário oposto: testar a interação
+  // COM o balão aberto (ex.: um atalho de teclado que não deve funcionar
+  // por baixo dele).
+  if (!opts?.skipTourDismiss) {
+    await dismissTourIfPresent(page);
+  }
   return { email };
 }
 

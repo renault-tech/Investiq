@@ -100,3 +100,28 @@ test("a paleta funciona em qualquer tela, não só na inicial", async ({ page })
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/finances\/cards/);
 });
+
+test("Ctrl+K não abre por baixo do balão do tour, e volta a funcionar depois de fechá-lo", async ({ page }) => {
+  // O balão do tour é role="dialog" também (z-[92]); a paleta sem a guarda
+  // ficaria z-[70], invisível atrás do backdrop dele mas ainda ouvindo
+  // teclado — dava pra digitar e navegar sem ver nada. skipTourDismiss
+  // mantém o balão aberto de propósito, o oposto do que todo outro teste
+  // deste arquivo faz.
+  await registerAndLogin(page, { skipTourDismiss: true });
+  const tour = page.getByRole("dialog", { name: /^Tutorial:/ });
+  await expect(tour).toBeVisible();
+
+  await page.keyboard.press("Control+k");
+  // Nenhum outro dialog (a paleta) deve ter aparecido, e o campo dela não
+  // deve existir na página enquanto o tour segue visível.
+  await expect(page.getByPlaceholder(/Buscar telas, ticker/)).toHaveCount(0);
+  await expect(tour).toBeVisible();
+
+  // Fechar o tour ("pular tudo") e só então o atalho volta a funcionar,
+  // na mesma página, sem reload.
+  await page.getByRole("button", { name: "Não mostrar mais" }).click();
+  await expect(tour).not.toBeVisible();
+
+  const dialog = await abrirPaleta(page);
+  await expect(dialog.getByPlaceholder(/Buscar telas, ticker/)).toBeVisible();
+});

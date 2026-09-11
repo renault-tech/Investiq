@@ -7,6 +7,7 @@ import {
   BookOpen, LayoutDashboard, BarChart2, LineChart, CreditCard, ArrowLeftRight,
   Target, FileText, Smartphone, Settings, TrendingUp, Sun, Moon, Search,
 } from "lucide-react";
+import { useTour } from "@/components/tour/TourProvider";
 
 // Mesma lista de Sidebar.tsx (NAV_ITEMS) — duplicada de propósito: mover pra
 // um módulo compartilhado exigiria tocar Sidebar.tsx também, e o objetivo
@@ -43,11 +44,18 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { active: tourActive } = useTour();
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        // Sempre previne o atalho nativo do navegador (busca/bookmark), mas
+        // não abre por cima — "por baixo", na verdade: o balão do tour é
+        // z-[92] e a paleta é z-[70], então ela ficaria invisível atrás do
+        // backdrop e ainda assim recebendo teclado, deixando o usuário
+        // digitar e navegar às cegas.
         e.preventDefault();
+        if (tourActive) return;
         setOpen((v) => !v);
         setQuery("");
         setSelected(0);
@@ -57,7 +65,14 @@ export function CommandPalette() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [tourActive]);
+
+  // Defensivo: se um tour aparecer enquanto a paleta já está aberta (ex.:
+  // uma ação da própria paleta navega para uma tela cujo tour ainda não foi
+  // visto), fecha — o mesmo raciocínio do guard acima.
+  useEffect(() => {
+    if (tourActive) setOpen(false);
+  }, [tourActive]);
 
   const quickActions = useMemo(
     () => [

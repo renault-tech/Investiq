@@ -10,11 +10,18 @@ interface TourContextValue {
   startTour: () => void;
   /** Marca todas as telas como vistas — o "pular tudo" do balão. */
   dismissAll: () => void;
+  /** Há um balão de tour aberto agora. Quem monta overlay/atalho próprio (ex.:
+   * CommandPalette) usa isto pra não abrir por baixo do backdrop do tour —
+   * o balão é z-[92], então qualquer coisa com z-index menor fica invisível
+   * mas continua recebendo teclado, o que deixaria o usuário "cego" digitando
+   * numa paleta que ele não consegue ver. */
+  active: boolean;
 }
 
 const TourContext = createContext<TourContextValue>({
   startTour: () => {},
   dismissAll: () => {},
+  active: false,
 });
 
 export const useTour = () => useContext(TourContext);
@@ -101,7 +108,10 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const steps: TourStep[] = tutorial?.steps ?? [];
   const activeStep = stepIndex !== null ? steps[stepIndex] : undefined;
 
-  const value = useMemo(() => ({ startTour, dismissAll }), [startTour, dismissAll]);
+  const value = useMemo(
+    () => ({ startTour, dismissAll, active: !!activeStep }),
+    [startTour, dismissAll, activeStep]
+  );
 
   return (
     <TourContext.Provider value={value}>
