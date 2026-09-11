@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   listCards,
@@ -13,6 +13,7 @@ import {
   deleteInvoice,
   getInvoiceAnalytics,
   CardInput,
+  CardInvoice,
   InvoiceItem,
 } from "@/lib/cards-api";
 
@@ -36,6 +37,33 @@ export function useInvoices(cardId: string | null) {
     enabled: cardId !== null,
     staleTime: 30_000,
   });
+}
+
+/** Última fatura de cada cartão, para o card visual do grid mostrar "fatura
+ * atual" e a barra de limite sem esperar o usuário selecionar o cartão.
+ *
+ * Não há endpoint em lote no backend (só GET /cards/{id}/invoices, um
+ * cartão por vez) — criar um exigiria migração/rota nova para um dado que
+ * já dá pra montar no cliente. useQueries dispara uma consulta por cartão
+ * (a contagem de cartões de uma pessoa é pequena, na casa de poucas
+ * unidades) com a MESMA queryFn/queryKey de useInvoices — mesmo cache: ao
+ * clicar num cartão, useInvoices(selectedCardId) já está fresco. */
+export function useLatestInvoices(cardIds: string[]): Map<string, CardInvoice | undefined> {
+  const results = useQueries({
+    queries: cardIds.map((id) => ({
+      queryKey: ["cards", id, "invoices"],
+      queryFn: () => listInvoices(id),
+      staleTime: 30_000,
+    })),
+  });
+
+  const byCard = new Map<string, CardInvoice | undefined>();
+  cardIds.forEach((id, i) => {
+    const invoices = results[i]?.data ?? [];
+    const latest = invoices.slice().sort((a, b) => b.reference_month.localeCompare(a.reference_month))[0];
+    byCard.set(id, latest);
+  });
+  return byCard;
 }
 
 export function useInvoiceDetail(invoiceId: string | null) {

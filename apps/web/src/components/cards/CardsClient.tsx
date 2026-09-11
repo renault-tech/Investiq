@@ -5,6 +5,7 @@ import { CreditCard as CreditCardIcon, Pencil, Plus, Trash2, Upload } from "luci
 import {
   useCards,
   useInvoices,
+  useLatestInvoices,
   useInvoiceDetail,
   useDeleteCard,
   useUploadInvoice,
@@ -54,6 +55,11 @@ function monthShort(iso: string): string {
   return d.toLocaleDateString("pt-BR", { month: "short" });
 }
 
+function limitPct(card: CreditCard, invoice: CardInvoice | undefined): number {
+  if (!card.credit_limit || !invoice?.total_amount) return 0;
+  return Math.min(100, Math.round((Number(invoice.total_amount) / Number(card.credit_limit)) * 100));
+}
+
 export function CardsClient() {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
@@ -68,6 +74,9 @@ export function CardsClient() {
   const { data: invoices = [] } = useInvoices(selectedCardId);
   const { data: invoiceDetail } = useInvoiceDetail(activeInvoiceId);
   const { data: categories = [] } = useCategories();
+
+  const activeCards = cards.filter((c) => c.is_active);
+  const latestInvoiceByCard = useLatestInvoices(activeCards.map((c) => c.id));
 
   const deleteCardMutation = useDeleteCard();
   const uploadMutation = useUploadInvoice(selectedCardId);
@@ -89,7 +98,7 @@ export function CardsClient() {
         <button
           onClick={() => setShowCardModal(true)}
           className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px]"
-          style={{ background: "var(--accent)", color: "#04120D" }}
+          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
         >
           <Plus size={15} /> Novo cartão
         </button>
@@ -102,44 +111,73 @@ export function CardsClient() {
         <EmptyState icon={CreditCardIcon} title="Nenhum cartão cadastrado." description="Cadastre um cartão para importar faturas com IA." />
       ) : (
         <div className="flex flex-wrap gap-[18px]">
-          {cards.filter((c) => c.is_active).map((card, i) => (
-            <div
-              key={card.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => { setActiveCardId(card.id); setActiveInvoiceId(null); }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") { setActiveCardId(card.id); setActiveInvoiceId(null); }
-              }}
-              style={{
-                background: CARD_GRADIENTS[i % CARD_GRADIENTS.length],
-                outline: card.id === selectedCardId ? "2px solid var(--accent)" : "none",
-                outlineOffset: "2px",
-              }}
-              className="text-left w-[320px] h-[196px] rounded-[22px] p-[22px] flex flex-col justify-between shadow-[var(--shadow)] transition-[outline] animate-rise-up cursor-pointer"
-            >
-              <div className="flex justify-between items-start">
-                <span className="text-[13px] font-semibold text-[#F2F4F7]">{card.name}</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setEditingCard(card); }}
-                    aria-label={`Editar ${card.name}`}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[#F2F4F7] opacity-70 hover:opacity-100 hover:bg-white/10 transition-opacity"
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <div className="w-[34px] h-[24px] rounded-[6px]" style={{ background: "linear-gradient(135deg,#D7C089,#9E874A)" }} />
+          {activeCards.map((card, i) => {
+            const latestInvoice = latestInvoiceByCard.get(card.id);
+            const pct = limitPct(card, latestInvoice);
+            return (
+              <div
+                key={card.id}
+                role="button"
+                tabIndex={0}
+                // Sem isto o nome acessível do card é a concatenação de todo
+                // texto interno, incluindo o rótulo do botão "Editar"
+                // aninhado — confuso em leitor de tela e ambíguo em teste.
+                aria-label={`Cartão ${card.name}${card.id === selectedCardId ? ", selecionado" : ""}`}
+                aria-pressed={card.id === selectedCardId}
+                onClick={() => { setActiveCardId(card.id); setActiveInvoiceId(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { setActiveCardId(card.id); setActiveInvoiceId(null); }
+                }}
+                style={{
+                  background: CARD_GRADIENTS[i % CARD_GRADIENTS.length],
+                  outline: card.id === selectedCardId ? "2px solid var(--accent)" : "none",
+                  outlineOffset: "2px",
+                }}
+                className="text-left w-[320px] rounded-[22px] p-[22px] flex flex-col gap-3 shadow-[var(--shadow)] transition-[outline] animate-rise-up cursor-pointer"
+              >
+                <div className="flex justify-between items-start">
+                  <span className="text-[13px] font-semibold text-[#F2F4F7]">{card.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingCard(card); }}
+                      aria-label={`Editar ${card.name}`}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[#F2F4F7] opacity-70 hover:opacity-100 hover:bg-white/10 transition-opacity"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <div className="w-[34px] h-[24px] rounded-[6px]" style={{ background: "linear-gradient(135deg,#D7C089,#9E874A)" }} />
+                  </div>
                 </div>
-              </div>
-              <div>
                 <div className="text-base tracking-[.14em] tabular-nums text-[#F2F4F7]">•••• •••• •••• {card.last4 ?? "----"}</div>
-                <div className="flex justify-between mt-3 text-[11.5px] text-[#F2F4F7] opacity-70">
-                  <span>{card.credit_limit ? mask(`Limite ${formatBRL(Number(card.credit_limit))}`) : (card.brand ?? "")}</span>
+                <div className="flex justify-between items-baseline text-[11.5px] text-[#F2F4F7] opacity-80">
+                  <span>
+                    {latestInvoice?.total_amount != null
+                      ? mask(`Fatura atual ${formatBRL(Number(latestInvoice.total_amount))}`)
+                      : "sem fatura ainda"}
+                  </span>
                   <span>{card.due_day ? `vence dia ${card.due_day}` : ""}</span>
                 </div>
+                {/* Barra de limite: só quando o cartão tem limite cadastrado
+                    E já teve pelo menos uma fatura — sem isso, 0% seria
+                    enganoso ("cheio de espaço" pra um cartão que ainda não
+                    foi usado no app, quando na real é "não sei"). */}
+                {card.credit_limit != null && latestInvoice && (
+                  <div className="flex flex-col gap-1">
+                    <div className="h-[5px] rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.18)" }}>
+                      <div
+                        className="h-full rounded-full transition-[width]"
+                        style={{ width: `${pct}%`, background: "#F2F4F7" }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10.5px] text-[#F2F4F7] opacity-70">
+                      <span>{pct}% do limite</span>
+                      <span className="font-mono">{mask(formatBRLCompact(Number(card.credit_limit)))}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
