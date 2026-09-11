@@ -81,7 +81,10 @@ export function ReportsClient() {
 
   return (
     <div className="p-[26px_30px_60px] flex flex-col gap-[18px]">
-      <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-[26px] shadow-[var(--shadow)] animate-rise-up">
+      <section
+        className="rounded-[var(--radius-card)] p-[26px] shadow-[var(--shadow)] animate-rise-up"
+        style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}
+      >
         <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
             <div className="text-lg font-semibold tracking-[-.03em] text-[var(--text-primary)]">Relatório consolidado · {year}</div>
@@ -98,7 +101,7 @@ export function ReportsClient() {
               data-tour="report-builder"
               onClick={() => setShowExport(true)}
               className="flex items-center gap-1.5 px-4 h-[38px] rounded-xl text-[12.5px] font-semibold"
-              style={{ background: "var(--accent)", color: "#04120D" }}
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
             >
               <Download size={14} /> Exportar relatório
             </button>
@@ -116,7 +119,10 @@ export function ReportsClient() {
       </section>
 
       <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-        <section className="col-span-7 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
+        <section
+          className="col-span-7 rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
+          style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".08s" }}
+        >
           <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
           <div className="flex items-end gap-3 h-[190px] mt-5.5">
             {comparativo.map((m) => (
@@ -131,7 +137,10 @@ export function ReportsClient() {
           </div>
         </section>
 
-        <section className="col-span-5 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
+        <section
+          className="col-span-5 rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
+          style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".14s" }}
+        >
           <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Documentos disponíveis</div>
           {recentMonths.map((m) => (
             <div key={m} className="flex items-center gap-3 py-3 border-b border-[var(--border)]">

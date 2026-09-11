@@ -19,13 +19,13 @@ export function SessionsSection() {
   return (
     <div className="space-y-3">
       {isLoading ? (
-        <div className="h-20 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+        <div className="h-20 rounded-[var(--radius-card-sm)] bg-[var(--surface-2)] animate-pulse" />
       ) : (
         <ul className="space-y-2">
           {sessions.map((session) => (
             <li
               key={session.id}
-              className="flex items-center justify-between gap-3 px-3 py-2.5 border border-[var(--border)] rounded-lg"
+              className="flex items-center justify-between gap-3 px-3 py-2.5 border border-[var(--border)] rounded-[var(--radius-card-sm)]"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <Laptop size={16} className="text-[var(--text-muted)] shrink-0" />
@@ -59,7 +59,7 @@ export function SessionsSection() {
         <button
           onClick={() => revokeOthersMutation.mutate()}
           disabled={revokeOthersMutation.isPending}
-          className="text-xs text-[var(--navy)] dark:text-[var(--accent)] hover:underline disabled:opacity-40"
+          className="text-xs text-[var(--accent)] hover:underline disabled:opacity-40"
         >
           Sair de todos os outros dispositivos
         </button>
