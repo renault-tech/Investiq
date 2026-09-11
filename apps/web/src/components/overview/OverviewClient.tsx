@@ -102,6 +102,17 @@ function relativeDate(iso: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
+type Scenario = "base" | "estresse" | "otimista";
+// Simulação client-side: aplica um delta % nos ativos de risco (o resto —
+// renda fixa, caixa — fica igual). Não é um stress-test real (não modela
+// correlação entre classes nem taxa de câmbio); é a mesma ideia simplificada
+// do design original, aplicada aos dados reais em vez de inventados.
+const SCENARIO_DELTA: Record<Scenario, number> = { base: 0, estresse: -0.2, otimista: 0.15 };
+const RISK_ASSET_TYPES = new Set(["stock", "stock_br", "stock_us", "fii", "reit", "etf", "crypto", "commodity"]);
+function stressValue(assetType: string, value: number, delta: number): number {
+  return RISK_ASSET_TYPES.has(assetType) ? value * (1 + delta) : value;
+}
+
 function DeltaPill({ fraction }: { fraction: number | null }) {
   if (fraction === null) return null;
   const positive = fraction >= 0;
@@ -135,6 +146,11 @@ export function OverviewClient() {
   // contrário "Todos" e "Eu" seriam a mesma coisa e a opção some sozinha.
   const holderOptions = useMemo(() => buildHolderOptions(accounts, portfolios), [accounts, portfolios]);
   const [holder, setHolder] = useState("");
+  // "Simples" esconde os detalhes que só interessam a quem já entende a
+  // tela (quebra nacional/internacional, chips por carteira, rentabilidade)
+  // — mesmo dado de sempre, só menos densidade visual por padrão.
+  const [mode, setMode] = useState<"simples" | "pro">("simples");
+  const [scenario, setScenario] = useState<Scenario>("base");
   useEffect(() => {
     if (holder && !holderOptions.some((opt) => opt.value === holder)) setHolder("");
   }, [holder, holderOptions]);
@@ -205,8 +221,16 @@ export function OverviewClient() {
   const billLimitTotal = billCards.reduce((sum, c) => sum + Number(c.credit_limit ?? 0), 0);
   const hasAnyInvoice = latestInvoices.some(Boolean);
 
+  const scenarioDelta = SCENARIO_DELTA[scenario];
   const liquid = visibleAccounts.filter((a) => a.include_in_total).reduce((sum, a) => sum + Number(a.balance), 0);
-  const invested = summaries.reduce((sum, s) => sum + Number(s.total_market_value_brl), 0);
+  // Investido "estressado": soma por posição aplicando o delta do cenário só
+  // nos ativos de risco (renda fixa/caixa não mexem) — dá o total certo pro
+  // cenário sem precisar de outro endpoint, já que cada posição já carrega
+  // seu próprio asset_type e market_value_brl.
+  const invested = summaries.reduce(
+    (sum, s) => sum + s.positions.reduce((a, p) => a + stressValue(p.asset_type, Number(p.market_value_brl), scenarioDelta), 0),
+    0
+  );
   const netWorth = liquid + invested - billTotal;
   const netWorthLoading = accountsLoading || cardsLoading || investmentsLoading;
 
@@ -217,12 +241,16 @@ export function OverviewClient() {
   // (nome + valor) pra mostrar onde o total "Investido" está distribuído,
   // sem precisar abrir cada carteira uma por uma.
   const nationalInvested = summaries.reduce(
-    (sum, s) => sum + s.positions.filter((p) => p.currency === "BRL").reduce((a, p) => a + Number(p.market_value_brl), 0),
+    (sum, s) => sum + s.positions.filter((p) => p.currency === "BRL").reduce((a, p) => a + stressValue(p.asset_type, Number(p.market_value_brl), scenarioDelta), 0),
     0
   );
   const internationalInvested = invested - nationalInvested;
   const byPortfolio = summaries
-    .map((s) => ({ id: s.portfolio_id, name: s.portfolio_name, value: Number(s.total_market_value_brl) }))
+    .map((s) => ({
+      id: s.portfolio_id,
+      name: s.portfolio_name,
+      value: s.positions.reduce((a, p) => a + stressValue(p.asset_type, Number(p.market_value_brl), scenarioDelta), 0),
+    }))
     .filter((p) => p.value > 0)
     .sort((a, b) => b.value - a.value);
 
@@ -241,8 +269,9 @@ export function OverviewClient() {
   // investimentos em mais de um portfólio via uma alocação incompleta.
   const allocationByType = new Map<string, number>();
   for (const s of summaries) {
-    for (const a of s.allocation_by_type ?? []) {
-      allocationByType.set(a.asset_type, (allocationByType.get(a.asset_type) ?? 0) + Number(a.value));
+    for (const p of s.positions) {
+      const v = stressValue(p.asset_type, Number(p.market_value_brl), scenarioDelta);
+      allocationByType.set(p.asset_type, (allocationByType.get(p.asset_type) ?? 0) + v);
     }
   }
   const allocationTotal = Array.from(allocationByType.values()).reduce((a, b) => a + b, 0);
@@ -263,6 +292,34 @@ export function OverviewClient() {
   const investedPnlAbs = summaries.reduce((sum, s) => sum + Number(s.total_pnl_absolute), 0);
   const totalPnlPercent = investedCost > 0 ? (investedPnlAbs / investedCost) * 100 : 0;
   const financeNet = Number(finSummary?.net ?? 0);
+
+  // Score de "Saúde financeira": média de 4 frações 0-1, cada uma um proxy
+  // de um aspecto diferente — nenhuma vem pronta da API, são derivadas do
+  // que a tela já calcula (sem chamada nova). Metas (6 meses de reserva, 4
+  // classes de ativo) são arbitrárias mas documentadas, não escondidas.
+  const emergencyFraction = runwayMonths != null ? Math.max(0, Math.min(1, runwayMonths / 6)) : 0;
+  const savingsHealthFraction = Math.max(0, Math.min(1, savingsFraction));
+  // Endividamento: fatura em aberto sobre patrimônio total — quanto menor,
+  // melhor, por isso a fração de "saúde" é 1 menos a razão.
+  const debtRatio = netWorth + billTotal > 0 ? billTotal / (netWorth + billTotal) : 0;
+  const debtHealthFraction = Math.max(0, Math.min(1, 1 - debtRatio * 2));
+  const diversificationFraction = Math.min(1, allocation.length / 4);
+  const healthMetrics = [
+    { key: "reserve", label: "Reserva de emergência", fraction: emergencyFraction, display: runwayMonths != null ? `${formatDecimal(runwayMonths, 1)} meses` : "—" },
+    { key: "savings", label: "Taxa de poupança", fraction: savingsHealthFraction, display: lastSavings?.savings_rate != null ? formatPercent(savingsFraction * 100) : "—" },
+    { key: "debt", label: "Endividamento", fraction: debtHealthFraction, display: netWorth + billTotal > 0 ? formatPercent(debtRatio * 100) : "—" },
+    { key: "diversification", label: "Diversificação", fraction: diversificationFraction, display: allocation.length > 0 ? `${allocation.length} classes` : "—" },
+  ];
+  const healthScore = Math.round(healthMetrics.reduce((sum, m) => sum + m.fraction, 0) / healthMetrics.length * 100);
+  const healthLabel = healthScore >= 70 ? "Saudável" : healthScore >= 40 ? "Atenção" : "Crítico";
+  const healthColor = healthScore >= 70 ? "var(--accent)" : healthScore >= 40 ? "var(--warning)" : "var(--danger)";
+  const weakestMetric = healthMetrics.reduce((min, m) => (m.fraction < min.fraction ? m : min), healthMetrics[0]);
+  const healthAdvice: Record<string, string> = {
+    reserve: "Priorize guardar em conta ou renda fixa líquida até cobrir 6 meses de gastos.",
+    savings: "Sobra pouco no fim do mês — revisar as maiores categorias de gasto pode abrir espaço.",
+    debt: "Fatura de cartão está pesando no patrimônio — considere quitar antes de investir mais.",
+    diversification: "Patrimônio concentrado em poucas classes de ativo — diversificar reduz o risco.",
+  };
 
   const mask = (text: string) => maskValue(text, privacy);
   const visible = (id: string) => !layout.isHidden(id);
@@ -285,6 +342,51 @@ export function OverviewClient() {
   return (
     <div>
       <OnboardingChecklist />
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+          {(["simples", "pro"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className="px-3 py-1.5 text-[11.5px] font-medium capitalize transition-colors"
+              style={{
+                background: mode === m ? "var(--surface-3)" : "transparent",
+                color: mode === m ? "var(--text-primary)" : "var(--text-secondary)",
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11.5px] text-[var(--text-secondary)]">Cenário</span>
+          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+            {([["base", "Base"], ["estresse", "Estresse"], ["otimista", "Otimista"]] as const).map(([s, label]) => (
+              <button
+                key={s}
+                onClick={() => setScenario(s)}
+                className="px-3 py-1.5 text-[11.5px] font-medium transition-colors"
+                style={{
+                  background: scenario === s ? "var(--surface-3)" : "transparent",
+                  color: scenario === s ? "var(--text-primary)" : "var(--text-secondary)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === "pro" && (
+          <span className="text-[11px] text-[var(--text-muted)]">
+            Modo Pro: quebra nacional/internacional, por carteira e rentabilidade liberados.
+          </span>
+        )}
+        {scenario !== "base" && (
+          <span className="text-[11px] text-[var(--text-muted)]">
+            Simulação: aplica {scenario === "estresse" ? "-20%" : "+15%"} nos ativos de risco (ações, FIIs, cripto…).
+          </span>
+        )}
+      </div>
       {holderOptions.length > 1 && (
         <div className="flex items-center gap-2 mb-4">
           {holder && (
@@ -369,7 +471,7 @@ export function OverviewClient() {
                     <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
                   )}
                 </div>
-                {!netWorthLoading && invested > 0 && (
+                {mode === "pro" && !netWorthLoading && invested > 0 && (
                   <>
                     <div>
                       <div className="text-[11.5px] text-[var(--text-secondary)]">· Nacional</div>
@@ -427,7 +529,7 @@ export function OverviewClient() {
                 de uma carteira só via o total somado, e precisava abrir
                 Investimentos e trocar de carteira uma por uma pra saber de
                 onde vinha cada parte. */}
-            {!netWorthLoading && byPortfolio.length > 0 && (
+            {mode === "pro" && !netWorthLoading && byPortfolio.length > 0 && (
               <div className="relative flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-[var(--border)]">
                 <span className="text-[10.5px] text-[var(--text-muted)] mr-1">Por carteira</span>
                 {byPortfolio.map((p) => (
@@ -478,12 +580,14 @@ export function OverviewClient() {
                     ))}
                   </div>
                 </div>
-                <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
-                  <span className="text-[var(--text-secondary)]">Rentabilidade da carteira</span>
-                  <b className="font-semibold" style={{ color: totalPnlPercent >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                    {formatPercent(totalPnlPercent, 1, { signed: true })}
-                  </b>
-                </div>
+                {mode === "pro" && (
+                  <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
+                    <span className="text-[var(--text-secondary)]">Rentabilidade da carteira</span>
+                    <b className="font-semibold" style={{ color: totalPnlPercent >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                      {formatPercent(totalPnlPercent, 1, { signed: true })}
+                    </b>
+                  </div>
+                )}
               </>
             )}
           </DashboardCard>
@@ -722,46 +826,53 @@ export function OverviewClient() {
           </DashboardCard>
         )}
 
-        {/* Saúde financeira */}
+        {/* Saúde financeira: score 0-100, média de 4 proxies (ver cálculo
+            acima) — nenhum vem pronto da API, é composição do que a tela já
+            calcula, com as metas usadas (6 meses de reserva, 4 classes)
+            documentadas nos comentários em vez de escondidas no número. */}
         {visible("health") && (
           <DashboardCard {...widgetProps("health", 0.36)}>
-            <div className="text-sm font-semibold mb-4 text-[var(--text-primary)]">Saúde financeira</div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm font-semibold text-[var(--text-primary)]">Saúde financeira</div>
+              <span
+                className="text-[10.5px] font-medium px-2 py-0.5 rounded-md"
+                style={{ background: "var(--glow)", color: healthColor }}
+              >
+                {healthLabel}
+              </span>
+            </div>
             <div className="flex items-center gap-4.5">
               <div
                 className="relative flex-shrink-0"
                 style={{
                   width: 88, height: 88, borderRadius: "50%",
-                  background: `conic-gradient(var(--accent) 0% ${Math.max(0, Math.min(1, savingsFraction)) * 100}%, var(--border) ${Math.max(0, Math.min(1, savingsFraction)) * 100}% 100%)`,
+                  background: `conic-gradient(${healthColor} 0% ${healthScore}%, var(--border) ${healthScore}% 100%)`,
                 }}
               >
                 <div className="absolute inset-[11px] rounded-full flex items-center justify-center" style={{ background: "var(--background)" }}>
                   <div className="text-center">
-                    <div className="font-mono text-[20px] font-medium text-[var(--text-primary)]">
-                      {lastSavings?.savings_rate != null ? Math.round(savingsFraction * 100) : "—"}
-                    </div>
-                    <div className="text-[9px] text-[var(--text-muted)]">% poupado</div>
+                    <div className="font-mono text-[20px] font-medium text-[var(--text-primary)]">{healthScore}</div>
+                    <div className="text-[9px] text-[var(--text-muted)]">/100</div>
                   </div>
                 </div>
               </div>
-              <div>
-                <div className="text-[32px] font-semibold tracking-[-.04em] text-[var(--text-primary)]">
-                  {lastSavings?.savings_rate != null ? `${Math.round(savingsFraction * 100)}%` : "—"}
-                </div>
-                <div className="text-xs text-[var(--text-secondary)] mt-0.5">Taxa de poupança do mês</div>
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                {healthMetrics.map((m) => (
+                  <div key={m.key}>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[var(--text-secondary)]">{m.label}</span>
+                      <b className="font-semibold text-[var(--text-primary)]">{m.display}</b>
+                    </div>
+                    <div className="h-[5px] rounded-full bg-[var(--surface-3)] overflow-hidden mt-1">
+                      <div className="h-full rounded-full" style={{ width: `${m.fraction * 100}%`, background: "var(--accent)" }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="mt-4.5 flex flex-col gap-2.5 text-[12.5px]">
-              <div className="flex justify-between">
-                <span className="text-[var(--text-secondary)]">Reserva de emergência</span>
-                <b className="font-semibold text-[var(--text-primary)]">
-                  {runwayMonths != null ? `${formatDecimal(runwayMonths, 1)} meses` : "—"}
-                </b>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--text-secondary)]">Burn rate mensal</span>
-                <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(burnRate))}</b>
-              </div>
-            </div>
+            <p className="text-[11.5px] text-[var(--text-secondary)] mt-4 pt-3.5 border-t border-[var(--border)]">
+              {healthScore >= 70 ? "Você está bem. Continue assim." : healthAdvice[weakestMetric.key]}
+            </p>
           </DashboardCard>
         )}
       </div>

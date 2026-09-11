@@ -7,6 +7,7 @@ import { useBudgets } from "@/hooks/useBudgets";
 import { useMask } from "@/hooks/useMask";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { formatPercent } from "@/lib/number-format";
+import { projectMonthlyPct } from "@/lib/budget-projection";
 
 interface SummaryCardsProps {
   summary?: FinanceSummary;
@@ -27,15 +28,7 @@ export function SummaryCards({ summary, isLoading }: SummaryCardsProps) {
   const expense = Number(summary?.expense ?? 0);
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const budgetPct = totalBudget > 0 ? (expense / totalBudget) * 100 : null;
-  // Extrapola o gasto atual pelo dia do mês corrido — mesma lógica de
-  // projeção que ForecastSection já usa para o saldo futuro, aqui aplicada
-  // ao orçamento do mês em vez de ao saldo em conta.
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const projectedPct = totalBudget > 0 && dayOfMonth > 0
-    ? (expense / (dayOfMonth / daysInMonth) / totalBudget) * 100
-    : null;
+  const projectedPct = projectMonthlyPct(expense, totalBudget);
 
   if (isLoading) {
     return (
