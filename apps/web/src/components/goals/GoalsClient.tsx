@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Plus, Target, Trash2, CheckCircle2 } from "lucide-react";
 import { useGoals, useCreateGoal, useDeleteGoal, useContributeToGoal } from "@/hooks/useGoals";
 import { useFinanceSummary } from "@/hooks/useFinance";
+import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
+import { CONSOLIDATED_ID } from "@/lib/portfolio-api";
 import { Goal } from "@/lib/goals-api";
+import { FireSimulator } from "./FireSimulator";
 import { formatBRLCompact, formatBRLExact, CATEGORICAL } from "@/components/charts/chartTheme";
 import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -104,7 +107,7 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
             type="submit"
             disabled={contributeMutation.isPending}
             className="px-2.5 py-1.5 text-xs font-medium rounded-lg disabled:opacity-50"
-            style={{ background: "var(--accent)", color: "#04120D" }}
+            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
           >
             Adicionar
           </button>
@@ -144,6 +147,7 @@ export function GoalsClient() {
   const mask = useMask();
   const { data: goals = [], isLoading } = useGoals();
   const { data: summary } = useFinanceSummary(currentMonth());
+  const { data: portfolioSummary } = usePortfolioSummary(CONSOLIDATED_ID);
   const createMutation = useCreateGoal();
 
   const [showForm, setShowForm] = useState(false);
@@ -178,7 +182,7 @@ export function GoalsClient() {
         <button
           onClick={() => setShowForm((v) => !v)}
           className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px]"
-          style={{ background: "var(--accent)", color: "#04120D" }}
+          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
         >
           <Plus size={15} /> Nova meta
         </button>
@@ -199,6 +203,10 @@ export function GoalsClient() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-[18px]">
             {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} />)}
+          </div>
+
+          <div className="mt-[18px]">
+            <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
           </div>
 
           {plan.length > 0 && (
