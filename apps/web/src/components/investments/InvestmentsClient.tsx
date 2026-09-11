@@ -13,6 +13,7 @@ import { usePortfolioLookThrough } from "@/hooks/usePortfolioLookThrough";
 import { PortfolioTabs } from "./PortfolioTabs";
 import { PositionsTable } from "./PositionsTable";
 import { AuditPanel } from "./AuditPanel";
+import { RebalanceTag } from "./RebalanceTag";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { PERIODS, formatBRLExact, formatBRLCompact, formatCurrencyExact, formatPct } from "@/components/charts/chartTheme";
@@ -156,6 +157,17 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
     return acc;
   }, {});
   const internationalCurrencies = Object.keys(internationalByCurrency);
+
+  // Sugestões de rebalanceamento: o backend já calcula rebalance_action/
+  // rebalance_delta_units por posição (target_weight configurado em Gerenciar
+  // posição) — nada de recalcular aqui. Só existe pra quem definiu peso-alvo
+  // em pelo menos uma posição, então a lista pode legitimamente vir vazia.
+  // Não aparece no Consolidado: ConsolidatedPositionSummary não tem esses
+  // campos (rebalancear por posição não faz sentido somando carteiras
+  // diferentes — ver o comentário de ConsolidatedSummaryResponse no backend).
+  const rebalanceSuggestions = isConsolidated
+    ? []
+    : (summary?.positions ?? []).filter((p) => p.rebalance_action && p.rebalance_action !== "hold").slice(0, 4);
 
   return (
     <div className="flex flex-col h-full">
@@ -384,6 +396,19 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   />
                 </ChartCard>
               </div>
+              {rebalanceSuggestions.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                  <div className="text-xs font-semibold text-[var(--text-primary)] mb-2">Ações sugeridas</div>
+                  <div className="space-y-1.5">
+                    {rebalanceSuggestions.map((p) => (
+                      <div key={p.asset_id} className="flex items-center justify-between text-xs">
+                        <span className="text-[var(--text-secondary)] font-medium">{p.ticker}</span>
+                        <RebalanceTag action={p.rebalance_action} deltaUnits={p.rebalance_delta_units} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Patrimônio internacional: ativos em moeda estrangeira, valor nativo + equivalente em BRL */}
