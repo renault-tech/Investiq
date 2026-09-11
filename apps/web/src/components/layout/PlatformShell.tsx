@@ -8,6 +8,7 @@ import { TourProvider } from "@/components/tour/TourProvider";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { BottomNav } from "./BottomNav";
+import { CommandPalette } from "./CommandPalette";
 
 interface PlatformShellProps {
   children: React.ReactNode;
@@ -35,6 +36,10 @@ export function PlatformShell({ children }: PlatformShellProps) {
 
   return (
     <TourProvider>
+      {/* Uma instância só, no nível do shell inteiro: o atalho ⌘K/Ctrl+K
+          precisa funcionar em qualquer tela, não só nas que a montassem
+          localmente. */}
+      <CommandPalette />
       <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--text-primary)]">
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
