@@ -19,7 +19,10 @@ function Accordion({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-[var(--border)] rounded-[var(--radius-card-sm)] bg-[var(--surface)] overflow-hidden">
+    <div
+      className="rounded-[var(--radius-card-sm)] overflow-hidden"
+      style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}
+    >
       <button
         onClick={onToggle}
         aria-expanded={open}
@@ -126,7 +129,8 @@ export function HelpClient() {
         {screens.map((screen) => (
           <div
             key={screen.route}
-            className="border border-[var(--border)] rounded-[var(--radius-card-sm)] bg-[var(--surface)] p-4"
+            className="rounded-[var(--radius-card-sm)] p-4"
+            style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}
           >
             <div className="text-[13.5px] font-semibold text-[var(--text-primary)]">
               {screen.label}
@@ -148,7 +152,7 @@ export function HelpClient() {
       <button
         onClick={() => startTour()}
         className="flex items-center gap-2 px-4 h-[38px] rounded-xl text-[12.5px] font-semibold"
-        style={{ background: "var(--accent)", color: "#04120D" }}
+        style={{ background: "var(--accent)", color: "var(--on-accent)" }}
       >
         <PlayCircle size={15} /> Refazer o tour guiado
       </button>

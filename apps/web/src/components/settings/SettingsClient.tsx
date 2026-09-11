@@ -20,12 +20,87 @@ const LLM_OPTIONS = [
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5">
+    <section
+      className="rounded-[var(--radius-card)] p-5"
+      style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}
+    >
       <h2 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h2>
       {description && <p className="text-xs text-[var(--text-muted)] mt-0.5 mb-4">{description}</p>}
       {!description && <div className="mb-4" />}
       {children}
     </section>
+  );
+}
+
+/** Grupo de opções tipo pill (tema, provedor de dados, provedor de IA) — mesmo
+ * padrão visual dos períodos do TopBar: opção ativa em --surface-3, sem depender
+ * de --navy (cor pré-redesign, ilegível em texto branco sob o accent claro do
+ * tema escuro — ver o comentário de --navy em globals.css). */
+function OptionPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2 text-sm rounded-[10px] border transition-colors"
+      style={{
+        background: active ? "var(--surface-3)" : "transparent",
+        borderColor: active ? "var(--border-strong)" : "var(--border)",
+        color: active ? "var(--text-primary)" : "var(--text-secondary)",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Toggle pill on/off do design — usado nas Notificações abaixo. */
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-sm text-[var(--text-primary)] cursor-pointer">
+      {label}
+      <span
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        style={{
+          width: 32,
+          height: 18,
+          borderRadius: 10,
+          padding: 2,
+          cursor: "pointer",
+          background: checked ? "var(--accent)" : "var(--border)",
+          flexShrink: 0,
+          transition: "background .16s ease",
+        }}
+      >
+        <span
+          style={{
+            display: "block",
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            background: checked ? "var(--on-accent)" : "var(--text-muted)",
+            transform: `translateX(${checked ? 14 : 0}px)`,
+            transition: "transform .16s ease",
+          }}
+        />
+      </span>
+    </label>
   );
 }
 
@@ -58,13 +133,14 @@ function ApiKeyInput({
           onChange={(e) => setValue(e.target.value)}
           placeholder={configured ? "•••••••• (substituir)" : "Cole a chave aqui"}
           autoComplete="off"
-          className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
+          className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
         />
       </div>
       <button
         onClick={() => { if (value.trim()) { onSave(value.trim()); setValue(""); } }}
         disabled={saving || !value.trim()}
-        className="px-3 py-2 text-sm bg-[var(--navy)] text-white rounded-lg hover:opacity-90 disabled:opacity-40"
+        className="px-3 py-2 text-sm rounded-[10px] hover:opacity-90 disabled:opacity-40"
+        style={{ background: "var(--accent)", color: "var(--on-accent)" }}
       >
         Salvar
       </button>
@@ -91,7 +167,7 @@ export function SettingsClient() {
     return (
       <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-32 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+          <div key={i} className="h-32 rounded-[var(--radius-card)] bg-[var(--surface-2)] animate-pulse" />
         ))}
       </div>
     );
@@ -114,20 +190,16 @@ export function SettingsClient() {
       <Section title="Aparência">
         <div className="flex items-center gap-2">
           {([["light", "Claro", Sun], ["dark", "Escuro", Moon]] as const).map(([value, label, Icon]) => (
-            <button
+            <OptionPill
               key={value}
+              active={theme === value}
               onClick={() => {
                 setTheme(value);
                 patchMutation.mutate({ theme: value });
               }}
-              className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg border transition-colors ${
-                theme === value
-                  ? "bg-[var(--navy)] text-white border-[var(--navy)]"
-                  : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
             >
               <Icon size={15} /> {label}
-            </button>
+            </OptionPill>
           ))}
         </div>
         <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[var(--border)]">
@@ -136,7 +208,7 @@ export function SettingsClient() {
             <button
               onClick={() => setFontScale(fontScale - 0.05)}
               aria-label="Diminuir fonte"
-              className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               <ZoomOut size={14} />
             </button>
@@ -146,7 +218,7 @@ export function SettingsClient() {
             <button
               onClick={() => setFontScale(fontScale + 0.05)}
               aria-label="Aumentar fonte"
-              className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
               <ZoomIn size={14} />
             </button>
@@ -187,17 +259,13 @@ export function SettingsClient() {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             {([["yahoo", "Yahoo Finance"], ["brapi", "Brapi (B3)"]] as const).map(([value, label]) => (
-              <button
+              <OptionPill
                 key={value}
+                active={settings.preferred_provider === value}
                 onClick={() => patchMutation.mutate({ preferred_provider: value })}
-                className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
-                  settings.preferred_provider === value
-                    ? "bg-[var(--navy)] text-white border-[var(--navy)]"
-                    : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
               >
                 {label}
-              </button>
+              </OptionPill>
             ))}
           </div>
           <ApiKeyInput
@@ -219,18 +287,14 @@ export function SettingsClient() {
             <p className="text-xs text-[var(--text-secondary)] mb-1.5">Provedor preferido</p>
             <div className="flex flex-wrap items-center gap-2">
               {LLM_OPTIONS.map((opt) => (
-                <button
+                <OptionPill
                   key={opt.value}
+                  active={settings.preferred_llm === opt.value}
                   onClick={() => patchMutation.mutate({ preferred_llm: opt.value as "claude" | "openai" | "gemini" })}
-                  className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
-                    settings.preferred_llm === opt.value
-                      ? "bg-[var(--navy)] text-white border-[var(--navy)]"
-                      : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
                 >
                   {opt.label}
-                  {settings[opt.hasField] && <Check size={13} className="inline ml-1.5 text-[var(--accent)]" />}
-                </button>
+                  {settings[opt.hasField] && <Check size={13} className="text-[var(--accent)]" />}
+                </OptionPill>
               ))}
             </div>
           </div>
@@ -250,7 +314,7 @@ export function SettingsClient() {
                 }
               }}
               placeholder="ex.: claude-sonnet-4-6"
-              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-[var(--navy)]"
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] font-mono focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
           </div>
 
@@ -288,14 +352,12 @@ export function SettingsClient() {
             ["notify_price_alerts", "Alertas de preço"],
             ["notify_email", "Resumos por e-mail"],
           ] as const).map(([field, label]) => (
-            <label key={field} className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-              <input
-                type="checkbox"
-                checked={settings[field]}
-                onChange={(e) => patchMutation.mutate({ [field]: e.target.checked })}
-              />
-              {label}
-            </label>
+            <ToggleSwitch
+              key={field}
+              label={label}
+              checked={settings[field]}
+              onChange={(checked) => patchMutation.mutate({ [field]: checked })}
+            />
           ))}
         </div>
       </Section>
