@@ -14,6 +14,9 @@ import { PortfolioTabs } from "./PortfolioTabs";
 import { PositionsTable } from "./PositionsTable";
 import { AuditPanel } from "./AuditPanel";
 import { RebalanceTag } from "./RebalanceTag";
+import { SmartInsights } from "./SmartInsights";
+import { RiskEfficiencyCard } from "./RiskEfficiencyCard";
+import { PassiveIncomeCard } from "./PassiveIncomeCard";
 import { ChartCard } from "@/components/charts/ChartCard";
 import { ChartSkeleton } from "@/components/charts/ChartSkeleton";
 import { PERIODS, formatBRLExact, formatBRLCompact, formatCurrencyExact, formatPct } from "@/components/charts/chartTheme";
@@ -252,7 +255,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
           <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
             {/* Carteira total */}
-            <section className="col-span-8 relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden animate-rise-up">
+            <section className="col-span-4 relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden animate-rise-up">
               <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 80% -20%, var(--glow), transparent 70%)" }} />
               <div className="relative flex justify-between items-start flex-wrap gap-4">
                 <div>
@@ -411,6 +414,11 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               )}
             </section>
 
+            {/* Ações inteligentes */}
+            <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".09s" }}>
+              <SmartInsights positions={summary?.positions ?? []} rebalanceCount={rebalanceSuggestions.length} />
+            </section>
+
             {/* Patrimônio internacional: ativos em moeda estrangeira, valor nativo + equivalente em BRL */}
             {internationalCurrencies.length > 0 && (
               <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
@@ -505,7 +513,7 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             </section>
 
             {/* Benchmark */}
-            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
+            <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
               <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">
                 {isConsolidated ? "Rentabilidade — todas as carteiras" : "Rentabilidade da carteira"}
               </div>
@@ -520,6 +528,22 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               >
                 <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>
+            </section>
+
+            {/* Risco & eficiência + Renda passiva — mesma série do benchmark
+                acima, só derivada em vez de exibida diretamente. */}
+            <section className="col-span-4 flex flex-col gap-[18px]">
+              <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".16s" }}>
+                <RiskEfficiencyCard benchmark={benchmark ?? []} performance={performance ?? []} />
+              </div>
+              <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up flex-1" style={{ animationDelay: ".18s" }}>
+                <PassiveIncomeCard
+                  portfolios={portfolios}
+                  activePortfolioId={activePortfolioId}
+                  isConsolidated={isConsolidated}
+                  marketValue={marketValue}
+                />
+              </div>
             </section>
 
             {/* Posições */}
