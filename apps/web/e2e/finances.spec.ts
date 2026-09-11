@@ -141,3 +141,30 @@ test("apagar uma parcela do meio da série oferece os três desfechos", async ({
   await page.getByRole("button", { name: "Mês anterior" }).click();
   await expect(page.locator("tr", { hasText: "Parcela do meio E2E" })).toBeVisible({ timeout: 10_000 });
 });
+
+test("clicar no cabeçalho ordena a tabela e inverte a ordem", async ({ page }) => {
+  await registerAndLogin(page);
+  await page.goto("/finances");
+
+  await addExpense(page, "900", "Média AAA");
+  await addExpense(page, "1000", "Alta BBB");
+  await addExpense(page, "50", "Baixa CCC");
+  await expect(page.getByRole("table").getByText("Baixa CCC")).toBeVisible({ timeout: 10_000 });
+
+  const descricoes = async () =>
+    (await page.getByRole("table").locator("tbody tr").allInnerTexts())
+      .map((t) => (t.match(/(Alta BBB|Média AAA|Baixa CCC)/) ?? [""])[0])
+      .filter(Boolean);
+
+  // Primeiro clique numa coluna ordena decrescente.
+  await page.getByRole("button", { name: "Ordenar por Valor" }).click();
+  await expect.poll(descricoes).toEqual(["Alta BBB", "Média AAA", "Baixa CCC"]);
+
+  // Segundo clique na mesma coluna inverte.
+  await page.getByRole("button", { name: "Ordenar por Valor" }).click();
+  await expect.poll(descricoes).toEqual(["Baixa CCC", "Média AAA", "Alta BBB"]);
+
+  // Trocar de coluna volta a decrescente: M > B > A.
+  await page.getByRole("button", { name: "Ordenar por Descrição" }).click();
+  await expect.poll(descricoes).toEqual(["Média AAA", "Baixa CCC", "Alta BBB"]);
+});
