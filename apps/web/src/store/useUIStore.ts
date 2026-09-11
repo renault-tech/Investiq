@@ -19,19 +19,26 @@ interface UIStore {
   setAccentColor: (id: string) => void;
 }
 
-/** Aplica as duas variantes (claro/escuro) da cor escolhida — ou remove o
- * override e volta ao verde padrão do design system, se for a opção "green". */
+/** Aplica as duas variantes (claro/escuro) da cor escolhida — e o texto/ícone
+ * que deve ficar por cima dela (--on-accent-override-*), que muda de tom
+ * conforme o contraste real de cada cor exigir (ver accentPalette.ts) — ou
+ * remove os overrides e volta ao verde padrão do design system, se for a
+ * opção "green". */
 function applyAccentColor(id: string) {
   if (typeof document === "undefined") return;
   const root = document.documentElement.style;
   if (id === DEFAULT_ACCENT_ID) {
     root.removeProperty("--accent-override-light");
     root.removeProperty("--accent-override-dark");
+    root.removeProperty("--on-accent-override-light");
+    root.removeProperty("--on-accent-override-dark");
     return;
   }
   const option = getAccentOption(id);
   root.setProperty("--accent-override-light", option.light);
   root.setProperty("--accent-override-dark", option.dark);
+  root.setProperty("--on-accent-override-light", option.onLight);
+  root.setProperty("--on-accent-override-dark", option.onDark);
 }
 
 export const useUIStore = create<UIStore>()(

@@ -31,11 +31,14 @@
      caem no fallback (o verde padrão) — a troca de tema não precisa saber
      qual cor está selecionada, só resolve a variável certa por cascata. */
   --accent:        var(--accent-override-light, #12B981);
-  /* Texto/ícone POR CIMA de um fundo --accent. Precisa ser escuro: o accent
-     é sempre um tom vivo o bastante para reprovar texto branco (o verde
-     claro do tema escuro dá ~1.3:1). Mesmo valor nos dois temas, e o mesmo
-     que Button.tsx já usava fixo antes de virar token. */
-  --on-accent:     #04120D;
+  /* Texto/ícone POR CIMA de um fundo --accent. O verde padrão (fallback)
+     precisa de texto escuro — texto branco sobre ele reprova (~2.5:1). Mas
+     nem toda cor de --accent-override-light passa WCAG AA com esse mesmo
+     escuro (azul/roxo/rosa são saturados demais: ficam entre 3.36:1 e
+     4.16:1, abaixo do mínimo de 4.5:1) — --on-accent-override-light, setada
+     por useUIStore junto com --accent-override-light, escolhe branco ou
+     escuro por cor (accentPalette.ts calcula qual passa). */
+  --on-accent:     var(--on-accent-override-light, #04120D);
   --accent-2:      #6D5AE0;
   --danger:        #E23B34;
   --warning:       #C98A0B;
@@ -105,7 +108,11 @@
      (Button.tsx usa text-[#04120D]). */
   --navy:          #12876A;
   --accent:        var(--accent-override-dark, #7DF9C4);
-  --on-accent:     #04120D;
+  /* No tema escuro todas as 6 cores selecionáveis passam WCAG AA com texto
+     escuro (mínimo 7.03:1) — --on-accent-override-dark ainda existe pela
+     simetria com o override do tema claro, mas hoje sempre resolve pro
+     mesmo #04120D (ver onDark em accentPalette.ts). */
+  --on-accent:     var(--on-accent-override-dark, #04120D);
   --accent-2:      #8B7CFF;
   --danger:        #FF6B6B;
   --warning:       #F5C86B;
