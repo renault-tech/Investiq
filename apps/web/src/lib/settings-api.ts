@@ -10,6 +10,7 @@ export interface UserSettings {
   llm_model: string | null;
   notify_price_alerts: boolean;
   notify_email: boolean;
+  risk_profile: "conservador" | "moderado" | "arrojado" | null;
   has_claude_api_key: boolean;
   has_openai_api_key: boolean;
   has_gemini_api_key: boolean;
@@ -26,6 +27,7 @@ export interface SettingsPatch {
   llm_model?: string;
   notify_price_alerts?: boolean;
   notify_email?: boolean;
+  risk_profile?: "conservador" | "moderado" | "arrojado";
 }
 
 export interface ApiKeysUpdate {

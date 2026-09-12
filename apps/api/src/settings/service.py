@@ -38,6 +38,7 @@ def _to_response(s: UserSettings) -> SettingsResponse:
         llm_model=s.llm_model,
         notify_price_alerts=s.notify_price_alerts,
         notify_email=s.notify_email,
+        risk_profile=s.risk_profile,
         has_claude_api_key=bool(s.claude_api_key),
         has_openai_api_key=bool(s.openai_api_key),
         has_gemini_api_key=bool(s.gemini_api_key),
