@@ -62,4 +62,5 @@ class UserSettings(Base):
     polygon_key = Column(Text)
     notify_price_alerts = Column(Boolean, nullable=False, default=True)
     notify_email = Column(Boolean, nullable=False, default=False)
+    risk_profile = Column(Text)
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now())

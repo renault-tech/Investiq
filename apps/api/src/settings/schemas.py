@@ -17,6 +17,7 @@ class SettingsResponse(BaseModel):
     llm_model: Optional[str] = None
     notify_price_alerts: bool
     notify_email: bool
+    risk_profile: Optional[str] = None
     # Key presence indicators — actual values are never returned
     has_claude_api_key: bool
     has_openai_api_key: bool
@@ -38,6 +39,7 @@ class SettingsPatchRequest(BaseModel):
     llm_model: Optional[str] = None
     notify_price_alerts: Optional[bool] = None
     notify_email: Optional[bool] = None
+    risk_profile: Optional[str] = Field(default=None, pattern="^(conservador|moderado|arrojado)$")
 
 
 class ApiKeysUpdateRequest(BaseModel):

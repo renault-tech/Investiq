@@ -8,6 +8,9 @@ import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { CONSOLIDATED_ID } from "@/lib/portfolio-api";
 import { Goal } from "@/lib/goals-api";
 import { FireSimulator } from "./FireSimulator";
+import { RiskProfileCard } from "./RiskProfileCard";
+import { ScenarioProjection } from "./ScenarioProjection";
+import { LearningTrack } from "./LearningTrack";
 import { formatBRLCompact, formatBRLExact, CATEGORICAL } from "@/components/charts/chartTheme";
 import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -205,8 +208,22 @@ export function GoalsClient() {
             {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} />)}
           </div>
 
-          <div className="mt-[18px]">
-            <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+          <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+            <div className="col-span-6">
+              <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+            </div>
+            <div className="col-span-6">
+              <ScenarioProjection currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+            </div>
+          </div>
+
+          <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+            <div className="col-span-6">
+              <RiskProfileCard allocation={portfolioSummary?.allocation_by_type ?? []} />
+            </div>
+            <div className="col-span-6">
+              <LearningTrack />
+            </div>
           </div>
 
           {plan.length > 0 && (
