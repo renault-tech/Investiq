@@ -8,7 +8,12 @@ from typing import Any, Iterable
 from fastapi.responses import StreamingResponse
 
 
-def _format_cell(value: Any) -> str:
+def format_csv_cell(value: Any) -> str:
+    """Convenção pt-BR de Excel usada em toda exportação CSV do app: vírgula
+    decimal, sem notação científica. Pública porque relatórios com seções de
+    largura variável (ex.: relatório fiscal) não cabem em build_csv_bytes
+    (que espera um único cabeçalho fixo) e precisam montar as linhas com
+    csv.writer diretamente — mas ainda usando esta mesma formatação."""
     if value is None:
         return ""
     if isinstance(value, Decimal):
@@ -19,17 +24,20 @@ def _format_cell(value: Any) -> str:
     return str(value)
 
 
-def build_csv_response(filename: str, headers: list[str], rows: Iterable[list[Any]]) -> StreamingResponse:
+def build_csv_bytes(headers: list[str], rows: Iterable[list[Any]]) -> bytes:
     buffer = io.StringIO()
     buffer.write("﻿")  # BOM
     writer = csv.writer(buffer, delimiter=";")
     writer.writerow(headers)
     for row in rows:
-        writer.writerow([_format_cell(cell) for cell in row])
+        writer.writerow([format_csv_cell(cell) for cell in row])
+    return buffer.getvalue().encode("utf-8")
 
-    buffer.seek(0)
+
+def build_csv_response(filename: str, headers: list[str], rows: Iterable[list[Any]]) -> StreamingResponse:
+    content = build_csv_bytes(headers, rows)
     return StreamingResponse(
-        iter([buffer.getvalue()]),
+        iter([content]),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Receipt, TrendingUp, Landmark, Trash2 } from "lucide-react";
 import { ExportReportModal } from "./ExportReportModal";
 import { listPortfolios, type Portfolio } from "@/lib/portfolio-api";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { usePortfolioIncome } from "@/hooks/usePortfolioIncome";
 import { useFinanceSummary } from "@/hooks/useFinance";
+import { useGeneratedReports, useQuickGenerateReport, useDownloadGeneratedReport, useDeleteGeneratedReport } from "@/hooks/useGeneratedReports";
+import { REPORT_TYPE_LABELS, type GeneratedReport } from "@/lib/generated-reports-api";
 import { apiClient } from "@/lib/api-client";
 import { formatBRLCompact } from "@/components/charts/chartTheme";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useMask } from "@/hooks/useMask";
 import { formatPercent } from "@/lib/number-format";
 
@@ -22,14 +25,6 @@ function monthShort(month: string): string {
   return new Date(`${month}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "short" });
 }
 
-function monthLongCapitalized(month: string): string {
-  // "agosto de 2026" — só a inicial vira maiúscula. A classe `capitalize`
-  // do CSS, quando aplicada a um bloco de texto inteiro, maiusculariza toda
-  // palavra ("Relatório Mensal · Agosto De 2026"), não só a que precisa.
-  const label = new Date(`${month}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
 async function downloadBlob(url: string, filename: string, params?: Record<string, string>) {
   const res = await apiClient.get(url, { params, responseType: "blob" });
   const blobUrl = window.URL.createObjectURL(res.data as Blob);
@@ -38,6 +33,15 @@ async function downloadBlob(url: string, filename: string, params?: Record<strin
   link.download = filename;
   link.click();
   window.URL.revokeObjectURL(blobUrl);
+}
+
+function fileSizeLabel(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function reportDateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function ReportsClient() {
@@ -52,14 +56,45 @@ export function ReportsClient() {
   const { data: income } = usePortfolioIncome(portfolioId, year);
   const { data: finSummary } = useFinanceSummary(month);
 
+  const { data: generatedReports = [], isLoading: generatedLoading } = useGeneratedReports();
+  const quickGenerate = useQuickGenerateReport();
+  const downloadGenerated = useDownloadGeneratedReport();
+  const deleteGenerated = useDeleteGeneratedReport();
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
+  const QUICK_ACTIONS = [
+    {
+      type: "monthly-summary" as const,
+      label: "Resumo mensal",
+      description: "Finanças e investimentos do mês em PDF",
+      icon: FileText,
+      run: () => quickGenerate.mutate({ type: "monthly-summary", params: { month, format: "pdf" }, fileName: `resumo-mensal-${month}.pdf` }),
+    },
+    {
+      type: "consolidated-statement" as const,
+      label: "Extrato consolidado",
+      description: "Todos os lançamentos financeiros em CSV",
+      icon: Receipt,
+      run: () => quickGenerate.mutate({ type: "consolidated-statement", params: {}, fileName: "extrato-consolidado.csv" }),
+    },
+    {
+      type: "benchmark-performance" as const,
+      label: "Rentabilidade vs benchmarks",
+      description: "Carteira vs CDI, Ibovespa, Nasdaq e S&P 500",
+      icon: TrendingUp,
+      run: () => quickGenerate.mutate({ type: "benchmark-performance", params: { period: "1y" }, fileName: "rentabilidade-vs-benchmarks.csv" }),
+    },
+    {
+      type: "tax-report" as const,
+      label: "Relatório fiscal",
+      description: "Apuração, DARF e informe de rendimentos",
+      icon: Landmark,
+      run: () => quickGenerate.mutate({ type: "tax-report", params: { year }, fileName: `relatorio-fiscal-${year}.csv` }),
+    },
+  ];
+
   const comparativo = (finSummary?.monthly_series ?? []).slice(-12);
   const compMax = Math.max(1, ...comparativo.flatMap((m) => [Number(m.income), Number(m.expense)]));
-
-  const recentMonths = Array.from({ length: 6 }).map((_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  });
 
   // Decimal do backend chega como string no JSON — sem Number(), .toFixed
   // estoura e derruba a página inteira.
@@ -141,29 +176,81 @@ export function ReportsClient() {
           className="col-span-5 rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
           style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".14s" }}
         >
-          <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Documentos disponíveis</div>
-          {recentMonths.map((m) => (
-            <div key={m} className="flex items-center gap-3 py-3 border-b border-[var(--border)]">
-              <div className="w-[34px] h-[34px] rounded-[11px] bg-[var(--surface-3)] flex items-center justify-center text-[var(--text-secondary)]">
-                <FileText size={15} />
-              </div>
-              <div className="flex-1">
-                <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
-                  Relatório mensal · {monthLongCapitalized(m)}
-                </div>
-                <div className="text-[11px] text-[var(--text-muted)]">PDF · gerado na hora</div>
-              </div>
+          <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Ações rápidas</div>
+          <div className="grid grid-cols-2 gap-3">
+            {QUICK_ACTIONS.map((action) => (
               <button
-                onClick={() => downloadBlob("/reports/monthly", `relatorio-${m}.pdf`, { month: m })}
-                className="text-[11.5px] font-medium"
-                style={{ color: "var(--accent)" }}
+                key={action.type}
+                onClick={action.run}
+                disabled={quickGenerate.isPending}
+                className="text-left p-3.5 rounded-[12px] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors disabled:opacity-60"
               >
-                Baixar
+                <action.icon size={16} style={{ color: "var(--accent)" }} />
+                <div className="text-[12px] font-medium text-[var(--text-primary)] mt-2">{action.label}</div>
+                <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">{action.description}</div>
               </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
       </div>
+
+      <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+        <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Relatórios gerados</div>
+        <div className="text-[11.5px] text-[var(--text-secondary)] mb-4">
+          Histórico do que você já gerou — baixar de novo não recalcula nada
+        </div>
+        {generatedLoading ? (
+          <div className="h-24 rounded-lg bg-[var(--surface-2)] animate-pulse" />
+        ) : generatedReports.length === 0 ? (
+          <EmptyState icon={FileText} title="Nenhum relatório gerado ainda." description="Use uma das ações rápidas acima ou exporte um relatório personalizado." />
+        ) : (
+          <ul className="divide-y divide-[var(--border)]">
+            {generatedReports.map((report: GeneratedReport) => (
+              <li key={report.id} className="flex items-center gap-3 py-3">
+                <div className="w-[34px] h-[34px] rounded-[11px] bg-[var(--surface-3)] flex items-center justify-center text-[var(--text-secondary)] flex-shrink-0">
+                  <FileText size={15} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12.5px] font-medium text-[var(--text-primary)] truncate">
+                    {REPORT_TYPE_LABELS[report.report_type]}
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    {report.format.toUpperCase()} · {fileSizeLabel(report.file_size)} · {reportDateLabel(report.created_at)}
+                  </div>
+                </div>
+                {confirmingDeleteId === report.id ? (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => setConfirmingDeleteId(null)} className="text-[11.5px] text-[var(--text-secondary)]">Cancelar</button>
+                    <button
+                      onClick={() => deleteGenerated.mutate(report.id, { onSuccess: () => setConfirmingDeleteId(null) })}
+                      className="text-[11.5px] font-medium text-[var(--danger)]"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <button
+                      onClick={() => downloadGenerated.mutate(report)}
+                      className="text-[11.5px] font-medium"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Baixar
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDeleteId(report.id)}
+                      aria-label={`Excluir ${REPORT_TYPE_LABELS[report.report_type]}`}
+                      className="text-[var(--text-muted)] hover:text-[var(--danger)]"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {showExport && (
         <ExportReportModal month={month} origin="reports" onClose={() => setShowExport(false)} />
