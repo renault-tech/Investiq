@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   BookOpen, LayoutDashboard, BarChart2, LineChart, CreditCard, ArrowLeftRight,
-  Target, FileText, Smartphone, Settings, TrendingUp, Sun, Moon, Search,
+  Target, FileText, Smartphone, Settings, TrendingUp, Sun, Moon, Search, Receipt,
 } from "lucide-react";
 import { useTour } from "@/components/tour/TourProvider";
 
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
   { href: "/goals", label: "Metas", icon: Target },
+  { href: "/taxes", label: "Impostos", icon: Receipt },
   { href: "/reports", label: "Relatórios", icon: FileText },
   { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
   { href: "/ajuda", label: "Ajuda", icon: BookOpen },

@@ -37,10 +37,24 @@ const KIND_OPTIONS: { value: InvestmentKind; label: string }[] = [
   { value: "cash", label: "Reserva / caixa (cofrinho, saldo em conta)" },
 ];
 
+// A classe do ativo hoje só importa pra apuração de IR (Impostos & IR
+// distingue ação B3 de FII pela regra de isenção/alíquota) — sem isso o
+// backend classificava tudo genericamente como "stock" e a apuração nunca
+// encontrava nada pra calcular.
+const MARKET_ASSET_TYPE_OPTIONS = [
+  { value: "stock_br", label: "Ação / unit (B3)" },
+  { value: "fii", label: "FII" },
+  { value: "etf", label: "ETF" },
+  { value: "stock_us", label: "Ação estrangeira" },
+  { value: "crypto", label: "Criptomoeda" },
+  { value: "commodity", label: "Commodity" },
+] as const;
+
 export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps) {
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<InvestmentKind>("market");
   const [ticker, setTicker] = useState("");
+  const [marketAssetType, setMarketAssetType] = useState<string>("stock_br");
   const [cashName, setCashName] = useState("");
   const [fixedIncomeName, setFixedIncomeName] = useState("");
   const [fixedIncomeRate, setFixedIncomeRate] = useState("");
@@ -81,7 +95,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
         ticker: resolvedTicker,
         broker: broker.trim() || undefined,
         target_weight: parseBRNumber(targetPct) != null ? parseBRNumber(targetPct)! / 100 : undefined,
-        asset_type: isCash ? "cash" : isFixedIncome ? "fixed_income_br" : undefined,
+        asset_type: isCash ? "cash" : isFixedIncome ? "fixed_income_br" : marketAssetType,
         name: kind !== "market" ? displayName : undefined,
       }) as { id: string };
 
@@ -189,6 +203,20 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
                 className={fieldClass}
                 placeholder="Ex: PETR4"
               />
+            </div>
+
+            <div>
+              <label htmlFor="pos-asset-class" className="block text-[10px] text-[var(--text-muted)] mb-1">Classe</label>
+              <select
+                id="pos-asset-class"
+                value={marketAssetType}
+                onChange={(e) => setMarketAssetType(e.target.value)}
+                className={fieldClass}
+              >
+                {MARKET_ASSET_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

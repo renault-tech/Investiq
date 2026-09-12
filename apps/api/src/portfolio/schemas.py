@@ -269,9 +269,12 @@ class AddPositionRequest(BaseModel):
 
 
 class UpdatePositionRequest(BaseModel):
-    """Só corretora e peso-alvo — quantidade e preço médio vêm das transações."""
+    """Corretora, peso-alvo e classe do ativo — quantidade e preço médio vêm
+    das transações. asset_type é compartilhado por todas as posições do
+    mesmo ticker (vive no Asset, não na posição)."""
     broker: Optional[str] = Field(None, max_length=100)
     target_weight: Optional[Decimal] = Field(None, ge=0, le=1)
+    asset_type: Optional[str] = Field(None, max_length=30)
 
 
 class PositionResponse(BaseModel):

@@ -371,7 +371,7 @@ async def update_position(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Edita corretora e/ou peso-alvo de uma posição. Quantidade e preço
+    """Edita corretora, peso-alvo e/ou a classe do ativo. Quantidade e preço
     médio são derivados das transações — edite ou apague a transação para
     mudá-los."""
     fields = body.model_fields_set
@@ -383,6 +383,8 @@ async def update_position(
         db=db,
         broker_set="broker" in fields,
         target_weight_set="target_weight" in fields,
+        asset_type=body.asset_type,
+        asset_type_set="asset_type" in fields,
     )
 
 
