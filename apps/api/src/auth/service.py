@@ -317,3 +317,25 @@ async def reset_password(raw_token: str, new_password: str, db: AsyncSession) ->
     user.hashed_password = hash_password(new_password)
     prt.used_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+async def update_profile(user_id: uuid.UUID, full_name: str | None, db: AsyncSession) -> User:
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("User not found")
+    user.full_name = full_name
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def change_password(user_id: uuid.UUID, current_password: str, new_password: str, db: AsyncSession) -> None:
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("User not found")
+    if not user.hashed_password or not verify_password(current_password, user.hashed_password):
+        raise UnauthorizedError("Senha atual incorreta")
+    user.hashed_password = hash_password(new_password)
+    await db.commit()

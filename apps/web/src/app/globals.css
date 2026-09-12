@@ -92,6 +92,15 @@
   --font-scale: 1.0;
 }
 
+/* Densidade (Configurações → Preferências) — modo "comfortable" (padrão)
+   não toca em nada, as tabelas seguem com seu py-* original do Tailwind.
+   "compact" reduz o padding vertical só nas tabelas marcadas .density-table
+   (Posições, Transações) — especificidade [attr].density-table td (0,2,1)
+   já vence as utilities py-* (0,1,0) sem precisar de !important. */
+[data-density="compact"] .density-table td {
+  padding-block: 6px;
+}
+
 .dark {
   --background:    #07080A;
   --surface:       #0E1116;
