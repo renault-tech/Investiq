@@ -5,6 +5,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatBRLExact, formatCurrencyExact } from "@/components/charts/chartTheme";
 import { formatPercent, formatQuantity } from "@/lib/number-format";
 import type { PositionSummary } from "@/lib/portfolio-api";
+import { useMarketQuotes, useSparklines } from "@/hooks/useAssetData";
+import { Sparkline } from "@/components/trader/Sparkline";
 
 interface PositionsTableProps {
   positions: PositionSummary[];
@@ -32,7 +34,7 @@ function fmtPct(v: number | string | null): string {
   return formatPercent(Number(v), 2, { signed: true });
 }
 
-const COLS = ["Ativo", "Qtd", "PM", "Atual", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "Ações"];
+const COLS = ["Ativo", "Qtd", "PM", "Atual", "Dia", "Valor", "P&L R$", "P&L %", "Peso", "Alvo", "Rebalance", "30D", "Ações"];
 
 export function PositionsTable({ positions, isLoading, onAddTransaction, onManage }: PositionsTableProps) {
   // Visão consolidada: cada posição carrega de qual carteira ela veio —
@@ -40,6 +42,16 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
   // como duas linhas idênticas sem explicação de por que não foram somadas.
   const showPortfolioColumn = positions.some((p) => p.portfolio_name);
   const cols = showPortfolioColumn ? ["Carteira", ...COLS] : COLS;
+
+  // Variação do dia e sparkline de 30 dias — mesmos hooks já usados no
+  // Trader/watchlist, aqui por posição aberta. React Query dedupe pela
+  // queryKey (lista de tickers) evita refetch duplicado se outra parte da
+  // tela já pediu a mesma cotação.
+  const openTickers = positions.filter((p) => p.quantity > 0).map((p) => p.ticker);
+  const { data: quotes = [] } = useMarketQuotes(openTickers);
+  const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
+  const { data: sparklines = [] } = useSparklines(openTickers);
+  const sparklineByTicker = new Map(sparklines.map((s) => [s.ticker, s.closes]));
 
   if (isLoading) {
     return (
@@ -122,6 +134,9 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                     </span>
                   )}
                 </td>
+                <td className="px-2.5 py-3 text-right tabular-nums font-medium" style={{ color: (quoteByTicker.get(pos.ticker)?.change_pct ?? 0) >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                  {quoteByTicker.get(pos.ticker)?.change_pct != null ? fmtPct(quoteByTicker.get(pos.ticker)!.change_pct) : "—"}
+                </td>
                 <td className="px-2.5 py-3 text-right tabular-nums font-medium text-[var(--text-primary)]">
                   {fmtBRL(pos.market_value_brl)}
                   {fmtNative(pos.market_value_native, pos.currency) && (
@@ -138,6 +153,11 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
                 </td>
                 <td className="px-2.5 py-3 text-right">
                   <RebalanceTag action={pos.rebalance_action} deltaUnits={pos.rebalance_delta_units} />
+                </td>
+                <td className="px-2.5 py-3 text-right">
+                  <div className="flex justify-end">
+                    <Sparkline closes={sparklineByTicker.get(pos.ticker) ?? []} />
+                  </div>
                 </td>
                 <td className="px-2.5 py-3 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1.5">
