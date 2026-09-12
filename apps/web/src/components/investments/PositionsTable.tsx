@@ -69,7 +69,7 @@ export function PositionsTable({ positions, isLoading, onAddTransaction, onManag
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px] border-collapse">
+      <table className="density-table w-full text-[13px] border-collapse">
         <thead>
           <tr className="border-b border-[var(--border)]">
             {cols.map((h) => (

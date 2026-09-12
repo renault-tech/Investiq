@@ -1,16 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { BookOpen, Check, KeyRound, Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
 import { useSettings, usePatchSettings, useUpdateApiKeys } from "@/hooks/useSettings";
+import { useUpdateProfile, useChangePassword } from "@/hooks/useProfile";
 import { ApiKeysUpdate } from "@/lib/settings-api";
 import { useShallow } from "zustand/react/shallow";
 import { useUserStore } from "@/store/useUserStore";
 import { useUIStore } from "@/store/useUIStore";
 import { ACCENT_PALETTE } from "@/lib/accentPalette";
 import { SessionsSection } from "./SessionsSection";
+
+const RISK_PROFILES = [
+  { value: "conservador", label: "Conservador" },
+  { value: "moderado", label: "Moderado" },
+  { value: "arrojado", label: "Arrojado" },
+] as const;
+
+const CURRENCY_OPTIONS = [
+  { value: "BRL", label: "Real (R$)" },
+  { value: "USD", label: "Dólar (US$)" },
+  { value: "EUR", label: "Euro (€)" },
+];
 
 const LLM_OPTIONS = [
   { value: "claude", label: "Claude (Anthropic)", keyField: "claude_api_key" as const, hasField: "has_claude_api_key" as const },
@@ -152,16 +165,33 @@ export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
   const patchMutation = usePatchSettings();
   const keysMutation = useUpdateApiKeys();
+  const updateProfileMutation = useUpdateProfile();
+  const changePasswordMutation = useChangePassword();
   const { theme, setTheme } = useTheme();
   const user = useUserStore((s) => s.user);
-  const { fontScale, setFontScale, accentColorId, setAccentColor } = useUIStore(
+  const { fontScale, setFontScale, accentColorId, setAccentColor, density, setDensity } = useUIStore(
     useShallow((s) => ({
       fontScale: s.fontScale,
       setFontScale: s.setFontScale,
       accentColorId: s.accentColorId,
       setAccentColor: s.setAccentColor,
+      density: s.density,
+      setDensity: s.setDensity,
     }))
   );
+
+  const [fullName, setFullName] = useState(user?.full_name ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // O usuário chega assíncrono (fetch de /auth/me em PlatformShell.tsx) — no
+  // primeiro render após um F5 ele ainda é null, e useState só lê o valor
+  // inicial uma vez. Sem isto o campo carrega em branco até o usuário digitar
+  // algo, mesmo com um nome já salvo.
+  useEffect(() => {
+    setFullName(user?.full_name ?? "");
+  }, [user?.full_name]);
 
   if (isLoading || !settings) {
     return (
@@ -176,78 +206,221 @@ export function SettingsClient() {
   const saveKey = (field: keyof ApiKeysUpdate) => (value: string) =>
     keysMutation.mutate({ [field]: value });
 
+  const passwordsValid = newPassword.length >= 8 && newPassword === confirmPassword && currentPassword.length > 0;
+
   return (
     <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
       <h1 className="text-xl font-semibold text-[var(--text-primary)]">Configurações</h1>
 
       <Section title="Perfil">
-        <div className="space-y-1 text-sm">
-          <p className="text-[var(--text-primary)] font-medium">{user?.full_name ?? "—"}</p>
-          <p className="text-[var(--text-secondary)]">{user?.email ?? ""}</p>
+        <div className="space-y-4">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label htmlFor="profile-name" className="block text-xs text-[var(--text-secondary)] mb-1">Nome</label>
+              <input
+                id="profile-name"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              />
+            </div>
+            <button
+              onClick={() => updateProfileMutation.mutate(fullName.trim())}
+              disabled={updateProfileMutation.isPending || !fullName.trim() || fullName.trim() === (user?.full_name ?? "")}
+              className="px-3 py-2 text-sm rounded-[10px] hover:opacity-90 disabled:opacity-40"
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+            >
+              Salvar
+            </button>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">{user?.email ?? ""}</p>
+
+          <div className="pt-3 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1.5">Perfil de risco</p>
+            <div className="flex items-center gap-2">
+              {RISK_PROFILES.map((p) => (
+                <OptionPill
+                  key={p.value}
+                  active={settings.risk_profile === p.value}
+                  onClick={() => patchMutation.mutate({ risk_profile: p.value })}
+                >
+                  {p.label}
+                </OptionPill>
+              ))}
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
+              Usado em Metas para comparar sua carteira com o alvo de ativos de risco do perfil.
+            </p>
+          </div>
         </div>
       </Section>
 
-      <Section title="Aparência">
-        <div className="flex items-center gap-2">
-          {([["light", "Claro", Sun], ["dark", "Escuro", Moon]] as const).map(([value, label, Icon]) => (
-            <OptionPill
-              key={value}
-              active={theme === value}
-              onClick={() => {
-                setTheme(value);
-                patchMutation.mutate({ theme: value });
-              }}
-            >
-              <Icon size={15} /> {label}
-            </OptionPill>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-[var(--border)]">
-          <span className="text-xs text-[var(--text-secondary)]">Tamanho da fonte</span>
-          <div className="flex items-center gap-1">
+      <Section title="Segurança">
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs text-[var(--text-secondary)] mb-2">Alterar senha</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                type="password"
+                placeholder="Senha atual"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                className="px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              />
+              <input
+                type="password"
+                placeholder="Nova senha (mín. 8)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                className="px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              />
+              <input
+                type="password"
+                placeholder="Confirmar nova senha"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                className="px-3 py-2 text-sm border border-[var(--border)] rounded-[10px] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              />
+            </div>
             <button
-              onClick={() => setFontScale(fontScale - 0.05)}
-              aria-label="Diminuir fonte"
-              className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              onClick={() =>
+                changePasswordMutation.mutate(
+                  { currentPassword, newPassword },
+                  { onSuccess: () => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); } }
+                )
+              }
+              disabled={!passwordsValid || changePasswordMutation.isPending}
+              className="mt-2 px-3 py-2 text-sm rounded-[10px] hover:opacity-90 disabled:opacity-40"
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
             >
-              <ZoomOut size={14} />
+              Alterar senha
             </button>
-            <span className="text-xs text-[var(--text-muted)] w-10 text-center tabular-nums">
-              {Math.round(fontScale * 100)}%
-            </span>
-            <button
-              onClick={() => setFontScale(fontScale + 0.05)}
-              aria-label="Aumentar fonte"
-              className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              <ZoomIn size={14} />
-            </button>
+            {newPassword.length > 0 && confirmPassword.length > 0 && newPassword !== confirmPassword && (
+              <p className="text-[11px] text-[var(--danger)] mt-1">As senhas não coincidem.</p>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-2">
+              Sessões ativas — revise e encerre acessos que você não reconhece
+            </p>
+            <SessionsSection />
           </div>
         </div>
-        <div className="mt-4 pt-4 border-t border-[var(--border)]">
-          <span className="text-xs text-[var(--text-secondary)]">Cor de destaque</span>
-          <div className="flex items-center gap-2.5 mt-2">
-            {ACCENT_PALETTE.map((option) => {
-              const active = accentColorId === option.id;
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => setAccentColor(option.id)}
-                  aria-label={option.label}
-                  aria-pressed={active}
-                  title={option.label}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-transform"
-                  style={{
-                    background: option.dark,
-                    outline: active ? "2px solid var(--text-primary)" : "2px solid transparent",
-                    outlineOffset: "2px",
-                    transform: active ? "scale(1.1)" : "scale(1)",
+      </Section>
+
+      <Section title="Preferências">
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs text-[var(--text-secondary)] mb-1.5">Tema</p>
+            <div className="flex items-center gap-2">
+              {([["light", "Claro", Sun], ["dark", "Escuro", Moon]] as const).map(([value, label, Icon]) => (
+                <OptionPill
+                  key={value}
+                  active={theme === value}
+                  onClick={() => {
+                    setTheme(value);
+                    patchMutation.mutate({ theme: value });
                   }}
                 >
-                  {active && <Check size={13} className="text-white" strokeWidth={3} />}
-                </button>
-              );
-            })}
+                  <Icon size={15} /> {label}
+                </OptionPill>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
+            <span className="text-xs text-[var(--text-secondary)]">Tamanho da fonte</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setFontScale(fontScale - 0.05)}
+                aria-label="Diminuir fonte"
+                className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <span className="text-xs text-[var(--text-muted)] w-10 text-center tabular-nums">
+                {Math.round(fontScale * 100)}%
+              </span>
+              <button
+                onClick={() => setFontScale(fontScale + 0.05)}
+                aria-label="Aumentar fonte"
+                className="p-1.5 rounded-[9px] border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                <ZoomIn size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border)]">
+            <span className="text-xs text-[var(--text-secondary)]">Cor de destaque</span>
+            <div className="flex items-center gap-2.5 mt-2">
+              {ACCENT_PALETTE.map((option) => {
+                const active = accentColorId === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => setAccentColor(option.id)}
+                    aria-label={option.label}
+                    aria-pressed={active}
+                    title={option.label}
+                    className="w-7 h-7 rounded-full flex items-center justify-center transition-transform"
+                    style={{
+                      background: option.dark,
+                      outline: active ? "2px solid var(--text-primary)" : "2px solid transparent",
+                      outlineOffset: "2px",
+                      transform: active ? "scale(1.1)" : "scale(1)",
+                    }}
+                  >
+                    {active && <Check size={13} className="text-white" strokeWidth={3} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1.5">Moeda de referência</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {CURRENCY_OPTIONS.map((opt) => (
+                <OptionPill
+                  key={opt.value}
+                  active={settings.base_currency === opt.value}
+                  onClick={() => patchMutation.mutate({ base_currency: opt.value })}
+                >
+                  {opt.label}
+                </OptionPill>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1.5">Densidade das tabelas</p>
+            <div className="flex items-center gap-2">
+              {([["comfortable", "Confortável"], ["compact", "Compacta"]] as const).map(([value, label]) => (
+                <OptionPill key={value} active={density === value} onClick={() => setDensity(value)}>
+                  {label}
+                </OptionPill>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-[var(--border)]">
+            {([
+              ["notify_price_alerts", "Alertas de preço"],
+              ["notify_email", "Resumos por e-mail"],
+            ] as const).map(([field, label]) => (
+              <ToggleSwitch
+                key={field}
+                label={label}
+                checked={settings[field]}
+                onChange={(checked) => patchMutation.mutate({ [field]: checked })}
+              />
+            ))}
           </div>
         </div>
       </Section>
@@ -341,26 +514,6 @@ export function SettingsClient() {
         </div>
       </Section>
       </div>
-
-      <Section title="Sessões" description="Dispositivos com uma sessão ativa na sua conta.">
-        <SessionsSection />
-      </Section>
-
-      <Section title="Notificações">
-        <div className="space-y-2">
-          {([
-            ["notify_price_alerts", "Alertas de preço"],
-            ["notify_email", "Resumos por e-mail"],
-          ] as const).map(([field, label]) => (
-            <ToggleSwitch
-              key={field}
-              label={label}
-              checked={settings[field]}
-              onChange={(checked) => patchMutation.mutate({ [field]: checked })}
-            />
-          ))}
-        </div>
-      </Section>
     </div>
   );
 }

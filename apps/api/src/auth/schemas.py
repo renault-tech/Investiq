@@ -39,6 +39,15 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=72)
 
 
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = Field(default=None, max_length=200)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class SessionResponse(BaseModel):
     id: uuid.UUID
     device_info: Optional[str]

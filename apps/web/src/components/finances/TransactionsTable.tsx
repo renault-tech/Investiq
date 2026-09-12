@@ -224,7 +224,7 @@ export function TransactionsTable({
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="density-table w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
               {bulkEnabled && (

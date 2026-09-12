@@ -88,3 +88,40 @@ async def test_forgot_password_never_leaks_account_existence(client):
     known = await client.post("/auth/forgot-password", json={"email": unique_email()})
     unknown = await client.post("/auth/forgot-password", json={"email": "nobody-" + unique_email()})
     assert known.status_code == unknown.status_code
+
+
+@pytest.mark.asyncio
+async def test_update_profile_changes_full_name(client):
+    session = await register_and_login(client, full_name="Nome Antigo")
+    res = await client.patch("/auth/me", headers=session["headers"], json={"full_name": "Nome Novo"})
+    assert res.status_code == 200
+    assert res.json()["full_name"] == "Nome Novo"
+
+    me = await client.get("/auth/me", headers=session["headers"])
+    assert me.json()["full_name"] == "Nome Novo"
+
+
+@pytest.mark.asyncio
+async def test_change_password_requires_correct_current_password(client):
+    email = unique_email()
+    password = "senhaSegura123"
+    await client.post("/auth/register", json={"email": email, "password": password})
+    login = await client.post("/auth/login", json={"email": email, "password": password})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    wrong = await client.post(
+        "/auth/change-password", headers=headers,
+        json={"current_password": "senhaErrada999", "new_password": "outraSenhaSegura456"},
+    )
+    assert wrong.status_code == 401
+
+    ok = await client.post(
+        "/auth/change-password", headers=headers,
+        json={"current_password": password, "new_password": "outraSenhaSegura456"},
+    )
+    assert ok.status_code == 200
+
+    old_login = await client.post("/auth/login", json={"email": email, "password": password})
+    assert old_login.status_code in (401, 400)
+    new_login = await client.post("/auth/login", json={"email": email, "password": "outraSenhaSegura456"})
+    assert new_login.status_code == 200

@@ -16,6 +16,8 @@ from src.auth.schemas import (
     ResetPasswordRequest,
     SessionResponse,
     RevokeOtherSessionsResponse,
+    UpdateProfileRequest,
+    ChangePasswordRequest,
 )
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
@@ -131,6 +133,29 @@ async def me(current_user: User = Depends(get_current_user)):
         is_verified=current_user.is_verified,
         plan=current_user.plan,
     )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    body: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await service.update_profile(current_user.id, body.full_name, db)
+    return UserResponse(
+        id=str(user.id), email=user.email, full_name=user.full_name,
+        role=user.role, is_verified=user.is_verified, plan=user.plan,
+    )
+
+
+@router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.change_password(current_user.id, body.current_password, body.new_password, db)
+    return {"message": "Senha alterada com sucesso"}
 
 
 @router.get("/sessions", response_model=list[SessionResponse])

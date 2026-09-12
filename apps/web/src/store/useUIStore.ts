@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_ACCENT_ID, getAccentOption } from "@/lib/accentPalette";
 
 export type Period = "1M" | "6M" | "1A" | "Tudo";
+export type Density = "comfortable" | "compact";
 
 interface UIStore {
   fontScale: number;
@@ -11,12 +12,23 @@ interface UIStore {
   period: Period;
   customize: boolean;
   accentColorId: string;
+  density: Density;
   setFontScale: (scale: number) => void;
   toggleSidebar: () => void;
   togglePrivacy: () => void;
   setPeriod: (period: Period) => void;
   toggleCustomize: () => void;
   setAccentColor: (id: string) => void;
+  setDensity: (density: Density) => void;
+}
+
+/** Densidade afeta o padding vertical das tabelas de listagem (Posições,
+ * Transações) via a variável --table-row-py, lida em globals.css pela
+ * classe .density-table — não é decorativo, muda quantas linhas cabem na
+ * tela sem rolar. */
+function applyDensity(density: Density) {
+  if (typeof document === "undefined") return;
+  document.documentElement.dataset.density = density;
 }
 
 /** Aplica as duas variantes (claro/escuro) da cor escolhida — e o texto/ícone
@@ -50,6 +62,7 @@ export const useUIStore = create<UIStore>()(
       period: "6M",
       customize: false,
       accentColorId: DEFAULT_ACCENT_ID,
+      density: "comfortable",
       setFontScale: (scale) => {
         const clamped = Math.min(1.5, Math.max(0.75, scale));
         set({ fontScale: clamped });
@@ -64,6 +77,10 @@ export const useUIStore = create<UIStore>()(
       setAccentColor: (id) => {
         set({ accentColorId: id });
         applyAccentColor(id);
+      },
+      setDensity: (density) => {
+        set({ density });
+        applyDensity(density);
       },
     }),
     {
@@ -80,11 +97,13 @@ export const useUIStore = create<UIStore>()(
         privacy: s.privacy,
         period: s.period,
         accentColorId: s.accentColorId,
+        density: s.density,
       }),
       onRehydrateStorage: () => (state) => {
         if (state && typeof document !== "undefined") {
           document.documentElement.style.setProperty("--font-scale", String(state.fontScale));
           applyAccentColor(state.accentColorId);
+          applyDensity(state.density);
         }
       },
     }
