@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CreditCard as CreditCardIcon, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   useCards,
@@ -12,7 +12,7 @@ import {
   useConfirmInvoice,
   useDeleteInvoice,
 } from "@/hooks/useCards";
-import { useCategories } from "@/hooks/useFinance";
+import { useCategories, useTransactions } from "@/hooks/useFinance";
 import { CardInvoice, CreditCard } from "@/lib/cards-api";
 import { formatBRL, formatBRLExact, formatBRLCompact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -22,6 +22,14 @@ import { CardModal } from "./CardModal";
 import { InvoiceUploadZone } from "./InvoiceUploadZone";
 import { InvoiceReviewTable } from "./InvoiceReviewTable";
 import { InvoiceAnalytics } from "./InvoiceAnalytics";
+import { SubscriptionsSection } from "@/components/finances/SubscriptionsSection";
+
+function currentMonthBounds(): { from: string; to: string } {
+  const now = new Date();
+  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return { from, to };
+}
 
 const STATUS_LABEL: Record<CardInvoice["status"], { label: string; className: string }> = {
   processing: { label: "processando", className: "text-[var(--warning)]" },
@@ -74,9 +82,12 @@ export function CardsClient() {
   const { data: invoices = [] } = useInvoices(selectedCardId);
   const { data: invoiceDetail } = useInvoiceDetail(activeInvoiceId);
   const { data: categories = [] } = useCategories();
+  const { from: monthFrom, to: monthTo } = currentMonthBounds();
+  const { data: monthTxns } = useTransactions({ date_from: monthFrom, date_to: monthTo, transaction_type: "expense", per_page: 200 });
 
   const activeCards = cards.filter((c) => c.is_active);
   const latestInvoiceByCard = useLatestInvoices(activeCards.map((c) => c.id));
+  const invoicesSectionRef = useRef<HTMLDivElement>(null);
 
   const deleteCardMutation = useDeleteCard();
   const uploadMutation = useUploadInvoice(selectedCardId);
@@ -175,6 +186,34 @@ export function CardsClient() {
                     </div>
                   </div>
                 )}
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveCardId(card.id);
+                      setActiveInvoiceId(null);
+                      setTimeout(() => invoicesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                    }}
+                    className="flex-1 h-[30px] rounded-[9px] text-[11.5px] font-medium text-[#F2F4F7] transition-colors hover:bg-white/10"
+                    style={{ background: "rgba(255,255,255,.12)" }}
+                  >
+                    Detalhes
+                  </button>
+                  {latestInvoice && latestInvoice.status === "review" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveCardId(card.id);
+                        setActiveInvoiceId(latestInvoice.id);
+                        setTimeout(() => invoicesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                      }}
+                      className="flex-1 h-[30px] rounded-[9px] text-[11.5px] font-semibold transition-opacity hover:opacity-90"
+                      style={{ background: "#F2F4F7", color: "#14161C" }}
+                    >
+                      Pagar fatura
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -243,7 +282,7 @@ export function CardsClient() {
           />
 
           {/* Faturas */}
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] shadow-[var(--shadow)]">
+          <div ref={invoicesSectionRef} className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-card-sm)] shadow-[var(--shadow)] scroll-mt-6">
             <div className="flex items-center justify-between p-5 border-b border-[var(--border)]">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 Faturas — {selectedCard.name}
@@ -302,6 +341,13 @@ export function CardsClient() {
               <InvoiceAnalytics invoiceId={invoiceDetail.id} />
             </>
           )}
+
+          {/* Assinaturas e recorrentes — mesmo componente de Finanças,
+              lançamentos do mês corrente (inclui os que vieram de fatura de
+              cartão confirmada, já marcados como recorrentes lá). */}
+          <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+            <SubscriptionsSection transactions={monthTxns?.items ?? []} />
+          </div>
         </>
       )}
 
