@@ -1253,15 +1253,23 @@ async def update_position(
     *,
     broker_set: bool = False,
     target_weight_set: bool = False,
+    asset_type: Optional[str] = None,
+    asset_type_set: bool = False,
 ) -> dict:
-    """Só broker e target_weight são editáveis diretamente — quantidade e
-    preço médio são sempre derivados das transações, editar ou apagar uma
-    transação é o que os muda."""
+    """Só broker, peso-alvo e a classe do ativo são editáveis diretamente —
+    quantidade e preço médio são sempre derivados das transações, editar ou
+    apagar uma transação é o que os muda.
+
+    A classe do ativo (asset_type) vive no Asset, não na posição — é
+    compartilhada entre todas as posições/carteiras/corretoras do mesmo
+    ticker (correto: "PETR4 é uma ação BR" não muda conforme a carteira)."""
     position = await _get_owned_position(position_id, user_id, db)
     if broker_set:
         position.broker = broker
     if target_weight_set:
         position.target_weight = target_weight
+    if asset_type_set and position.asset is not None:
+        position.asset.asset_type = asset_type
     await db.commit()
     await db.refresh(position, attribute_names=["asset"])
     return {

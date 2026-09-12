@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   TrendingUp,
+  Receipt,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore } from "@/store/useUIStore";
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
   { href: "/goals", label: "Metas", icon: Target },
+  { href: "/taxes", label: "Impostos", icon: Receipt },
   { href: "/reports", label: "Relatórios", icon: FileText },
   { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
   { href: "/ajuda", label: "Ajuda", icon: BookOpen },

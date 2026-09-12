@@ -29,6 +29,7 @@ const PAGE_TITLES: { prefix: string; title: string; sub: string; crumb: string }
   { prefix: "/trader", title: "Trader", sub: "Mercado ao vivo, watchlist e alertas", crumb: "Painel" },
   { prefix: "/transactions", title: "Transações", sub: "Todos os seus lançamentos", crumb: "Finanças" },
   { prefix: "/goals", title: "Metas e planejamento", sub: "Seus objetivos financeiros", crumb: "Painel" },
+  { prefix: "/taxes", title: "Impostos & IR", sub: "Apuração de ganho de capital, DARF e informe de rendimentos", crumb: "Painel" },
   { prefix: "/reports", title: "Relatórios", sub: "Exportação e histórico patrimonial", crumb: "Painel" },
   { prefix: "/mobile-preview", title: "App mobile", sub: "InvestIQ · telas principais", crumb: "Painel" },
   { prefix: "/analysis", title: "Análise", sub: "Análise técnica e fundamentalista", crumb: "Investimentos" },

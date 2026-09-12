@@ -219,6 +219,30 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
   {
+    route: "/taxes",
+    label: "Impostos & IR",
+    summary: "Apuração de ganho de capital em ações e FIIs, DARF e informe de rendimentos.",
+    steps: [
+      {
+        title: "Impostos & IR",
+        body:
+          "Calcula o imposto sobre vendas de ações brasileiras e FIIs mês a mês (custo médio, isenção de R$20 mil/mês em ações, prejuízo compensado com ganhos futuros). Cobre só operações comuns — day trade, ativos no exterior, cripto e renda fixa ficam de fora e devem ser conferidos à parte. Não substitui um contador.",
+      },
+      {
+        target: "tax-darf",
+        title: "DARF do mês",
+        body:
+          "Meses em que houve imposto a pagar aparecem aqui com código de receita, competência e valor — confirme o vencimento exato no e-CAC antes de pagar.",
+      },
+      {
+        target: "tax-informe",
+        title: "Informe de rendimentos",
+        body:
+          "Resumo anual para a declaração: dividendos recebidos, total vendido por classe de ativo e a posição (bens e direitos) no fim do período.",
+      },
+    ],
+  },
+  {
     route: "/reports",
     label: "Relatórios",
     summary: "Exporta o consolidado do mês em PDF ou Excel.",

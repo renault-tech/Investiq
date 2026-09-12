@@ -22,6 +22,21 @@ interface ManagePositionModalProps {
   onClose: () => void;
 }
 
+// Mesma lista de AddPositionModal.tsx (MARKET_ASSET_TYPE_OPTIONS) — reclassificar
+// um ativo que já existe (a maioria, criado antes da classe existir como campo)
+// é o que destrava a apuração em Impostos & IR pra ele. "stock" continua
+// disponível pra quem quer só reconhecer o estado atual sem se comprometer
+// com uma classe ainda.
+const RECLASSIFY_OPTIONS = [
+  { value: "stock_br", label: "Ação / unit (B3)" },
+  { value: "fii", label: "FII" },
+  { value: "etf", label: "ETF" },
+  { value: "stock_us", label: "Ação estrangeira" },
+  { value: "crypto", label: "Criptomoeda" },
+  { value: "commodity", label: "Commodity" },
+  { value: "stock", label: "Genérico (não classificado)" },
+] as const;
+
 const TX_TYPE_LABELS: Record<string, string> = {
   buy: "Compra",
   sell: "Venda",
@@ -142,6 +157,8 @@ export function ManagePositionModal({ portfolioId, position, onClose }: ManagePo
   const [targetWeight, setTargetWeight] = useState(
     position.target_weight != null ? String(position.target_weight * 100) : ""
   );
+  const isReclassifiable = position.asset_type !== "cash" && position.asset_type !== "fixed_income_br";
+  const [assetType, setAssetType] = useState(position.asset_type);
   const [confirmDeletePosition, setConfirmDeletePosition] = useState(false);
   const [confirmDeleteTxn, setConfirmDeleteTxn] = useState<string | null>(null);
 
@@ -151,6 +168,7 @@ export function ManagePositionModal({ portfolioId, position, onClose }: ManagePo
       input: {
         broker: broker.trim() || null,
         target_weight: targetWeight.trim() ? Number(targetWeight) / 100 : null,
+        ...(isReclassifiable ? { asset_type: assetType } : {}),
       },
     });
   };
@@ -191,6 +209,26 @@ export function ManagePositionModal({ portfolioId, position, onClose }: ManagePo
               />
             </div>
           </div>
+          {isReclassifiable && (
+            <div className="mt-2">
+              <label htmlFor="pos-asset-class" className="block text-[10px] text-[var(--text-muted)] mb-1">
+                Classe do ativo
+              </label>
+              <select
+                id="pos-asset-class"
+                value={assetType}
+                onChange={(e) => setAssetType(e.target.value)}
+                className={fieldClass}
+              >
+                {RECLASSIFY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                Usada em Impostos & IR para separar ações e FIIs — não afeta cotação nem gráficos.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end mt-2">
             <Button size="sm" loading={updatePosition.isPending} onClick={handleSaveDetails}>
               Salvar detalhes

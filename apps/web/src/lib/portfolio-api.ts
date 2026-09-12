@@ -142,6 +142,8 @@ export interface CreateTransactionInput {
 export interface UpdatePositionInput {
   broker?: string | null;
   target_weight?: number | null;
+  /** Vive no Asset, compartilhado por todas as posições do mesmo ticker. */
+  asset_type?: string | null;
 }
 
 /** Mesmos campos de CreateTransactionInput, todos opcionais — só o que
