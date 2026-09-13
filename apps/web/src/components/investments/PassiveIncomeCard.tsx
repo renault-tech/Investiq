@@ -34,19 +34,22 @@ export function PassiveIncomeCard({ portfolios, activePortfolioId, isConsolidate
       : [],
   });
 
+  // Decimal do backend chega como string no JSON — sem Number(), a soma vira
+  // concatenação de texto e formatBRLExact (que espera number) devolve a
+  // string crua (String.prototype.toLocaleString ignora as opções de moeda).
   let total = 0;
   const byMonth = new Map<string, number>();
   if (isConsolidated) {
     for (const q of consolidatedQueries) {
       if (!q.data) continue;
-      total += q.data.total;
+      total += Number(q.data.total);
       for (const point of q.data.monthly_series) {
-        byMonth.set(point.month, (byMonth.get(point.month) ?? 0) + point.amount);
+        byMonth.set(point.month, (byMonth.get(point.month) ?? 0) + Number(point.amount));
       }
     }
   } else if (singleIncome.data) {
-    total = singleIncome.data.total;
-    for (const point of singleIncome.data.monthly_series) byMonth.set(point.month, point.amount);
+    total = Number(singleIncome.data.total);
+    for (const point of singleIncome.data.monthly_series) byMonth.set(point.month, Number(point.amount));
   }
 
   const series: MonthlyIncomePoint[] = Array.from(byMonth.entries())
