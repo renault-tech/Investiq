@@ -31,19 +31,19 @@ import { CardsMiniList } from "./CardsMiniList";
 import { ExportReportModal } from "@/components/reports/ExportReportModal";
 import { ForecastChart } from "./ForecastChart";
 
+// Ordem padrão segue o agrupamento do design de referência (duas linhas de
+// 3 cards: orçamento/onde-o-dinheiro-foi/cartões, depois assinaturas/
+// projeção/categorias) — "Contas" não é card aqui, vive como tira compacta
+// no cabeçalho ao lado do seletor de mês.
 const FINANCE_CARDS: DashboardCardSpec[] = [
-  { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
-  { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
+  { id: "budgets", label: "Orçamento por categoria", defaultSpan: 4, minSpan: 3 },
   { id: "donut", label: "Onde o dinheiro foi", defaultSpan: 4, minSpan: 3 },
-  // Contas não é mais um card daqui — vive como tira compacta no cabeçalho
-  // (ao lado do seletor de mês), já que a maior parte de um card dedicado só
-  // pras contas ficava vazia. "Orçamentos" preenche o resto da linha ao lado
-  // de "Previsto × executado" no lugar dela.
-  { id: "planned", label: "Previsto × executado", defaultSpan: 6, minSpan: 4 },
-  { id: "budgets", label: "Orçamentos", defaultSpan: 6, minSpan: 4 },
+  { id: "cards", label: "Cartões", defaultSpan: 4, minSpan: 3 },
   { id: "subscriptions", label: "Assinaturas e recorrentes", defaultSpan: 4, minSpan: 3 },
   { id: "projection", label: "Projeção do mês", defaultSpan: 4, minSpan: 3 },
-  { id: "cards", label: "Cartões", defaultSpan: 4, minSpan: 3 },
+  { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
+  { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
+  { id: "planned", label: "Previsto × executado", defaultSpan: 4, minSpan: 4 },
 ];
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -278,7 +278,7 @@ export function FinancesClient() {
 
         {visible("budgets") && (
         <DashboardCard {...cardProps("budgets", 0.24)} data-tour="budgets-section">
-          <BudgetsSection categories={categories} bare />
+          <BudgetsSection categories={categories} bare title="Orçamento por categoria" />
         </DashboardCard>
         )}
 

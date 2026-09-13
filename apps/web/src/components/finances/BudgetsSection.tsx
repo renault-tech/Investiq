@@ -17,9 +17,13 @@ interface BudgetsSectionProps {
   /** Sem o cartão próprio (borda/sombra/padding) — para quando o pai já
    * embrulha isto num DashboardCard da grade ajustável (Finanças). */
   bare?: boolean;
+  /** Título exibido — "Orçamentos" serve o uso genérico (Planejamento), mas
+   * quando o card mostra a barra por categoria (Finanças) o design de
+   * referência chama a seção de "Orçamento por categoria". */
+  title?: string;
 }
 
-export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps) {
+export function BudgetsSection({ categories, bare = false, title = "Orçamentos" }: BudgetsSectionProps) {
   const { data: budgets = [] } = useBudgets();
   const upsertMutation = useUpsertBudget();
   const deleteMutation = useDeleteBudget();
@@ -51,7 +55,7 @@ export function BudgetsSection({ categories, bare = false }: BudgetsSectionProps
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
-            <Wallet size={15} /> Orçamentos
+            <Wallet size={15} /> {title}
           </h3>
           {/* Cada carteira tem seus próprios tetos, então sem dizer de quem é
               o teto exibido o número fica ambíguo ao trocar de carteira. */}

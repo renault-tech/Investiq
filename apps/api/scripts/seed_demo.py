@@ -9,7 +9,11 @@ Idempotent: if the demo user already exists, the script exits without making
 changes (delete the user's row — cascades — and re-run to reseed).
 
 Creates:
-- 1 user (demo@investiq.local / Demo12345!)
+- 1 user (demo.investiq.qa@gmail.com / Demo12345!) — needs a domain with real
+  DNS: this script writes the row directly, so a `.local`/`.test`/`.invalid`
+  address would seed fine, but the login endpoint's EmailStr does a
+  deliverability check and rejects it, defeating the "log in and look at it"
+  purpose of this script.
 - 2 portfolios: "Carteira BR" (PETR4, VALE3, HGLG11) and "Internacional"
   (AAPL, VOO) with ~30 buy/sell/dividend transactions over 18 months
 - Finance categories (PT-BR seed) + ~60 transactions over 6 months,
@@ -36,7 +40,7 @@ from src.finance import service as finance_service
 from src.finance.models import FinanceCategory
 from src.cards.models import CreditCard, CardInvoice, InvoiceItem
 
-DEMO_EMAIL = "demo@investiq.local"
+DEMO_EMAIL = "demo.investiq.qa@gmail.com"
 DEMO_PASSWORD = "Demo12345!"
 
 BR_TICKERS = ["PETR4", "VALE3", "HGLG11"]

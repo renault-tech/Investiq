@@ -30,11 +30,11 @@ const NAV_ITEMS = [
   { href: "/overview", label: "Visão geral", icon: LayoutDashboard },
   { href: "/finances", label: "Finanças", icon: BarChart2 },
   { href: "/investments", label: "Investimentos", icon: LineChart },
-  { href: "/trader", label: "Trader", icon: TrendingUp },
+  { href: "/trader", label: "Trader", icon: TrendingUp, badge: "LIVE" as const },
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
   { href: "/goals", label: "Metas", icon: Target },
-  { href: "/taxes", label: "Impostos", icon: Receipt },
+  { href: "/taxes", label: "Impostos & IR", icon: Receipt, badge: "NOVO" as const },
   { href: "/reports", label: "Relatórios", icon: FileText },
   { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
   { href: "/ajuda", label: "Ajuda", icon: BookOpen },
@@ -123,7 +123,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
           const active = href === activeHref;
           return (
             <Link
@@ -160,6 +160,18 @@ export function Sidebar() {
                 />
               </span>
               {!sidebarCollapsed && <span className="flex-1 min-w-0 truncate">{label}</span>}
+              {!sidebarCollapsed && badge && (
+                <span
+                  className="flex-shrink-0 text-[9px] font-semibold tracking-[.06em] px-[6px] py-[2px] rounded-[5px]"
+                  style={
+                    badge === "LIVE"
+                      ? { color: "var(--danger)", background: "color-mix(in srgb,var(--danger) 16%,transparent)" }
+                      : { color: "var(--accent-2)", background: "color-mix(in srgb,var(--accent-2) 16%,transparent)" }
+                  }
+                >
+                  {badge}
+                </span>
+              )}
             </Link>
           );
         })}
