@@ -19,6 +19,22 @@ import { Input } from "@/components/ui/Input";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useMask } from "@/hooks/useMask";
 import { parseBRNumber } from "@/lib/number-format";
+import { DashboardCard } from "@/components/ui/DashboardCard";
+import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
+import { useUIStore } from "@/store/useUIStore";
+
+// Ordem padrão segue o agrupamento do design de referência: simulador de
+// independência financeira em destaque, perfil de risco ao lado, cenários e
+// trilha educativa abaixo — arrastável/redimensionável como Visão Geral e
+// Finanças. A grade de metas em si (acima) não entra aqui: é uma lista de
+// tamanho variável definida pelo usuário, não um conjunto fixo de widgets.
+const GOALS_CARDS: DashboardCardSpec[] = [
+  { id: "fire", label: "Independência financeira", defaultSpan: 8, minSpan: 6 },
+  { id: "risk", label: "Seu perfil", defaultSpan: 4, minSpan: 3 },
+  { id: "scenario", label: "Cenários", defaultSpan: 6, minSpan: 4 },
+  { id: "learning", label: "Trilha rápida", defaultSpan: 6, minSpan: 4 },
+  { id: "plan", label: "Plano de aportes sugerido", defaultSpan: 12, minSpan: 8 },
+];
 
 function currentMonth(): string {
   const d = new Date();
@@ -153,6 +169,24 @@ export function GoalsClient() {
   const { data: portfolioSummary } = usePortfolioSummary(CONSOLIDATED_ID);
   const createMutation = useCreateGoal();
 
+  const customize = useUIStore((st) => st.customize);
+  const layout = useDashboardLayout("goals", GOALS_CARDS);
+  const visible = (id: string) => !layout.isHidden(id);
+  const cardProps = (id: string, delay: number) => ({
+    id,
+    label: layout.specById[id]?.label ?? id,
+    customize,
+    span: layout.spanOf(id),
+    minSpan: layout.specById[id]?.minSpan,
+    dragged: layout.dragged,
+    onDragStart: layout.handleDragStart,
+    onDrop: layout.handleDrop,
+    onHide: layout.hide,
+    onSpanChange: layout.setSpan,
+    order: layout.order.indexOf(id),
+    delay,
+  });
+
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
@@ -208,45 +242,72 @@ export function GoalsClient() {
             {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} />)}
           </div>
 
-          <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-            <div className="col-span-6">
-              <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+          {customize && (
+            <div className="flex items-center gap-3 flex-wrap px-4 py-3 mt-[18px] border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] animate-rise-up">
+              <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                Modo edição — arraste para reposicionar, use ¼ ½ ⅔ 1 para redimensionar e × para ocultar.
+              </span>
+              {layout.hiddenCards.map((card) => (
+                <button
+                  key={card.id}
+                  onClick={() => layout.restore(card.id)}
+                  className="flex items-center gap-1.5 text-[11.5px] px-2.5 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-secondary)]"
+                >
+                  + {card.label}
+                </button>
+              ))}
+              <button
+                onClick={layout.reset}
+                className="ml-auto text-[11.5px] px-2.5 py-1.5 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)]"
+              >
+                Restaurar padrão
+              </button>
             </div>
-            <div className="col-span-6">
-              <ScenarioProjection currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
-            </div>
-          </div>
-
-          <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-            <div className="col-span-6">
-              <RiskProfileCard allocation={portfolioSummary?.allocation_by_type ?? []} />
-            </div>
-            <div className="col-span-6">
-              <LearningTrack />
-            </div>
-          </div>
-
-          {plan.length > 0 && (
-            <section className="mt-[18px] border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".2s" }}>
-              <div className="text-sm font-semibold text-[var(--text-primary)]">Plano de aportes sugerido</div>
-              <div className="text-[12.5px] text-[var(--text-secondary)] mt-1">
-                Distribuição automática da sobra mensal de {mask(formatBRLExact(surplus))}, proporcional ao quanto falta em cada meta
-              </div>
-              <div className="flex h-4 rounded-lg overflow-hidden mt-5 gap-[3px]">
-                {plan.map((p) => (
-                  <div key={p.goal.id} style={{ width: `${(p.amount / surplus) * 100}%`, background: p.color }} />
-                ))}
-              </div>
-              <div className="flex gap-6 mt-4 flex-wrap text-[12.5px]">
-                {plan.map((p) => (
-                  <span key={p.goal.id} className="flex items-center gap-1.5">
-                    <i className="w-2 h-2 rounded-[3px] block" style={{ background: p.color }} />
-                    <span className="text-[var(--text-secondary)]">{p.goal.name}</span> · {mask(formatBRLExact(p.amount))}
-                  </span>
-                ))}
-              </div>
-            </section>
           )}
+
+          <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
+            {visible("fire") && (
+              <DashboardCard {...cardProps("fire", 0)} bare>
+                <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+              </DashboardCard>
+            )}
+            {visible("risk") && (
+              <DashboardCard {...cardProps("risk", 0.05)}>
+                <RiskProfileCard allocation={portfolioSummary?.allocation_by_type ?? []} bare />
+              </DashboardCard>
+            )}
+            {visible("scenario") && (
+              <DashboardCard {...cardProps("scenario", 0.1)}>
+                <ScenarioProjection currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} bare />
+              </DashboardCard>
+            )}
+            {visible("learning") && (
+              <DashboardCard {...cardProps("learning", 0.15)}>
+                <LearningTrack bare />
+              </DashboardCard>
+            )}
+            {visible("plan") && plan.length > 0 && (
+              <DashboardCard {...cardProps("plan", 0.2)}>
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Plano de aportes sugerido</div>
+                <div className="text-[12.5px] text-[var(--text-secondary)] mt-1">
+                  Distribuição automática da sobra mensal de {mask(formatBRLExact(surplus))}, proporcional ao quanto falta em cada meta
+                </div>
+                <div className="flex h-4 rounded-lg overflow-hidden mt-5 gap-[3px]">
+                  {plan.map((p) => (
+                    <div key={p.goal.id} style={{ width: `${(p.amount / surplus) * 100}%`, background: p.color }} />
+                  ))}
+                </div>
+                <div className="flex gap-6 mt-4 flex-wrap text-[12.5px]">
+                  {plan.map((p) => (
+                    <span key={p.goal.id} className="flex items-center gap-1.5">
+                      <i className="w-2 h-2 rounded-[3px] block" style={{ background: p.color }} />
+                      <span className="text-[var(--text-secondary)]">{p.goal.name}</span> · {mask(formatBRLExact(p.amount))}
+                    </span>
+                  ))}
+                </div>
+              </DashboardCard>
+            )}
+          </div>
         </>
       )}
     </div>

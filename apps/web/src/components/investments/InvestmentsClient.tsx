@@ -33,6 +33,9 @@ import { NewTransactionModal } from "./modals/NewTransactionModal";
 import { ManagePositionModal } from "./modals/ManagePositionModal";
 import { formatPercent } from "@/lib/number-format";
 import { ExportReportModal } from "@/components/reports/ExportReportModal";
+import { DashboardCard } from "@/components/ui/DashboardCard";
+import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
+import { useUIStore } from "@/store/useUIStore";
 
 const AllocationDonut = dynamic(
   () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
@@ -70,6 +73,22 @@ function currentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Ordem padrão segue o agrupamento do design de referência: hero/alocação/
+// ações inteligentes, depois rentabilidade vs benchmarks ao lado de risco &
+// eficiência + renda passiva, com os painéis de auditoria (internacional,
+// raio-x, posições) abaixo — mesmo conteúdo de antes, agora arrastável e
+// redimensionável como Visão Geral e Finanças.
+const INVESTMENTS_CARDS: DashboardCardSpec[] = [
+  { id: "hero", label: "Carteira total", defaultSpan: 4, minSpan: 3 },
+  { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
+  { id: "insights", label: "Ações inteligentes", defaultSpan: 4, minSpan: 3 },
+  { id: "benchmark", label: "Rentabilidade vs benchmarks", defaultSpan: 8, minSpan: 6 },
+  { id: "riskpassive", label: "Risco & eficiência e renda passiva", defaultSpan: 4, minSpan: 3 },
+  { id: "international", label: "Patrimônio internacional", defaultSpan: 12, minSpan: 8 },
+  { id: "lookthrough", label: "Raio-X da carteira", defaultSpan: 12, minSpan: 8 },
+  { id: "positions", label: "Posições", defaultSpan: 12, minSpan: 8 },
+];
+
 export function InvestmentsClient({ initialPortfolios }: Props) {
   const [activePortfolioId, setActivePortfolioId] = useState<string | null>(
     initialPortfolios[0]?.id ?? null
@@ -92,6 +111,26 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const [lookThroughMode, setLookThroughMode] = useState<"sector" | "country" | "class">("sector");
   const [activeTab, setActiveTab] = useState<"positions" | "income">("positions");
   const mask = useMask();
+
+  // Mesmos cards ajustáveis de Visão Geral/Finanças: quem organiza o painel
+  // lá espera poder organizar aqui também.
+  const customize = useUIStore((st) => st.customize);
+  const layout = useDashboardLayout("investments", INVESTMENTS_CARDS);
+  const visible = (id: string) => !layout.isHidden(id);
+  const cardProps = (id: string, delay: number) => ({
+    id,
+    label: layout.specById[id]?.label ?? id,
+    customize,
+    span: layout.spanOf(id),
+    minSpan: layout.specById[id]?.minSpan,
+    dragged: layout.dragged,
+    onDragStart: layout.handleDragStart,
+    onDrop: layout.handleDrop,
+    onHide: layout.hide,
+    onSpanChange: layout.setSpan,
+    order: layout.order.indexOf(id),
+    delay,
+  });
 
   const { data: portfolios = initialPortfolios } = useQuery<Portfolio[]>({
     queryKey: ["portfolios"],
@@ -253,9 +292,33 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
             </p>
           )}
 
+          {customize && (
+            <div className="flex items-center gap-3 flex-wrap px-4 py-3 mb-[18px] border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] animate-rise-up">
+              <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
+                Modo edição — arraste para reposicionar, use ¼ ½ ⅔ 1 para redimensionar e × para ocultar.
+              </span>
+              {layout.hiddenCards.map((card) => (
+                <button
+                  key={card.id}
+                  onClick={() => layout.restore(card.id)}
+                  className="flex items-center gap-1.5 text-[11.5px] px-2.5 py-1.5 rounded-lg bg-[var(--surface)] border border-[var(--border-strong)] text-[var(--text-secondary)]"
+                >
+                  + {card.label}
+                </button>
+              ))}
+              <button
+                onClick={layout.reset}
+                className="ml-auto text-[11.5px] px-2.5 py-1.5 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)]"
+              >
+                Restaurar padrão
+              </button>
+            </div>
+          )}
+
           <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
             {/* Carteira total */}
-            <section className="col-span-4 relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden animate-rise-up">
+            {visible("hero") && (
+            <DashboardCard {...cardProps("hero", 0)} className="relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(600px 200px at 80% -20%, var(--glow), transparent 70%)" }} />
               <div className="relative flex justify-between items-start flex-wrap gap-4">
                 <div>
@@ -355,10 +418,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   <PortfolioEvolutionChart data={performance ?? []} />
                 </ChartCard>
               </div>
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Alocação */}
-            <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".08s" }}>
+            {visible("alloc") && (
+            <DashboardCard {...cardProps("alloc", 0.08)}>
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-[var(--text-primary)]">Alocação</div>
                 <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
@@ -412,16 +477,19 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   </div>
                 </div>
               )}
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Ações inteligentes */}
-            <section className="col-span-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".09s" }}>
+            {visible("insights") && (
+            <DashboardCard {...cardProps("insights", 0.09)}>
               <SmartInsights positions={summary?.positions ?? []} rebalanceCount={rebalanceSuggestions.length} />
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Patrimônio internacional: ativos em moeda estrangeira, valor nativo + equivalente em BRL */}
-            {internationalCurrencies.length > 0 && (
-              <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".1s" }}>
+            {visible("international") && internationalCurrencies.length > 0 && (
+              <DashboardCard {...cardProps("international", 0.1)}>
                 <div className="flex items-center gap-2 mb-3">
                   <Globe2 size={15} className="text-[var(--text-secondary)]" />
                   <div className="text-sm font-semibold text-[var(--text-primary)]">Patrimônio internacional</div>
@@ -447,12 +515,13 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                     );
                   })}
                 </div>
-              </section>
+              </DashboardCard>
             )}
 
             {/* Raio-X da carteira: look-through geográfico e setorial —
                 também disponível em "Consolidado", somando todas as carteiras. */}
-            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".11s" }}>
+            {visible("lookthrough") && (
+            <DashboardCard {...cardProps("lookthrough", 0.11)}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <div className="text-sm font-semibold text-[var(--text-primary)]">Raio-X da carteira</div>
@@ -510,10 +579,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   {(lookThrough.country_coverage * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% da carteira com dado confiável; o restante aparece como &quot;Não mapeado&quot;.
                 </p>
               )}
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Benchmark */}
-            <section className="col-span-8 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".14s" }}>
+            {visible("benchmark") && (
+            <DashboardCard {...cardProps("benchmark", 0.14)}>
               <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">
                 {isConsolidated ? "Rentabilidade — todas as carteiras" : "Rentabilidade da carteira"}
               </div>
@@ -528,15 +599,19 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               >
                 <BenchmarkChart data={benchmark ?? []} />
               </ChartCard>
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Risco & eficiência + Renda passiva — mesma série do benchmark
-                acima, só derivada em vez de exibida diretamente. */}
-            <section className="col-span-4 flex flex-col gap-[18px]">
-              <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".16s" }}>
+                acima, só derivada em vez de exibida diretamente. Um único
+                card arrastável (não dois) porque as duas seções dividem o
+                mesmo espaço vertical do benchmark ao lado. */}
+            {visible("riskpassive") && (
+            <DashboardCard {...cardProps("riskpassive", 0.16)} className="flex flex-col gap-[18px]">
+              <div>
                 <RiskEfficiencyCard benchmark={benchmark ?? []} performance={performance ?? []} />
               </div>
-              <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up flex-1" style={{ animationDelay: ".18s" }}>
+              <div className="pt-[18px] border-t border-[var(--border)]">
                 <PassiveIncomeCard
                   portfolios={portfolios}
                   activePortfolioId={activePortfolioId}
@@ -544,10 +619,12 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                   marketValue={marketValue}
                 />
               </div>
-            </section>
+            </DashboardCard>
+            )}
 
             {/* Posições */}
-            <section className="col-span-12 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up" style={{ animationDelay: ".2s" }}>
+            {visible("positions") && (
+            <DashboardCard {...cardProps("positions", 0.2)}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden p-[3px] gap-1">
                   {(
@@ -605,10 +682,16 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               ) : (
                 activePortfolioId && !isConsolidated && <IncomeTab portfolioId={activePortfolioId} />
               )}
-            </section>
+            </DashboardCard>
+            )}
 
-            {activeTab === "positions" && !isConsolidated && <AuditPanel portfolioId={activePortfolioId} />}
           </div>
+
+          {activeTab === "positions" && !isConsolidated && (
+            <div className="mt-[18px]">
+              <AuditPanel portfolioId={activePortfolioId} />
+            </div>
+          )}
         </div>
       )}
 

@@ -18,6 +18,10 @@ interface DashboardCardProps {
   onSpanChange: (id: string, span: number) => void;
   delay?: number;
   className?: string;
+  /** Sem borda/fundo/padding próprios — para quando o conteúdo já tem seu
+   *  próprio cartão visual distinto (ex.: o gradiente do FireSimulator) e só
+   *  precisa da posição/arraste/redimensionamento do grid por cima. */
+  bare?: boolean;
   /** Repassado ao elemento raiz — usado pelo tour guiado para achar o card. */
   "data-tour"?: string;
   children: React.ReactNode;
@@ -45,6 +49,7 @@ export function DashboardCard({
   onSpanChange,
   delay = 0,
   className = "",
+  bare = false,
   "data-tour": dataTour,
   children,
 }: DashboardCardProps) {
@@ -69,9 +74,11 @@ export function DashboardCard({
           animationDelay: `${delay}s`,
         } as React.CSSProperties
       }
-      className={`dashboard-card animate-rise-up relative border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] overflow-hidden ${
-        customize ? "cursor-grab active:cursor-grabbing ring-1 ring-[var(--border-strong)]" : ""
-      } ${dragged === id ? "opacity-50" : ""} ${className}`}
+      className={`dashboard-card animate-rise-up relative overflow-hidden ${
+        bare ? "" : "border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)]"
+      } ${customize ? "cursor-grab active:cursor-grabbing ring-1 ring-[var(--border-strong)]" : ""} ${
+        dragged === id ? "opacity-50" : ""
+      } ${className}`}
     >
       {children}
 

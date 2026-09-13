@@ -25,20 +25,23 @@ function realRiskPct(allocation: AllocationSlice[]): number | null {
 
 interface RiskProfileCardProps {
   allocation: AllocationSlice[];
+  /** Sem o cartão próprio (borda/sombra/padding) — para quando o pai já
+   * embrulha isto num DashboardCard da grade ajustável (Metas). */
+  bare?: boolean;
 }
 
 /** Perfil de risco declarado (persistido em Configurações) comparado com a
  * alocação real da carteira consolidada. Os percentuais-alvo por perfil são
  * uma referência didática comum (não uma recomendação personalizada de um
  * profissional certificado) — dito explicitamente no rodapé do card. */
-export function RiskProfileCard({ allocation }: RiskProfileCardProps) {
+export function RiskProfileCard({ allocation, bare = false }: RiskProfileCardProps) {
   const { data: settings } = useSettings();
   const patchMutation = usePatchSettings();
   const selected = PROFILES.find((p) => p.value === settings?.risk_profile) ?? null;
   const real = realRiskPct(allocation);
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+    <section className={bare ? "" : "border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"}>
       <div className="flex items-center gap-2 mb-1">
         <ShieldCheck size={16} className="text-[var(--accent)]" />
         <div className="text-sm font-semibold text-[var(--text-primary)]">Seu perfil</div>

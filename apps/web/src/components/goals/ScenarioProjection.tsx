@@ -27,7 +27,15 @@ function projectedValue(currentInvested: number, monthlyContribution: number, an
  * de retorno — puro juros compostos a partir do patrimônio investido atual,
  * sem endpoint novo no backend. Mesma lógica do FireSimulator, horizonte
  * fixo em vez de "anos até o alvo". */
-export function ScenarioProjection({ currentInvested }: { currentInvested: number }) {
+export function ScenarioProjection({
+  currentInvested,
+  bare = false,
+}: {
+  currentInvested: number;
+  /** Sem o cartão próprio (borda/sombra/padding) — para quando o pai já
+   * embrulha isto num DashboardCard da grade ajustável (Metas). */
+  bare?: boolean;
+}) {
   const [contrib, setContrib] = useState(CONTRIB_OPTS[1]);
   const mask = useMask();
 
@@ -35,7 +43,7 @@ export function ScenarioProjection({ currentInvested }: { currentInvested: numbe
   const maxValue = Math.max(...values.map((v) => v.value), 1);
 
   return (
-    <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+    <div className={bare ? "" : "border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"}>
       <div className="text-sm font-semibold text-[var(--text-primary)]">Cenários em 20 anos</div>
       <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
         Onde seu patrimônio poderia chegar sob três taxas reais de retorno diferentes

@@ -29,7 +29,7 @@ function loadProgress(): Set<string> {
  * carteira: é a mesma trilha para todo mundo, o que já entrega valor sem
  * fabricar uma recomendação individualizada que a plataforma não tem base
  * de dados para calcular. */
-export function LearningTrack() {
+export function LearningTrack({ bare = false }: { bare?: boolean } = {}) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [hydrated, setHydrated] = useState(false);
 
@@ -55,7 +55,7 @@ export function LearningTrack() {
   const pct = hydrated ? Math.round((done.size / MODULES.length) * 100) : 0;
 
   return (
-    <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
+    <section className={bare ? "" : "border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"}>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <GraduationCap size={16} className="text-[var(--accent)]" />

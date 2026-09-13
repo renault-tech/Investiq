@@ -39,14 +39,18 @@ const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", 
 // como um card próprio depois destes (ver `cardSpecs`), em vez da lista
 // única e rolável de antes: numa lista com altura fixa, conta que passasse
 // do fim ficava invisível sem nenhum indício de que existia.
+// Ordem padrão segue o agrupamento do design de referência: patrimônio+
+// alocação, depois fluxo+saúde financeira, depois o trio movimentações/
+// fatura/metas — mesmo conteúdo de antes, só a ordem/tamanho padrão mudou
+// (continua tudo arrastável e redimensionável em "Personalizar").
 const BASE_CARDS: DashboardCardSpec[] = [
   { id: "net", label: "Patrimônio", defaultSpan: 8, minSpan: 6 },
   { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
-  { id: "flow", label: "Fluxo de caixa", defaultSpan: 5, minSpan: 4 },
+  { id: "flow", label: "Fluxo de caixa", defaultSpan: 8, minSpan: 4 },
+  { id: "health", label: "Saúde financeira", defaultSpan: 4, minSpan: 3 },
+  { id: "tx", label: "Movimentações", defaultSpan: 5, minSpan: 4 },
   { id: "bill", label: "Fatura", defaultSpan: 3, minSpan: 3 },
   { id: "goals", label: "Metas", defaultSpan: 4, minSpan: 3 },
-  { id: "tx", label: "Movimentações", defaultSpan: 8, minSpan: 6 },
-  { id: "health", label: "Saúde financeira", defaultSpan: 4, minSpan: 3 },
 ];
 const LEGACY_STORAGE_KEY = "investiq-overview-layout";
 
