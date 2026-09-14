@@ -36,6 +36,7 @@ import { ForecastChart } from "./ForecastChart";
 // projeção/categorias) — "Contas" não é card aqui, vive como tira compacta
 // no cabeçalho ao lado do seletor de mês.
 const FINANCE_CARDS: DashboardCardSpec[] = [
+  { id: "summary", label: "Gasto no mês", defaultSpan: 4, minSpan: 3 },
   { id: "budgets", label: "Orçamento por categoria", defaultSpan: 4, minSpan: 3 },
   { id: "donut", label: "Onde o dinheiro foi", defaultSpan: 4, minSpan: 3 },
   { id: "cards", label: "Cartões", defaultSpan: 4, minSpan: 3 },
@@ -191,12 +192,6 @@ export function FinancesClient() {
         </div>
       </div>
 
-      {summaryError && !summaryLoading ? (
-        <ErrorState title="Não foi possível carregar o resumo do mês." onRetry={refetchSummary} />
-      ) : (
-        <SummaryCards summary={summary} isLoading={summaryLoading} />
-      )}
-
       {customize && (
         <div className="flex items-center gap-3 flex-wrap px-4 py-3 border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] animate-rise-up">
           <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
@@ -273,6 +268,16 @@ export function FinancesClient() {
             <MonthStepper month={month} onShift={shiftMonth} compact ariaContext="previsto" />
           </div>
           <PlannedVsActual transactions={txnList?.items ?? []} isLoading={txnLoading} />
+        </DashboardCard>
+        )}
+
+        {visible("summary") && (
+        <DashboardCard {...cardProps("summary", 0.22)} bare>
+          {summaryError && !summaryLoading ? (
+            <ErrorState title="Não foi possível carregar o resumo do mês." onRetry={refetchSummary} />
+          ) : (
+            <SummaryCards summary={summary} isLoading={summaryLoading} />
+          )}
         </DashboardCard>
         )}
 

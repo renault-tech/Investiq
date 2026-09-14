@@ -186,7 +186,27 @@ export function CardsClient() {
                     </div>
                   </div>
                 )}
+                {/* CTA principal sempre visível, como no design — mas o rótulo
+                    conta a verdade: "confirmar" é converter os itens da
+                    fatura lida por IA em lançamentos reais, o que só faz
+                    sentido enquanto ela está em revisão. Fora disso não há
+                    "pagamento" nenhum a registrar aqui (o app não controla
+                    se a fatura do banco foi paga), então o botão leva pros
+                    detalhes em vez de fingir uma ação que erraria (409/422
+                    no confirm de uma fatura já confirmada). */}
                 <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveCardId(card.id);
+                      setActiveInvoiceId(latestInvoice && latestInvoice.status === "review" ? latestInvoice.id : null);
+                      setTimeout(() => invoicesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                    }}
+                    className="flex-1 h-[30px] rounded-[9px] text-[11.5px] font-semibold transition-opacity hover:opacity-90"
+                    style={{ background: "#F2F4F7", color: "#14161C" }}
+                  >
+                    {latestInvoice && latestInvoice.status === "review" ? "Confirmar fatura" : "Ver fatura"}
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -199,20 +219,6 @@ export function CardsClient() {
                   >
                     Detalhes
                   </button>
-                  {latestInvoice && latestInvoice.status === "review" && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveCardId(card.id);
-                        setActiveInvoiceId(latestInvoice.id);
-                        setTimeout(() => invoicesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-                      }}
-                      className="flex-1 h-[30px] rounded-[9px] text-[11.5px] font-semibold transition-opacity hover:opacity-90"
-                      style={{ background: "#F2F4F7", color: "#14161C" }}
-                    >
-                      Pagar fatura
-                    </button>
-                  )}
                 </div>
               </div>
             );

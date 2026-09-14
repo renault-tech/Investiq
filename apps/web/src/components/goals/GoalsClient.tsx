@@ -28,8 +28,9 @@ import { useUIStore } from "@/store/useUIStore";
 // Finanças. A grade de metas em si (acima) não entra aqui: é uma lista de
 // tamanho variável definida pelo usuário, não um conjunto fixo de widgets.
 const GOALS_CARDS: DashboardCardSpec[] = [
-  { id: "fire", label: "Independência financeira", defaultSpan: 8, minSpan: 6 },
-  { id: "risk", label: "Seu perfil", defaultSpan: 4, minSpan: 3 },
+  { id: "fire", label: "Independência financeira", defaultSpan: 5, minSpan: 4 },
+  { id: "goalslist", label: "Suas metas", defaultSpan: 4, minSpan: 3 },
+  { id: "risk", label: "Seu perfil", defaultSpan: 3, minSpan: 3 },
   { id: "scenario", label: "Cenários", defaultSpan: 6, minSpan: 4 },
   { id: "learning", label: "Trilha rápida", defaultSpan: 6, minSpan: 4 },
   { id: "plan", label: "Plano de aportes sugerido", defaultSpan: 12, minSpan: 8 },
@@ -61,7 +62,17 @@ function paceStatus(goal: Goal): { label: string; color: string } | null {
   return { label: "No ritmo", color: "var(--text-secondary)" };
 }
 
-function GoalCard({ goal, index }: { goal: Goal; index: number }) {
+interface GoalCardProps {
+  goal: Goal;
+  index: number;
+  /** Sem cartão próprio (borda/sombra/padding) — usado dentro do card "Suas
+   *  metas" da grade ajustável, onde cada meta é uma linha separada por
+   *  divisor em vez de um card à parte (mesma ideia do design de referência). */
+  bare?: boolean;
+}
+
+function GoalCard({ goal, index, bare = false }: GoalCardProps) {
+  const [expanded, setExpanded] = useState(!bare);
   const [contribution, setContribution] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const mask = useMask();
@@ -81,10 +92,15 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
 
   return (
     <section
-      className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
-      style={{ animationDelay: `${index * 0.05}s` }}
+      className={bare ? "py-3.5 first:pt-0 last:pb-0" : "border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"}
+      style={bare ? undefined : { animationDelay: `${index * 0.05}s` }}
     >
-      <div className="flex items-center gap-2.5">
+      <div
+        className={`flex items-center gap-2.5 ${bare ? "cursor-pointer" : ""}`}
+        onClick={bare ? () => setExpanded((v) => !v) : undefined}
+        role={bare ? "button" : undefined}
+        aria-expanded={bare ? expanded : undefined}
+      >
         <div
           className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center text-[13px] flex-shrink-0"
           style={{ background: goal.color ? `color-mix(in srgb, ${goal.color} 16%, transparent)` : "var(--surface-2)", color }}
@@ -111,7 +127,7 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
         <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: color }} />
       </div>
 
-      {!goal.is_complete && (
+      {!goal.is_complete && expanded && (
         <form onSubmit={handleContribute} className="flex items-center gap-1.5 mt-4 pt-4 border-t border-[var(--border)]">
           <input
             type="text"
@@ -214,33 +230,10 @@ export function GoalsClient() {
 
   return (
     <div className="p-[26px_30px_60px]">
-      <div className="flex items-center justify-end mb-4">
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px]"
-          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-        >
-          <Plus size={15} /> Nova meta
-        </button>
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleCreate} className="flex items-end gap-2 mb-5 p-4 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] flex-wrap">
-          <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Viagem, Reserva de emergência" className="flex-1 min-w-[160px]" />
-          <Input label="Valor alvo (R$)" inputMode="decimal" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} placeholder="0,00" className="w-32" />
-          <Input label="Data alvo (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-          <Button type="submit" size="sm" loading={createMutation.isPending}>Salvar</Button>
-        </form>
-      )}
-
       {!isLoading && goals.length === 0 ? (
         <EmptyState icon={Target} title="Nenhuma meta definida." description="Crie uma meta e acompanhe o progresso até o valor alvo." action={<Button onClick={() => setShowForm(true)}>Criar meta</Button>} />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-[18px]">
-            {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} />)}
-          </div>
-
           {customize && (
             <div className="flex items-center gap-3 flex-wrap px-4 py-3 mt-[18px] border border-dashed border-[var(--accent)] rounded-2xl bg-[var(--glow)] animate-rise-up">
               <span className="text-[12.5px] font-medium text-[var(--text-primary)]">
@@ -268,6 +261,33 @@ export function GoalsClient() {
             {visible("fire") && (
               <DashboardCard {...cardProps("fire", 0)} bare>
                 <FireSimulator currentInvested={Number(portfolioSummary?.total_market_value_brl ?? 0)} />
+              </DashboardCard>
+            )}
+            {visible("goalslist") && (
+              <DashboardCard {...cardProps("goalslist", 0.03)}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">Suas metas</div>
+                  <button
+                    onClick={() => setShowForm((v) => !v)}
+                    className="text-[11.5px] font-medium"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    + Nova meta
+                  </button>
+                </div>
+                {showForm && (
+                  <form onSubmit={handleCreate} className="flex flex-col gap-2 my-3 p-3 border border-[var(--border)] bg-[var(--surface-2)] rounded-[var(--radius-card-sm)]">
+                    <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Viagem, Reserva de emergência" />
+                    <div className="flex gap-2">
+                      <Input label="Valor alvo (R$)" inputMode="decimal" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} placeholder="0,00" className="flex-1" />
+                      <Input label="Data alvo (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="flex-1" />
+                    </div>
+                    <Button type="submit" size="sm" loading={createMutation.isPending}>Salvar</Button>
+                  </form>
+                )}
+                <div className="divide-y divide-[var(--border)]">
+                  {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} bare />)}
+                </div>
               </DashboardCard>
             )}
             {visible("risk") && (
