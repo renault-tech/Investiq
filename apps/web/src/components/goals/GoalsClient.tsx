@@ -12,7 +12,6 @@ import { RiskProfileCard } from "./RiskProfileCard";
 import { ScenarioProjection } from "./ScenarioProjection";
 import { LearningTrack } from "./LearningTrack";
 import { formatBRLCompact, formatBRLExact, CATEGORICAL } from "@/components/charts/chartTheme";
-import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -85,32 +84,32 @@ function GoalCard({ goal, index }: { goal: Goal; index: number }) {
       className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
       style={{ animationDelay: `${index * 0.05}s` }}
     >
-      <div className="flex items-center gap-4">
-        <DonutRing size={76} strokeWidth={8} segments={[{ fraction: pct, color }]} className="flex-shrink-0" />
-        <div className="min-w-0">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center text-[13px] flex-shrink-0"
+          style={{ background: goal.color ? `color-mix(in srgb, ${goal.color} 16%, transparent)` : "var(--surface-2)", color }}
+        >
+          {goal.icon ?? "◎"}
+        </div>
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <div className="text-sm font-semibold truncate text-[var(--text-primary)]">{goal.name}</div>
-            {goal.is_complete && <CheckCircle2 size={14} className="text-[var(--accent)] flex-shrink-0" />}
+            <div className="text-[12.5px] font-medium truncate text-[var(--text-primary)]">{goal.name}</div>
+            {goal.is_complete && <CheckCircle2 size={13} className="text-[var(--accent)] flex-shrink-0" />}
           </div>
-          {goal.target_date && (
-            <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">Até {formatDate(goal.target_date)}</div>
-          )}
-          <div className="text-[22px] font-semibold mt-2 tracking-[-.03em] text-[var(--text-primary)]">
-            {Math.round(pct * 100)}%
+          {/* ETA por aporte médio exigiria histórico de contribuições que a API não
+              expõe aqui — mostramos o prazo/ritmo reais em vez de inventar uma conta. */}
+          <div className="text-[10.5px] text-[var(--text-muted)]">
+            {status ? status.label : goal.target_date ? `Até ${formatDate(goal.target_date)}` : "Sem prazo definido"}
           </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="font-mono text-[12px] text-[var(--text-primary)]">{mask(formatBRLCompact(Number(goal.current_amount)))}</div>
+          <div className="font-mono text-[10px] text-[var(--text-muted)]">de {mask(formatBRLCompact(Number(goal.target_amount)))}</div>
         </div>
       </div>
-      <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
-        <div>
-          <div className="text-[var(--text-secondary)]">Acumulado</div>
-          <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(Number(goal.current_amount)))}</b>
-        </div>
-        <div className="text-right">
-          <div className="text-[var(--text-secondary)]">Objetivo</div>
-          <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLCompact(Number(goal.target_amount)))}</b>
-        </div>
+      <div className="h-[5px] rounded-full overflow-hidden mt-3" style={{ background: "var(--border)" }}>
+        <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: color }} />
       </div>
-      {status && <div className="mt-3 text-[11.5px]" style={{ color: status.color }}>{status.label}</div>}
 
       {!goal.is_complete && (
         <form onSubmit={handleContribute} className="flex items-center gap-1.5 mt-4 pt-4 border-t border-[var(--border)]">

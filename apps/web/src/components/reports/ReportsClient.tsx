@@ -68,6 +68,8 @@ export function ReportsClient() {
       label: "Resumo mensal",
       description: "Finanças e investimentos do mês em PDF",
       icon: FileText,
+      fg: "var(--accent)",
+      bg: "color-mix(in srgb, var(--accent) 16%, transparent)",
       run: () => quickGenerate.mutate({ type: "monthly-summary", params: { month, format: "pdf" }, fileName: `resumo-mensal-${month}.pdf` }),
     },
     {
@@ -75,6 +77,8 @@ export function ReportsClient() {
       label: "Extrato consolidado",
       description: "Todos os lançamentos financeiros em CSV",
       icon: Receipt,
+      fg: "var(--accent-2)",
+      bg: "color-mix(in srgb, var(--accent-2) 16%, transparent)",
       run: () => quickGenerate.mutate({ type: "consolidated-statement", params: {}, fileName: "extrato-consolidado.csv" }),
     },
     {
@@ -82,6 +86,8 @@ export function ReportsClient() {
       label: "Rentabilidade vs benchmarks",
       description: "Carteira vs CDI, Ibovespa, Nasdaq e S&P 500",
       icon: TrendingUp,
+      fg: "#2563EB",
+      bg: "color-mix(in srgb, #2563EB 16%, transparent)",
       run: () => quickGenerate.mutate({ type: "benchmark-performance", params: { period: "1y" }, fileName: "rentabilidade-vs-benchmarks.csv" }),
     },
     {
@@ -89,6 +95,8 @@ export function ReportsClient() {
       label: "Relatório fiscal",
       description: "Apuração, DARF e informe de rendimentos",
       icon: Landmark,
+      fg: "var(--warning)",
+      bg: "color-mix(in srgb, var(--warning) 16%, transparent)",
       run: () => quickGenerate.mutate({ type: "tax-report", params: { year }, fileName: `relatorio-fiscal-${year}.csv` }),
     },
   ];
@@ -153,46 +161,49 @@ export function ReportsClient() {
         </div>
       </section>
 
-      <div className="responsive-grid-12 grid gap-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-        <section
-          className="col-span-7 rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
-          style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".08s" }}
-        >
-          <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
-          <div className="flex items-end gap-3 h-[190px] mt-5.5">
-            {comparativo.map((m) => (
-              <div key={m.month} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full h-[158px] flex items-end gap-[3px]">
-                  <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.income) / compMax) * 100}%`, background: "var(--accent)" }} />
-                  <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.expense) / compMax) * 100}%`, background: "var(--surface-3)", animationDelay: ".08s" }} />
-                </div>
-                <span className="text-[10.5px] text-[var(--text-muted)]">{monthShort(m.month)}</span>
-              </div>
-            ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-[18px]">
+        {QUICK_ACTIONS.map((action, i) => (
+          <div
+            key={action.type}
+            className="rounded-[18px] p-5 flex flex-col gap-3 shadow-[var(--shadow)] animate-rise-up"
+            style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: `${0.06 + i * 0.03}s` }}
+          >
+            <div className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0" style={{ background: action.bg, color: action.fg }}>
+              <action.icon size={16} />
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold text-[var(--text-primary)]">{action.label}</div>
+              <div className="text-[11.5px] text-[var(--text-secondary)] mt-1 leading-[1.5]">{action.description}</div>
+            </div>
+            <button
+              onClick={action.run}
+              disabled={quickGenerate.isPending}
+              className="mt-auto self-start text-[11.5px] font-semibold rounded-[9px] px-3 py-1.5 disabled:opacity-60"
+              style={{ color: "var(--on-accent)", background: "var(--accent)" }}
+            >
+              Gerar
+            </button>
           </div>
-        </section>
-
-        <section
-          className="col-span-5 rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
-          style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".14s" }}
-        >
-          <div className="text-sm font-semibold text-[var(--text-primary)] mb-4">Ações rápidas</div>
-          <div className="grid grid-cols-2 gap-3">
-            {QUICK_ACTIONS.map((action) => (
-              <button
-                key={action.type}
-                onClick={action.run}
-                disabled={quickGenerate.isPending}
-                className="text-left p-3.5 rounded-[12px] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors disabled:opacity-60"
-              >
-                <action.icon size={16} style={{ color: "var(--accent)" }} />
-                <div className="text-[12px] font-medium text-[var(--text-primary)] mt-2">{action.label}</div>
-                <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">{action.description}</div>
-              </button>
-            ))}
-          </div>
-        </section>
+        ))}
       </div>
+
+      <section
+        className="rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
+        style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".2s" }}
+      >
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
+        <div className="flex items-end gap-3 h-[190px] mt-5.5">
+          {comparativo.map((m) => (
+            <div key={m.month} className="flex-1 flex flex-col items-center gap-2">
+              <div className="w-full h-[158px] flex items-end gap-[3px]">
+                <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.income) / compMax) * 100}%`, background: "var(--accent)" }} />
+                <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.expense) / compMax) * 100}%`, background: "var(--surface-3)", animationDelay: ".08s" }} />
+              </div>
+              <span className="text-[10.5px] text-[var(--text-muted)]">{monthShort(m.month)}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up">
         <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Relatórios gerados</div>

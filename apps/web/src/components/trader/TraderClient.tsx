@@ -112,7 +112,7 @@ export function TraderClient() {
       <MarketOverviewStrip />
 
       <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
-        <section className="col-span-3 border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)] animate-rise-up">
+        <section className="col-span-3 rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)] animate-rise-up" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
           <WatchlistTable selected={selectedTicker} onSelect={setSelected} />
         </section>
 
@@ -173,22 +173,22 @@ export function TraderClient() {
       </div>
 
       {selectedTicker && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[18px] mt-[18px]">
-          <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-4">
+        <div className="grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+          <div className="rounded-[var(--radius-card-sm)] p-4" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
             <div className="text-[11px] text-[var(--text-secondary)]">RSI (14)</div>
             <div className="text-xl font-semibold mt-1 tabular-nums" style={{ color: rsiRead.tone === "sell" ? "var(--danger)" : rsiRead.tone === "buy" ? "var(--accent)" : "var(--text-primary)" }}>
               {lastRsi != null ? lastRsi.toFixed(1) : "—"}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{rsiRead.label}</div>
           </div>
-          <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-4">
+          <div className="rounded-[var(--radius-card-sm)] p-4" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
             <div className="text-[11px] text-[var(--text-secondary)]">MACD</div>
             <div className="text-xl font-semibold mt-1 tabular-nums" style={{ color: macdRead.tone === "sell" ? "var(--danger)" : macdRead.tone === "buy" ? "var(--accent)" : "var(--text-primary)" }}>
               {lastMacd != null ? (lastMacd >= 0 ? "+" : "") + lastMacd.toFixed(2) : "—"}
             </div>
             <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{macdRead.label}</div>
           </div>
-          <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-4">
+          <div className="rounded-[var(--radius-card-sm)] p-4" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
             <div className="text-[11px] text-[var(--text-secondary)]">Médias móveis</div>
             <div className="text-xl font-semibold mt-1 tabular-nums text-[var(--text-primary)]">
               {maRead ? `${maRead.above} de ${maRead.total}` : "—"}
@@ -197,7 +197,7 @@ export function TraderClient() {
               {maRead && maRead.above >= maRead.total / 2 ? "maioria compradoras" : "maioria vendedoras"}
             </div>
           </div>
-          <div className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] p-4">
+          <div className="rounded-[var(--radius-card-sm)] p-4" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
             <div className="text-[11px] text-[var(--text-secondary)]">Volatilidade 30d</div>
             <div className="text-xl font-semibold mt-1 tabular-nums text-[var(--text-primary)]">
               {vol30 != null ? formatPercent(vol30, 1) : "—"}

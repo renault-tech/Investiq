@@ -1,9 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown, PlayCircle, Search } from "lucide-react";
+import { BookOpen, ChevronDown, CreditCard, LineChart, PlayCircle, Receipt, Search, ShieldCheck } from "lucide-react";
 import { HELP_ARTICLES, TUTORIALS } from "@/lib/tutorials";
 import { useTour } from "@/components/tour/TourProvider";
+
+// Categorias reais — cada uma referencia rotas de TUTORIALS e ids de
+// HELP_ARTICLES que já existem; a contagem vem de filtrar essas listas, não
+// de um número fixo (evita divergir do conteúdo real conforme ele cresce).
+const CATEGORIES = [
+  { key: "investimentos", title: "Investimentos", Icon: LineChart, fg: "var(--accent)", bg: "color-mix(in srgb, var(--accent) 16%, transparent)", routes: ["/investments", "/investments/[ticker]", "/trader"], articleIds: [] as string[] },
+  { key: "financas", title: "Finanças", Icon: Receipt, fg: "var(--accent-2)", bg: "color-mix(in srgb, var(--accent-2) 16%, transparent)", routes: ["/finances", "/finances/planejamento", "/finances/analise", "/finances/importar", "/transactions"], articleIds: ["contas-a-pagar"] },
+  { key: "cartoes", title: "Cartões", Icon: CreditCard, fg: "#2563EB", bg: "color-mix(in srgb, #2563EB 16%, transparent)", routes: ["/finances/cards"], articleIds: [] as string[] },
+  { key: "config", title: "Configurações & IA", Icon: ShieldCheck, fg: "var(--warning)", bg: "color-mix(in srgb, var(--warning) 16%, transparent)", routes: ["/settings"], articleIds: ["gemini", "brapi"] },
+];
 
 function Accordion({
   title,
@@ -45,6 +55,7 @@ function Accordion({
 
 export function HelpClient() {
   const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(HELP_ARTICLES[0]?.id ?? null);
   const { startTour } = useTour();
 
@@ -52,11 +63,13 @@ export function HelpClient() {
   const matches = (haystack: string[]) =>
     !needle || haystack.some((text) => text.toLowerCase().includes(needle));
 
-  const articles = HELP_ARTICLES.filter((a) =>
-    matches([a.title, a.summary, ...a.steps, a.note ?? ""])
+  const category = CATEGORIES.find((c) => c.key === activeCategory) ?? null;
+
+  const articles = HELP_ARTICLES.filter(
+    (a) => (!category || category.articleIds.includes(a.id)) && matches([a.title, a.summary, ...a.steps, a.note ?? ""])
   );
-  const screens = TUTORIALS.filter((t) =>
-    matches([t.label, t.summary, ...t.steps.flatMap((s) => [s.title, s.body])])
+  const screens = TUTORIALS.filter(
+    (t) => (!category || category.routes.includes(t.route)) && matches([t.label, t.summary, ...t.steps.flatMap((s) => [s.title, s.body])])
   );
 
   return (
@@ -83,6 +96,30 @@ export function HelpClient() {
           aria-label="Buscar na ajuda"
           className="w-full pl-9 pr-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--surface-2)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {CATEGORIES.map((cat) => {
+          const count = TUTORIALS.filter((t) => cat.routes.includes(t.route)).length + HELP_ARTICLES.filter((a) => cat.articleIds.includes(a.id)).length;
+          const active = activeCategory === cat.key;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setActiveCategory(active ? null : cat.key)}
+              aria-pressed={active}
+              className="text-left rounded-[14px] p-4 flex items-center gap-3"
+              style={{ border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`, background: "linear-gradient(180deg,var(--t4),var(--t1))" }}
+            >
+              <div className="w-9 h-9 rounded-[11px] flex items-center justify-center flex-shrink-0" style={{ background: cat.bg, color: cat.fg }}>
+                <cat.Icon size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] font-medium text-[var(--text-primary)]">{cat.title}</div>
+                <div className="text-[10.5px] text-[var(--text-muted)]">{count} artigo{count === 1 ? "" : "s"}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <section className="space-y-2">

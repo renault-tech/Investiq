@@ -185,6 +185,16 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const pnlPercent = Number(summary?.total_pnl_percent ?? 0);
   const xirrPercent = summary?.xirr_percent != null ? Number(summary.xirr_percent) : null;
 
+  // % do CDI no período selecionado — último ponto de `benchmark` (mesma
+  // query do gráfico de rentabilidade vs benchmarks, sem query nova). CDI
+  // pode faltar em carteiras muito novas (poucos snapshots), por isso null.
+  const lastBenchmarkPoint = benchmark && benchmark.length > 0 ? benchmark[benchmark.length - 1] : null;
+  const vsCdiPercent =
+    lastBenchmarkPoint?.cdi_pct != null && lastBenchmarkPoint.cdi_pct !== 0
+      ? (lastBenchmarkPoint.portfolio_pct / lastBenchmarkPoint.cdi_pct) * 100
+      : null;
+  const periodLabel = PERIODS.find((p) => p.value === performancePeriod)?.label ?? performancePeriod;
+
   // Ativos cuja moeda nativa não é BRL — agrupados por moeda, com o valor
   // nativo (o que aparece na corretora americana) ao lado do equivalente
   // em reais já usado no resto da tela.
@@ -385,6 +395,22 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                           {mask(formatPercent(xirrPercent ?? 0, 1, { signed: true }))}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {(isBenchmarkLoading || vsCdiPercent !== null) && (
+                    <div>
+                      <div className="text-[11.5px] text-[var(--text-secondary)] tracking-[.06em] uppercase">Vs CDI</div>
+                      {isBenchmarkLoading ? (
+                        <Skeleton className="h-[17px] w-16 mt-1" />
+                      ) : (
+                        <div
+                          className="text-[17px] font-semibold mt-0.5"
+                          style={{ color: (vsCdiPercent ?? 0) >= 100 ? "var(--accent)" : "var(--danger)" }}
+                        >
+                          {mask(`${formatPercent(vsCdiPercent ?? 0, 0)} do CDI`)}
+                        </div>
+                      )}
+                      <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">{periodLabel}</div>
                     </div>
                   )}
                 </div>
