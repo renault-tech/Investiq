@@ -39,6 +39,10 @@ const NAV_ITEMS = [
  * /investments/{TICKER} quando o texto parece um ticker (2-8
  * letras/números maiúsculos), não uma busca por nome de empresa. Expandir
  * pra busca por nome exige endpoint novo no backend, fora deste escopo. */
+/** Evento que abre a paleta a partir de outro componente (o botão de busca
+ *  do cabeçalho), sem acoplar os dois por estado compartilhado. */
+export const OPEN_COMMAND_PALETTE_EVENT = "investiq:open-command-palette";
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -64,8 +68,21 @@ export function CommandPalette() {
         setOpen(false);
       }
     }
+    // O botão de busca do cabeçalho abre a paleta por este evento — evita
+    // guardar um "aberto" global num store persistido (que reabriria a
+    // paleta sozinha a cada recarga da página).
+    function onOpenRequest() {
+      if (tourActive) return;
+      setOpen(true);
+      setQuery("");
+      setSelected(0);
+    }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpenRequest);
+    };
   }, [tourActive]);
 
   // Defensivo: se um tour aparecer enquanto a paleta já está aberta (ex.:

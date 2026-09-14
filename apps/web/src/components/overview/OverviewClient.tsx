@@ -43,14 +43,19 @@ const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", 
 // alocação, depois fluxo+saúde financeira, depois o trio movimentações/
 // fatura/metas — mesmo conteúdo de antes, só a ordem/tamanho padrão mudou
 // (continua tudo arrastável e redimensionável em "Personalizar").
+// Disposição do design de referência: primeira linha com três cards iguais
+// (patrimônio, fluxo, saúde) e, na segunda, a lista de movimentações alta à
+// esquerda com fatura e metas empilhadas ao lado — daí o `rowSpan` em "tx".
+// Alocação e os cards por conta/carteira (que o design não tem, mas mostram
+// dado real) vêm depois, sem competir com o topo da tela.
 const BASE_CARDS: DashboardCardSpec[] = [
-  { id: "net", label: "Patrimônio", defaultSpan: 8, minSpan: 6 },
-  { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
-  { id: "flow", label: "Fluxo de caixa", defaultSpan: 8, minSpan: 4 },
+  { id: "net", label: "Patrimônio", defaultSpan: 4, minSpan: 4 },
+  { id: "flow", label: "Fluxo de caixa", defaultSpan: 4, minSpan: 4 },
   { id: "health", label: "Saúde financeira", defaultSpan: 4, minSpan: 3 },
-  { id: "tx", label: "Movimentações", defaultSpan: 5, minSpan: 4 },
-  { id: "bill", label: "Fatura", defaultSpan: 3, minSpan: 3 },
-  { id: "goals", label: "Metas", defaultSpan: 4, minSpan: 3 },
+  { id: "tx", label: "Movimentações", defaultSpan: 7, minSpan: 4, defaultRowSpan: 2 },
+  { id: "bill", label: "Fatura", defaultSpan: 5, minSpan: 3 },
+  { id: "goals", label: "Metas", defaultSpan: 5, minSpan: 3 },
+  { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
 ];
 const LEGACY_STORAGE_KEY = "investiq-overview-layout";
 
@@ -334,6 +339,7 @@ export function OverviewClient() {
     customize,
     span: layout.spanOf(id),
     minSpan: layout.specById[id]?.minSpan,
+    rowSpan: layout.specById[id]?.defaultRowSpan,
     dragged: layout.dragged,
     onDragStart: layout.handleDragStart,
     onDrop: layout.handleDrop,
@@ -443,56 +449,58 @@ export function OverviewClient() {
         {visible("net") && (
           <DashboardCard {...widgetProps("net", 0)}>
             <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(700px 220px at 12% -10%, var(--glow), transparent 70%)" }} />
-            <div className="relative flex items-start gap-5 flex-wrap">
-              <div className="flex-1">
-                <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Patrimônio líquido</div>
-                <div className="flex items-baseline gap-3.5 mt-2">
-                  {netWorthLoading ? (
-                    <Skeleton className="h-[44px] w-56" />
-                  ) : (
-                    <div className="text-[44px] font-semibold tracking-[-.045em] tabular-nums whitespace-nowrap text-[var(--text-primary)]">
-                      {mask(formatBRLExact(netWorth))}
-                    </div>
-                  )}
-                  {!netWorthLoading && <DeltaPill fraction={netDeltaFraction} />}
-                </div>
-                <div className="text-[12.5px] text-[var(--text-secondary)] mt-1.5">Contas, investimentos e faturas em aberto</div>
+            {/* Composição do design de referência: rótulo, valor grande com a
+                variação do dia ao lado e, embaixo, a legenda compacta —
+                dimensionada para caber em ⅓ da largura da tela. */}
+            <div className="relative">
+              <div className="text-xs text-[var(--text-secondary)] tracking-[.08em] uppercase">Patrimônio líquido</div>
+              <div className="flex items-baseline gap-2.5 mt-2 flex-wrap">
+                {netWorthLoading ? (
+                  <Skeleton className="h-[40px] w-48" />
+                ) : (
+                  <div className="font-semibold tracking-[-.045em] tabular-nums whitespace-nowrap text-[var(--text-primary)] text-[clamp(26px,2.5vw,40px)]">
+                    {mask(formatBRLExact(netWorth))}
+                  </div>
+                )}
+                {!netWorthLoading && <DeltaPill fraction={netDeltaFraction} />}
               </div>
-              <div className="flex gap-6 pt-1.5 flex-wrap">
+              <div className="text-[12.5px] text-[var(--text-secondary)] mt-1.5">Contas, investimentos e faturas em aberto</div>
+
+              <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3.5">
                 <div>
-                  <div className="text-[11.5px] text-[var(--text-secondary)]">Líquido</div>
+                  <div className="text-[11px] text-[var(--text-secondary)]">Líquido</div>
                   {netWorthLoading ? (
-                    <Skeleton className="h-[17px] w-16 mt-1" />
+                    <Skeleton className="h-[15px] w-14 mt-1" />
                   ) : (
-                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(liquid))}</div>
+                    <div className="text-[13.5px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(liquid))}</div>
                   )}
                 </div>
                 <div>
-                  <div className="text-[11.5px] text-[var(--text-secondary)]">Investido</div>
+                  <div className="text-[11px] text-[var(--text-secondary)]">Investido</div>
                   {netWorthLoading ? (
-                    <Skeleton className="h-[17px] w-16 mt-1" />
+                    <Skeleton className="h-[15px] w-14 mt-1" />
                   ) : (
-                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
+                    <div className="text-[13.5px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(invested))}</div>
                   )}
                 </div>
                 {mode === "pro" && !netWorthLoading && invested > 0 && (
                   <>
                     <div>
-                      <div className="text-[11.5px] text-[var(--text-secondary)]">· Nacional</div>
-                      <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(nationalInvested))}</div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">· Nacional</div>
+                      <div className="text-[13.5px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(nationalInvested))}</div>
                     </div>
                     <div>
-                      <div className="text-[11.5px] text-[var(--text-secondary)]">· Internacional</div>
-                      <div className="text-[17px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(internationalInvested))}</div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">· Internacional</div>
+                      <div className="text-[13.5px] font-semibold mt-0.5 tabular-nums text-[var(--text-primary)]">{mask(formatBRLCompact(internationalInvested))}</div>
                     </div>
                   </>
                 )}
                 <div>
-                  <div className="text-[11.5px] text-[var(--text-secondary)]">Passivos</div>
+                  <div className="text-[11px] text-[var(--text-secondary)]">Passivos</div>
                   {netWorthLoading ? (
-                    <Skeleton className="h-[17px] w-16 mt-1" />
+                    <Skeleton className="h-[15px] w-14 mt-1" />
                   ) : (
-                    <div className="text-[17px] font-semibold mt-0.5 tabular-nums" style={{ color: billTotal > 0 ? "var(--danger)" : "var(--text-primary)" }}>
+                    <div className="text-[13.5px] font-semibold mt-0.5 tabular-nums" style={{ color: billTotal > 0 ? "var(--danger)" : "var(--text-primary)" }}>
                       {mask(formatBRLCompact(billTotal))}
                     </div>
                   )}

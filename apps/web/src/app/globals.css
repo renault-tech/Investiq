@@ -224,6 +224,7 @@ body {
 @media (min-width: 768px) {
   .dashboard-card {
     grid-column: span var(--card-span, 4);
+    grid-row: span var(--card-rows, 1);
   }
 }
 

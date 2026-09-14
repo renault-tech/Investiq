@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Search, ChevronDown, LogOut, LayoutGrid, Check } from "lucide-react";
+import { Eye, EyeOff, Search, ChevronDown, LogOut, LayoutGrid, Check, HelpCircle, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period } from "@/store/useUIStore";
@@ -11,6 +11,9 @@ import { logout } from "@/lib/api-client";
 import { useMarketQuotes } from "@/hooks/useAssetData";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { ActionCenterDropdown } from "./ActionCenterDropdown";
+import { OPEN_COMMAND_PALETTE_EVENT } from "./CommandPalette";
+import { TransactionModal } from "@/components/finances/TransactionModal";
+import { useCategories } from "@/hooks/useFinance";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { formatDecimal, formatPercent } from "@/lib/number-format";
 
@@ -22,7 +25,7 @@ const PERIODS: Period[] = ["1M", "6M", "1A", "Tudo"];
 // A ordem importa: a busca é por prefixo e para no primeiro que casa, então
 // /finances/cards precisa vir ANTES de /finances.
 const PAGE_TITLES: { prefix: string; title: string; sub: string; crumb: string }[] = [
-  { prefix: "/overview", title: "Visão geral", sub: "Seu patrimônio consolidado", crumb: "Painel" },
+  { prefix: "/overview", title: "Visão geral", sub: "Seu patrimônio consolidado", crumb: "Patrimônio" },
   { prefix: "/finances/cards", title: "Cartões de crédito", sub: "Faturas e limites dos seus cartões", crumb: "Finanças" },
   { prefix: "/finances", title: "Finanças pessoais", sub: "Fluxo de caixa, categorias e projeção de saldo", crumb: "Painel" },
   { prefix: "/investments", title: "Investimentos", sub: "Carteira consolidada", crumb: "Painel" },
@@ -101,6 +104,14 @@ function TickerStrip() {
   );
 }
 
+/** Componente separado para que `useCategories` só rode quando o modal abre —
+ *  montado direto no TopBar, a query iria atrás das categorias em toda tela
+ *  do app, inclusive nas que não têm nada a ver com finanças. */
+function NewTransactionModal({ onClose }: { onClose: () => void }) {
+  const { data: categories = [] } = useCategories();
+  return <TransactionModal categories={categories} onClose={onClose} />;
+}
+
 export function TopBar() {
   const { privacy, togglePrivacy, period, setPeriod, customize, toggleCustomize } = useUIStore(
     useShallow((s) => ({
@@ -116,7 +127,7 @@ export function TopBar() {
   const setUser = useUserStore((s) => s.setUser);
   const router = useRouter();
   const pathname = usePathname();
-  const [search, setSearch] = useState("");
+  const [showNewTxn, setShowNewTxn] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const wide = useIsWideScreen();
@@ -145,14 +156,6 @@ export function TopBar() {
     queryClient.clear();
     router.push("/login");
   }
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const ticker = search.trim().toUpperCase();
-    if (!ticker) return;
-    router.push(`/investments/${encodeURIComponent(ticker)}`);
-    setSearch("");
-  };
 
   // Telas com cards ajustáveis (arrastar/redimensionar/ocultar) — o botão
   // de personalizar só faz sentido onde há um painel pra organizar.
@@ -189,23 +192,6 @@ export function TopBar() {
           <div className="text-[12.5px] text-[var(--text-secondary)] mt-0.5">{page.sub}</div>
         </div>
 
-        {/* Global ticker search */}
-        <form onSubmit={handleSearchSubmit} className="hidden lg:flex flex-1 justify-center max-w-xs mt-1">
-          <div className="relative w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={14} className="text-[var(--text-muted)]" />
-            </div>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar ticker (ex: PETR4)"
-              aria-label="Buscar ativo por ticker"
-              className="block w-full pl-9 pr-3 h-[34px] border border-[var(--border)] rounded-[10px] text-[12.5px] bg-[var(--surface-2)] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-            />
-          </div>
-        </form>
-
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {/* Period pills */}
           <div
@@ -227,19 +213,45 @@ export function TopBar() {
             ))}
           </div>
 
-          {/* Feedback — discreto, mas presente em toda tela: o relato vale
-              justamente por sair de onde o problema apareceu. */}
-          <FeedbackButton />
-
-          {/* Privacy toggle */}
+          {/* Privacy toggle — rotulado, como no design: um olho sozinho não
+              dizia se estava escondendo ou mostrando valores. */}
           <button
             data-tour="topbar-privacy"
             onClick={togglePrivacy}
             title={privacy ? "Mostrar valores" : "Ocultar valores"}
             aria-pressed={privacy}
+            className="flex items-center gap-1.5 h-[34px] px-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-[12.5px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+          >
+            {privacy ? <EyeOff size={15} /> : <Eye size={15} />}
+            <span className="hidden md:inline">{privacy ? "Mostrar" : "Ocultar"}</span>
+          </button>
+
+          {/* Busca global: pill compacta que abre a paleta ⌘K, em vez do
+              campo largo de ticker — a paleta já busca telas e ativos. */}
+          <button
+            onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
+            aria-label="Buscar (Ctrl+K)"
+            className="hidden sm:flex items-center gap-2 h-[34px] pl-2.5 pr-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-[12.5px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+          >
+            <Search size={14} />
+            <span className="hidden lg:inline">Buscar...</span>
+            <kbd className="font-mono text-[10.5px] px-1.5 py-0.5 rounded-md border border-[var(--border)] bg-[var(--surface-3)] text-[var(--text-secondary)]">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Feedback — discreto, mas presente em toda tela: o relato vale
+              justamente por sair de onde o problema apareceu. */}
+          <FeedbackButton />
+
+          {/* Ajuda */}
+          <button
+            onClick={() => router.push("/ajuda")}
+            aria-label="Central de ajuda"
+            title="Central de ajuda"
             className="w-[34px] h-[34px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
           >
-            <Eye size={15} />
+            <HelpCircle size={15} />
           </button>
 
           {/* Customize (painéis ajustáveis) — só o rótulo some no mobile (sem
@@ -269,6 +281,17 @@ export function TopBar() {
           <ActionCenterDropdown />
 
           <NotificationsDropdown />
+
+          {/* CTA primária do design — cria o lançamento de qualquer tela, em
+              vez de obrigar a passar por Transações antes. */}
+          <button
+            onClick={() => setShowNewTxn(true)}
+            className="flex items-center gap-1.5 h-[34px] px-3 rounded-[10px] text-[12.5px] font-semibold flex-shrink-0"
+            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+          >
+            <Plus size={15} />
+            <span className="hidden md:inline">Nova transação</span>
+          </button>
 
           {/* Avatar/Perfil */}
           {user && (
@@ -317,6 +340,8 @@ export function TopBar() {
           )}
         </div>
       </header>
+
+      {showNewTxn && <NewTransactionModal onClose={() => setShowNewTxn(false)} />}
     </div>
   );
 }

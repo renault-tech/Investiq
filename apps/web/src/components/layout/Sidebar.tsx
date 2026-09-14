@@ -34,10 +34,11 @@ const NAV_ITEMS = [
   { href: "/finances/cards", label: "Cartões", icon: CreditCard },
   { href: "/transactions", label: "Transações", icon: ArrowLeftRight },
   { href: "/goals", label: "Metas", icon: Target },
-  { href: "/taxes", label: "Impostos & IR", icon: Receipt, badge: "NOVO" as const },
   { href: "/reports", label: "Relatórios", icon: FileText },
-  { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
+  { href: "/taxes", label: "Impostos & IR", icon: Receipt, badge: "NOVO" as const },
   { href: "/ajuda", label: "Ajuda", icon: BookOpen },
+  { href: "/settings", label: "Configurações", icon: Settings },
+  { href: "/mobile-preview", label: "App mobile", icon: Smartphone },
 ];
 
 export function Sidebar() {

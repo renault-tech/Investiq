@@ -10,6 +10,9 @@ interface DashboardCardProps {
   customize: boolean;
   span: number;
   minSpan?: number;
+  /** Altura em linhas do grid — deixa um card alto (ex.: uma lista) ficar ao
+   *  lado de dois cards curtos empilhados, como no design de referência. */
+  rowSpan?: number;
   order: number;
   dragged: string | null;
   onDragStart: (id: string) => void;
@@ -41,6 +44,7 @@ export function DashboardCard({
   customize,
   span,
   minSpan = 1,
+  rowSpan = 1,
   order,
   dragged,
   onDragStart,
@@ -71,6 +75,7 @@ export function DashboardCard({
         {
           order,
           "--card-span": Math.min(GRID_COLUMNS, span),
+          "--card-rows": rowSpan,
           animationDelay: `${delay}s`,
         } as React.CSSProperties
       }

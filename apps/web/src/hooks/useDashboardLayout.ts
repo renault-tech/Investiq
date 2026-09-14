@@ -19,6 +19,9 @@ export interface DashboardCardSpec {
   /** Menor largura que ainda deixa o conteúdo legível (um gráfico não cabe
    *  em ¼ de tela). O controle de tamanho não oferece nada abaixo disso. */
   minSpan?: number;
+  /** Altura em linhas do grid. Não é ajustável pelo usuário (o controle só
+   *  oferece largura); serve para o card alto ao lado de dois empilhados. */
+  defaultRowSpan?: number;
 }
 
 /** Estado de layout de um painel: ordem, ocultos e largura de cada card.

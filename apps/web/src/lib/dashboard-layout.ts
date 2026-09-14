@@ -24,6 +24,17 @@ export const SPAN_LABELS: Record<number, string> = {
   12: "1",
 };
 
+/** Versão do layout padrão que o código entrega.
+ *
+ * Basta o usuário arrastar ou redimensionar **um** card para o storage passar
+ * a guardar a ordem inteira do painel, e `resolveOrder` dá prioridade ao que
+ * está salvo — a partir daí qualquer reorganização feita no código fica
+ * invisível para quem já mexeu, para sempre. Subir este número descarta os
+ * layouts gravados em versões anteriores, de modo que um redesenho realmente
+ * chegue na tela. Só suba quando a disposição padrão mudar de propósito.
+ */
+export const LAYOUT_VERSION = 2;
+
 export interface DashboardLayout {
   /** Ordem de exibição por id de card. Ids desconhecidos são ignorados na
    *  renderização, então um card removido do código não quebra o layout
@@ -53,9 +64,12 @@ export function loadLayout(dashboardId: string, legacyKey?: string): DashboardLa
   };
 
   const parsed = (read(storageKey(dashboardId)) ?? (legacyKey ? read(legacyKey) : null)) as
-    | Partial<DashboardLayout>
+    | (Partial<DashboardLayout> & { version?: number })
     | null;
   if (!parsed || typeof parsed !== "object") return EMPTY_LAYOUT;
+  // Layout gravado antes do redesenho atual: descartar em vez de deixá-lo
+  // sobrepor a disposição nova (o formato antigo nem tinha `version`).
+  if (parsed.version !== LAYOUT_VERSION) return EMPTY_LAYOUT;
 
   return {
     order: Array.isArray(parsed.order) ? parsed.order.filter((id) => typeof id === "string") : [],
@@ -73,7 +87,7 @@ export function loadLayout(dashboardId: string, legacyKey?: string): DashboardLa
 
 export function saveLayout(dashboardId: string, layout: DashboardLayout): void {
   try {
-    localStorage.setItem(storageKey(dashboardId), JSON.stringify(layout));
+    localStorage.setItem(storageKey(dashboardId), JSON.stringify({ ...layout, version: LAYOUT_VERSION }));
   } catch {
     /* modo privado ou storage cheio — o layout só não persiste entre sessões */
   }

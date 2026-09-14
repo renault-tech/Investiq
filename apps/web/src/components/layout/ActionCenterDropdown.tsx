@@ -51,22 +51,25 @@ export function ActionCenterDropdown() {
 
   return (
     <div className="relative" ref={ref}>
+      {/* Pill rotulada "Ações N", como no design de referência: só o ícone
+          com um badge vermelho não dizia o que havia ali dentro. */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        className="flex items-center gap-1.5 h-[34px] px-2.5 rounded-[10px] text-[12.5px] font-medium transition-colors"
+        style={{
+          border: `1px solid ${count > 0 ? "color-mix(in srgb, var(--accent) 35%, transparent)" : "var(--border)"}`,
+          background: count > 0 ? "var(--glow)" : "var(--surface-2)",
+          color: count > 0 ? "var(--accent)" : "var(--text-secondary)",
+        }}
         aria-label={`Central de ações${count > 0 ? ` (${count} pendências)` : ""}`}
         aria-expanded={open}
       >
-        <Inbox size={16} />
+        <Inbox size={15} />
+        <span className="hidden md:inline">Ações</span>
         {count > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-[3px] rounded-full text-[9px] font-semibold flex items-center justify-center text-white"
-            // Fundo escurecido a partir do próprio --danger, não o token puro:
-            // branco sobre --danger dá 4,26:1 no claro e 2,79:1 no escuro, e
-            // 9px não se qualifica como texto grande (mínimo 4,5:1). O
-            // color-mix escurece qualquer que seja o valor do token, nos dois
-            // temas, sem precisar de uma variável nova.
-            style={{ background: "color-mix(in srgb, var(--danger) 72%, #000)" }}
+            className="min-w-[17px] h-[17px] px-[4px] rounded-full text-[10px] font-semibold flex items-center justify-center"
+            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
           >
             {count > 9 ? "9+" : count}
           </span>
