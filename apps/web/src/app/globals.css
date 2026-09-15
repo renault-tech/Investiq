@@ -191,6 +191,11 @@ body {
 @keyframes ring { from { stroke-dashoffset: 360; } }
 @keyframes pulseDot { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+/* A faixa de mercado do cabeçalho renderiza a lista duas vezes seguidas
+   (ver TickerStrip em TopBar.tsx) e desliza exatamente metade da própria
+   largura — como as duas metades são idênticas, o corte é invisível e o
+   loop parece contínuo, sem precisar recalcular nada em JS. */
+@keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
 .animate-rise-up { animation: riseUp .5s both; }
 .animate-slide-in { animation: slideIn .32s cubic-bezier(.3,0,.2,1) both; }
@@ -198,6 +203,8 @@ body {
 .animate-grow-y { transform-origin: bottom; animation: growY .8s cubic-bezier(.4,0,.2,1) both; }
 .animate-ring { animation: ring 1.2s cubic-bezier(.5,0,.2,1) both; }
 .animate-pulse-dot { animation: pulseDot 2.4s infinite; }
+.animate-ticker-scroll { animation: tickerScroll 38s linear infinite; }
+.animate-ticker-scroll:hover { animation-play-state: paused; }
 
 /* As grades de 12 colunas das telas principais fixam `gridTemplateColumns`
    e o `gridColumn: span N` de cada card via inline style (calculado a

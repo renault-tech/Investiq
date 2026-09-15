@@ -3,28 +3,9 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { useMarketQuotes } from "@/hooks/useAssetData";
 import { Quote } from "@/lib/market-api";
+import { MARKET_INSTRUMENTS, formatInstrumentValue, type InstrumentKind } from "@/lib/market-instruments";
 
-type Kind = "points" | "brl" | "usd";
-
-const INSTRUMENTS: { ticker: string; label: string; kind: Kind }[] = [
-  { ticker: "^BVSP", label: "Ibovespa", kind: "points" },
-  { ticker: "^GSPC", label: "S&P 500", kind: "points" },
-  { ticker: "^IXIC", label: "Nasdaq", kind: "points" },
-  { ticker: "^DJI", label: "Dow Jones", kind: "points" },
-  { ticker: "USDBRL=X", label: "Dólar", kind: "brl" },
-  { ticker: "EURBRL=X", label: "Euro", kind: "brl" },
-  { ticker: "BTC-USD", label: "Bitcoin", kind: "usd" },
-  { ticker: "GC=F", label: "Ouro", kind: "usd" },
-  { ticker: "CL=F", label: "Petróleo (WTI)", kind: "usd" },
-];
-
-function formatValue(value: number, kind: Kind): string {
-  if (kind === "brl") return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  if (kind === "usd") return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-  return value.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
-}
-
-function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: Quote; kind: Kind; delay: number }) {
+function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: Quote; kind: InstrumentKind; delay: number }) {
   const positive = (quote?.change_pct ?? 0) >= 0;
   return (
     <div
@@ -35,7 +16,7 @@ function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: 
       {quote ? (
         <>
           <div className="text-[16px] font-semibold mt-1 tabular-nums text-[var(--text-primary)]">
-            {formatValue(quote.price, kind)}
+            {formatInstrumentValue(quote.price, kind)}
           </div>
           <div
             className="flex items-center gap-1 text-[11.5px] mt-0.5"
@@ -55,13 +36,13 @@ function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: 
 }
 
 export function MarketOverviewStrip() {
-  const tickers = INSTRUMENTS.map((i) => i.ticker);
+  const tickers = MARKET_INSTRUMENTS.map((i) => i.ticker);
   const { data: quotes, isLoading } = useMarketQuotes(tickers);
   const byTicker = new Map((quotes ?? []).map((q) => [q.ticker, q]));
 
   return (
     <div className="flex gap-3 flex-wrap">
-      {INSTRUMENTS.map((inst, i) => (
+      {MARKET_INSTRUMENTS.map((inst, i) => (
         <InstrumentCard
           key={inst.ticker}
           label={inst.label}

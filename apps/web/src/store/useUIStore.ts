@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_ACCENT_ID, getAccentOption } from "@/lib/accentPalette";
+import { DEFAULT_TICKER_INSTRUMENTS } from "@/lib/market-instruments";
 
 export type Period = "1M" | "6M" | "1A" | "Tudo";
 export type Density = "comfortable" | "compact";
@@ -13,6 +14,9 @@ interface UIStore {
   customize: boolean;
   accentColorId: string;
   density: Density;
+  /** Tickers (ex.: "^BVSP") mostrados na faixa de mercado do cabeçalho —
+   *  ver lib/market-instruments.ts para a lista completa disponível. */
+  tickerInstruments: string[];
   setFontScale: (scale: number) => void;
   toggleSidebar: () => void;
   togglePrivacy: () => void;
@@ -20,6 +24,7 @@ interface UIStore {
   toggleCustomize: () => void;
   setAccentColor: (id: string) => void;
   setDensity: (density: Density) => void;
+  setTickerInstruments: (tickers: string[]) => void;
 }
 
 /** Densidade afeta o padding vertical das tabelas de listagem (Posições,
@@ -63,6 +68,7 @@ export const useUIStore = create<UIStore>()(
       customize: false,
       accentColorId: DEFAULT_ACCENT_ID,
       density: "comfortable",
+      tickerInstruments: DEFAULT_TICKER_INSTRUMENTS,
       setFontScale: (scale) => {
         const clamped = Math.min(1.5, Math.max(0.75, scale));
         set({ fontScale: clamped });
@@ -82,6 +88,7 @@ export const useUIStore = create<UIStore>()(
         set({ density });
         applyDensity(density);
       },
+      setTickerInstruments: (tickers) => set({ tickerInstruments: tickers }),
     }),
     {
       name: "investiq-ui",
@@ -98,6 +105,7 @@ export const useUIStore = create<UIStore>()(
         period: s.period,
         accentColorId: s.accentColorId,
         density: s.density,
+        tickerInstruments: s.tickerInstruments,
       }),
       onRehydrateStorage: () => (state) => {
         if (state && typeof document !== "undefined") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Search, ChevronDown, LogOut, LayoutGrid, Check, HelpCircle, Plus } from "lucide-react";
+import { Eye, EyeOff, Search, ChevronDown, LogOut, LayoutGrid, Check, HelpCircle, Plus, Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period } from "@/store/useUIStore";
@@ -9,13 +9,14 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/api-client";
 import { useMarketQuotes } from "@/hooks/useAssetData";
+import { MARKET_INSTRUMENTS, formatInstrumentValue } from "@/lib/market-instruments";
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { ActionCenterDropdown } from "./ActionCenterDropdown";
 import { OPEN_COMMAND_PALETTE_EVENT } from "./CommandPalette";
 import { TransactionModal } from "@/components/finances/TransactionModal";
 import { useCategories } from "@/hooks/useFinance";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
-import { formatDecimal, formatPercent } from "@/lib/number-format";
+import { formatPercent } from "@/lib/number-format";
 
 const PERIODS: Period[] = ["1M", "6M", "1A", "Tudo"];
 
@@ -40,14 +41,6 @@ const PAGE_TITLES: { prefix: string; title: string; sub: string; crumb: string }
   { prefix: "/ajuda", title: "Central de ajuda", sub: "Tutoriais e o que cada tela faz", crumb: "Conta" },
 ];
 
-const TICKER_LABELS: Record<string, string> = {
-  "^BVSP": "IBOV",
-  "^GSPC": "S&P 500",
-  "^IXIC": "NASDAQ",
-  "USDBRL=X": "USD/BRL",
-};
-const TICKERS = Object.keys(TICKER_LABELS);
-
 /** A faixa só existe a partir de `lg`. Esconder por CSS não basta: o
  * componente continuaria montado e a query rebuscaria cotações de minuto em
  * minuto, em toda tela, para quem nem vê a faixa. Aqui ela nem monta. */
@@ -63,43 +56,125 @@ function useIsWideScreen() {
   return wide;
 }
 
-/** Faixa de cotações ao vivo, sobre o `useMarketQuotes` que já existe em
- * hooks/useAssetData.ts — nenhuma API nova.
- *
- * A queryKey daquele hook é a lista inteira de tickers, então caches só são
- * compartilhados entre chamadas com EXATAMENTE a mesma lista: estes 4 são um
- * subconjunto dos 9 do MarketOverviewStrip, mas isso não os faz reaproveitar
- * nada. Daí a faixa não ser montada no Trader (ver `showTicker`) — senão as
- * duas consultas conviveriam ali, cada uma repetindo de minuto em minuto. */
-function TickerStrip() {
-  const { data } = useMarketQuotes(TICKERS);
-  const items = data ?? [];
-  if (items.length === 0) return null;
+/** Painel de checkboxes pra escolher quais instrumentos aparecem na faixa —
+ * a lista inteira vem de lib/market-instruments.ts, a mesma do Trader. */
+function TickerSettingsPanel({ selected, onChange, onClose }: { selected: string[]; onChange: (t: string[]) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [onClose]);
+
+  const toggle = (ticker: string) => {
+    onChange(selected.includes(ticker) ? selected.filter((t) => t !== ticker) : selected.concat(ticker));
+  };
 
   return (
     <div
-      className="hidden lg:flex items-center h-[34px] border-b border-[var(--border)] overflow-hidden"
+      ref={ref}
+      className="absolute top-full right-2 mt-1.5 w-56 bg-[var(--surface)] border border-[var(--border-strong)] rounded-[12px] shadow-lg z-50 p-2"
+    >
+      <div className="text-[10.5px] tracking-[.08em] uppercase text-[var(--text-muted)] px-2 py-1.5">
+        Cotações na faixa
+      </div>
+      {MARKET_INSTRUMENTS.map((inst) => (
+        <label
+          key={inst.ticker}
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[12.5px] text-[var(--text-secondary)] hover:bg-[var(--surface-2)] cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(inst.ticker)}
+            onChange={() => toggle(inst.ticker)}
+            className="accent-[var(--accent)]"
+          />
+          {inst.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Faixa de cotações ao vivo, sobre o `useMarketQuotes` que já existe em
+ * hooks/useAssetData.ts (atualiza a cada 60s) — nenhuma API nova.
+ *
+ * Rola em looping contínuo (CSS puro, `animate-ticker-scroll`): a lista
+ * inteira é renderizada duas vezes seguidas e desliza metade da própria
+ * largura, então quando a primeira cópia sai da tela a segunda já está
+ * exatamente no lugar da primeira — o corte fica invisível.
+ *
+ * A queryKey do hook é a lista inteira de tickers, então caches só são
+ * compartilhados entre chamadas com EXATAMENTE a mesma lista — daí a faixa
+ * não ser montada no Trader (ver `showTicker`), que já tem seu próprio
+ * `MarketOverviewStrip` com todos os 9 instrumentos; as duas conviveriam ali,
+ * cada uma com sua própria busca a cada minuto. */
+function TickerStrip() {
+  const tickerInstruments = useUIStore((s) => s.tickerInstruments);
+  const setTickerInstruments = useUIStore((s) => s.setTickerInstruments);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const selected = MARKET_INSTRUMENTS.filter((i) => tickerInstruments.includes(i.ticker));
+  const tickers = selected.map((i) => i.ticker);
+  const { data } = useMarketQuotes(tickers);
+  const byTicker = new Map((data ?? []).map((q) => [q.ticker, q]));
+
+  if (selected.length === 0) {
+    return (
+      <div className="hidden lg:flex items-center h-[42px] px-3.5 border-b border-[var(--border)] text-[11.5px] text-[var(--text-muted)]" style={{ background: "var(--surface-2)" }}>
+        Nenhuma cotação selecionada.
+        <button onClick={() => setSettingsOpen(true)} className="ml-2 font-medium" style={{ color: "var(--accent)" }}>
+          Escolher cotações
+        </button>
+      </div>
+    );
+  }
+
+  const renderItem = (inst: (typeof MARKET_INSTRUMENTS)[number], key: string) => {
+    const q = byTicker.get(inst.ticker);
+    const positive = (q?.change_pct ?? 0) >= 0;
+    return (
+      <span key={key} className="flex items-center gap-2 whitespace-nowrap">
+        <span className="text-[11px] text-[var(--text-muted)] tracking-[.04em] uppercase">{inst.label}</span>
+        <span className="font-mono text-[14px] font-medium text-[var(--text-primary)]">
+          {q ? formatInstrumentValue(q.price, inst.kind) : "—"}
+        </span>
+        {q?.change_pct != null && (
+          <span className="font-mono text-[12px]" style={{ color: positive ? "var(--accent)" : "var(--danger)" }}>
+            {formatPercent(q.change_pct, 2, { signed: true })}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  return (
+    <div
+      className="hidden lg:flex items-center h-[42px] border-b border-[var(--border)] relative"
       style={{ background: "var(--surface-2)" }}
     >
-      <div className="flex items-center gap-1.5 px-3.5 h-full border-r border-[var(--border)] flex-shrink-0">
-        <span className="w-[5px] h-[5px] rounded-full animate-pulse-dot" style={{ background: "var(--accent)" }} />
-        <span className="text-[10px] tracking-[.12em] uppercase font-semibold text-[var(--text-muted)]">Mercado</span>
+      <div className="flex items-center gap-1.5 px-4 h-full border-r border-[var(--border)] flex-shrink-0">
+        <span className="w-[6px] h-[6px] rounded-full animate-pulse-dot" style={{ background: "var(--accent)" }} />
+        <span className="text-[10.5px] tracking-[.12em] uppercase font-semibold text-[var(--text-muted)]">Mercado</span>
       </div>
       <div className="flex-1 overflow-hidden h-full">
-        <div className="flex gap-6 items-center h-full pl-4 whitespace-nowrap font-mono text-[11.5px]">
-          {items.map((q) => (
-            <span key={q.ticker} className="text-[var(--text-muted)]">
-              {TICKER_LABELS[q.ticker] ?? q.ticker}{" "}
-              <span className="text-[var(--text-primary)]">{formatDecimal(q.price)}</span>{" "}
-              {q.change_pct !== null && (
-                <span style={{ color: q.change_pct >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                  {formatPercent(q.change_pct, 2, { signed: true })}
-                </span>
-              )}
-            </span>
-          ))}
+        <div className="flex items-center h-full animate-ticker-scroll" style={{ width: "max-content" }}>
+          <div className="flex items-center gap-8 pl-6 pr-6">{selected.map((inst) => renderItem(inst, `a-${inst.ticker}`))}</div>
+          <div aria-hidden="true" className="flex items-center gap-8 pr-6">{selected.map((inst) => renderItem(inst, `b-${inst.ticker}`))}</div>
         </div>
       </div>
+      <button
+        onClick={() => setSettingsOpen((v) => !v)}
+        aria-label="Personalizar cotações"
+        title="Personalizar cotações"
+        className="flex items-center justify-center w-[34px] h-full border-l border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] flex-shrink-0"
+      >
+        <Settings size={14} />
+      </button>
+      {settingsOpen && (
+        <TickerSettingsPanel selected={tickerInstruments} onChange={setTickerInstruments} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
 }
