@@ -190,6 +190,39 @@ async def _get_portfolio_cash_flows(
     return flows
 
 
+async def _fetch_live_prices(
+    tickers: list[str], cache, provider
+) -> dict[str, Decimal]:
+    """Cotação ao vivo por ticker (cache-first) — mesma fonte que já
+    alimenta o valor "atual" de get_portfolio_summary. Compartilhada com
+    get_portfolio_performance/get_consolidated_performance para que o ponto
+    de "hoje" no gráfico bata com esse mesmo valor ao vivo, em vez de ficar
+    preso no fechamento de ontem até o pregão de hoje fechar."""
+    live_prices: dict[str, Decimal] = {}
+    if cache:
+        cached_quotes = await cache.get_quotes(tickers)
+        for ticker, quote in cached_quotes.items():
+            live_prices[ticker] = quote.price
+        missing = [t for t in tickers if t not in live_prices]
+    else:
+        missing = tickers
+
+    if missing:
+        try:
+            fresh_quotes = await provider.get_quotes(missing)
+        except Exception as exc:
+            # Mesma degradação graciosa do histórico (_fetch_closes): sem
+            # cotação ao vivo, quem chamou já sabe cair no fechamento
+            # carregado adiante — não vale derrubar a rota inteira por isso.
+            logger.warning("Live quote fetch failed for %s: %s", missing, exc)
+            fresh_quotes = {}
+        for ticker, quote in fresh_quotes.items():
+            live_prices[ticker] = quote.price
+        if cache and fresh_quotes:
+            await cache.set_quotes(fresh_quotes)
+    return live_prices
+
+
 async def get_portfolio_summary(
     portfolio_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -234,23 +267,8 @@ async def get_portfolio_summary(
     # sintético, e a chamada só desperdiçaria uma requisição fadada a falhar.
     tickers = [p.asset.ticker for p in positions if p.asset.asset_type != "cash"]
     cache = get_cache(redis) if redis else None
-    live_prices: dict[str, Decimal] = {}
-
-    if cache:
-        cached_quotes = await cache.get_quotes(tickers)
-        for ticker, quote in cached_quotes.items():
-            live_prices[ticker] = quote.price
-        missing = [t for t in tickers if t not in live_prices]
-    else:
-        missing = tickers
-
-    if missing:
-        provider = get_provider(preferred_provider, brapi_key)
-        fresh_quotes = await provider.get_quotes(missing)
-        for ticker, quote in fresh_quotes.items():
-            live_prices[ticker] = quote.price
-        if cache:
-            await cache.set_quotes(fresh_quotes)
+    provider = get_provider(preferred_provider, brapi_key)
+    live_prices = await _fetch_live_prices(tickers, cache, provider)
 
     # Build per-position data
     fx_rates = await _get_fx_rates_to_brl({p.asset.currency for p in positions}, db)
@@ -489,12 +507,24 @@ async def get_portfolio_performance(
 
     # Um round-trip por ticker (cache ou provedor) — em série isso é a
     # latência dominante da rota com uma carteira de 10+ ativos; em paralelo
-    # vira o tempo do mais lento, não a soma de todos.
-    closes_list = await asyncio.gather(*(_fetch_closes(t) for t in tickers))
+    # vira o tempo do mais lento, não a soma de todos. A cotação ao vivo
+    # (mesma fonte de get_portfolio_summary) entra na mesma leva — sem ela,
+    # o ponto de "hoje" ficaria preso no fechamento de ontem até o pregão de
+    # hoje fechar e o histórico ser atualizado (até 4h de cache).
+    closes_list, live_prices = await asyncio.gather(
+        asyncio.gather(*(_fetch_closes(t) for t in tickers)),
+        _fetch_live_prices(tickers, cache, provider),
+    )
     closes: dict[str, list[tuple[date, Decimal]]] = dict(zip(tickers, closes_list))
 
     def close_at(ticker: str, day: date) -> Optional[Decimal]:
         """Most recent close on or before the given date.
+
+        Para o dia de hoje, prefere a cotação ao vivo (mesma que já aparece
+        no valor "atual" da carteira) — assim que ela existir, o gráfico
+        mostra o preço real de agora em vez de esperar o fechamento oficial
+        do dia. Sem cotação ao vivo hoje (provedor fora do ar), cai no
+        mesmo fallback de sempre.
 
         Sem nenhum fechamento até a data (o histórico do provedor começa
         depois do primeiro aporte), devolve o mais antigo conhecido em vez de
@@ -502,6 +532,10 @@ async def get_portfolio_performance(
         despencar a zero naquele dia e voltar no dia seguinte — o vale
         vertical que aparecia no gráfico de patrimônio.
         """
+        if day == today:
+            live = live_prices.get(ticker)
+            if live is not None:
+                return live
         history = closes.get(ticker, [])
         if not history:
             return None
@@ -985,10 +1019,21 @@ async def get_consolidated_performance(
             key=lambda item: item[0],
         )
 
-    closes_list = await asyncio.gather(*(_fetch_closes(t) for t in tickers))
+    # Mesma lógica de get_portfolio_performance: a cotação ao vivo entra na
+    # mesma leva do histórico, pra "hoje" no gráfico bater com o valor "atual"
+    # que já aparece em get_consolidated_summary em vez de esperar o
+    # fechamento oficial do pregão.
+    closes_list, live_prices = await asyncio.gather(
+        asyncio.gather(*(_fetch_closes(t) for t in tickers)),
+        _fetch_live_prices(tickers, cache, provider),
+    )
     closes: dict[str, list[tuple[date, Decimal]]] = dict(zip(tickers, closes_list))
 
     def close_at(ticker: str, day: date) -> Optional[Decimal]:
+        if day == today:
+            live = live_prices.get(ticker)
+            if live is not None:
+                return live
         history = closes.get(ticker, [])
         if not history:
             return None
