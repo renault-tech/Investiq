@@ -57,3 +57,28 @@ async def test_dataframe_vazio_devolve_lista_vazia():
     with patch("yfinance.download", return_value=pd.DataFrame()):
         bars = await YahooFinanceProvider().get_historical("XPTO99", period="1y", interval="1d")
     assert bars == []
+
+
+@pytest.mark.asyncio
+async def test_candle_de_hoje_sem_close_e_omitido_nao_vira_zero():
+    """Regressão: o candle do dia corrente chega com Close=NaN enquanto o
+    pregão não fecha. Antes isso virava um fechamento real de R$ 0,00
+    (`... or Decimal("0")`), que derrubava todo gráfico de patrimônio pro
+    chão até o pregão fechar. Deve ser omitido, não zerado."""
+    dates = pd.to_datetime(["2026-08-08", "2026-08-09", "2026-08-10"])
+    df = pd.DataFrame(
+        {
+            "Open": [38.0, 38.5, 39.0],
+            "High": [38.8, 39.2, float("nan")],
+            "Low": [37.9, 38.3, float("nan")],
+            "Close": [38.6, 39.0, float("nan")],
+            "Volume": [1000000, 1200000, 0],
+        },
+        index=dates,
+    )
+    with patch("yfinance.download", return_value=df):
+        bars = await YahooFinanceProvider().get_historical("PETR4", period="1y", interval="1d")
+
+    assert len(bars) == 2
+    assert all(b.close > 0 for b in bars)
+    assert bars[-1].close == Decimal("39.0")

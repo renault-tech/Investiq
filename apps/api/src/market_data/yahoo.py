@@ -31,13 +31,20 @@ async def _run_with_timeout(loop, fn, *args, fallback):
 
 
 def _to_decimal(value) -> Optional[Decimal]:
-    """Safely convert a value to Decimal, returning None on failure."""
+    """Safely convert a value to Decimal, returning None on failure.
+
+    Also returns None for NaN (pandas' marker for "sem dado nesta célula",
+    ex.: o candle do dia corrente antes do pregão fechar) — `Decimal("nan")`
+    é um valor válido que passa por `is None`, mas comparar com `<=`/`<`/`>`
+    estoura `InvalidOperation` em vez de se comportar como "sem preço".
+    """
     if value is None:
         return None
     try:
-        return Decimal(str(value))
+        d = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
+    return None if d.is_nan() else d
 
 
 class YahooFinanceProvider(MarketDataProvider):
@@ -229,14 +236,23 @@ class YahooFinanceProvider(MarketDataProvider):
                 df.columns = df.columns.get_level_values(0)
             bars = []
             for ts, row in df.iterrows():
+                # O candle de hoje chega com Close=NaN enquanto o pregão não
+                # fecha — sem isso, `or Decimal("0")` transformava "ainda não
+                # temos preço" num fechamento real de R$ 0,00 que persistia no
+                # cache e derrubava todo gráfico de patrimônio pro chão até o
+                # pregão fechar. Omitir o candle deixa `close_at()` (já correto
+                # em portfolio/service.py) repetir o último preço válido.
+                close = _to_decimal(row.get("Close"))
+                if close is None or close <= 0:
+                    continue
                 date = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
                 bars.append(HistoricalBar(
                     ticker=ticker,
                     date=date,
-                    open=_to_decimal(row.get("Open")) or Decimal("0"),
-                    high=_to_decimal(row.get("High")) or Decimal("0"),
-                    low=_to_decimal(row.get("Low")) or Decimal("0"),
-                    close=_to_decimal(row.get("Close")) or Decimal("0"),
+                    open=_to_decimal(row.get("Open")) or close,
+                    high=_to_decimal(row.get("High")) or close,
+                    low=_to_decimal(row.get("Low")) or close,
+                    close=close,
                     volume=int(row.get("Volume") or 0),
                     adjusted_close=_to_decimal(row.get("Close")),
                 ))

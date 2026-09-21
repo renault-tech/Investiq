@@ -14,12 +14,19 @@ BRAPI_BASE = "https://brapi.dev/api"
 
 
 def _to_decimal(value) -> Optional[Decimal]:
+    """Safely convert a value to Decimal, returning None on failure or NaN.
+
+    `Decimal("nan")` passa por `is None` mas estoura `InvalidOperation` em
+    qualquer comparação `<=`/`<`/`>` — tratado como "sem preço" aqui, mesma
+    lógica do provedor Yahoo (yahoo.py) para o candle do dia sem fechamento.
+    """
     if value is None:
         return None
     try:
-        return Decimal(str(value))
+        d = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
+    return None if d.is_nan() else d
 
 
 class BrapiProvider(MarketDataProvider):
@@ -177,14 +184,22 @@ class BrapiProvider(MarketDataProvider):
                 date_ts = bar.get("date")
                 if date_ts is None:
                     continue
+                # Mesmo raciocínio do provedor Yahoo (yahoo.py): o candle de
+                # hoje chega sem "close" enquanto o pregão não fecha — sem
+                # isso, `or Decimal("0")` gravava um fechamento de R$ 0,00
+                # que persistia no cache e derrubava os gráficos de
+                # patrimônio pro chão até o pregão fechar de verdade.
+                close = _to_decimal(bar.get("close"))
+                if close is None or close <= 0:
+                    continue
                 date = datetime.utcfromtimestamp(date_ts)
                 bars.append(HistoricalBar(
                     ticker=ticker,
                     date=date,
-                    open=_to_decimal(bar.get("open")) or Decimal("0"),
-                    high=_to_decimal(bar.get("high")) or Decimal("0"),
-                    low=_to_decimal(bar.get("low")) or Decimal("0"),
-                    close=_to_decimal(bar.get("close")) or Decimal("0"),
+                    open=_to_decimal(bar.get("open")) or close,
+                    high=_to_decimal(bar.get("high")) or close,
+                    low=_to_decimal(bar.get("low")) or close,
+                    close=close,
                     volume=int(bar.get("volume") or 0),
                     adjusted_close=_to_decimal(bar.get("adjustedClose")),
                 ))
