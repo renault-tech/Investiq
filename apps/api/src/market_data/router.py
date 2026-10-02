@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.market_data.factory import get_provider, get_cache
+from src.market_data.quotes import get_quotes_resilient
 from src.market_data.dependencies import get_redis, get_user_provider_settings
 from src.market_data.base import is_b3_ticker
 from src.market_data.schemas import (
@@ -167,15 +168,8 @@ async def get_quotes(
         return []
 
     cache = get_cache(redis) if redis else None
-    quotes = await cache.get_quotes(ticker_list) if cache else {}
-
-    missing = [t for t in ticker_list if t not in quotes]
-    if missing:
-        provider = get_provider(provider_settings["preferred"], provider_settings["brapi_key"])
-        fresh = await provider.get_quotes(missing)
-        quotes.update(fresh)
-        if cache and fresh:
-            await cache.set_quotes(fresh)
+    provider = get_provider(provider_settings["preferred"], provider_settings["brapi_key"])
+    quotes = await get_quotes_resilient(ticker_list, cache, provider)
 
     return [
         QuoteResponse(ticker=t, price=quotes[t].price, currency=quotes[t].currency, change_pct=quotes[t].change_pct)

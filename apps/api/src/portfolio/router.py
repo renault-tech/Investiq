@@ -1,8 +1,9 @@
 """Portfolio API router."""
 import uuid
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -352,6 +353,22 @@ async def add_position_to_portfolio(
         asset_type=body.asset_type,
         name=body.name,
     )
+
+
+@router.get("/transactions", response_model=list[TransactionResponse])
+async def list_transactions(
+    position_ids: Optional[str] = Query(default=None, description="UUIDs separados por vírgula"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Transações de investimento do usuário em lote, mais recentes primeiro."""
+    ids: Optional[list[uuid.UUID]] = None
+    if position_ids:
+        try:
+            ids = [uuid.UUID(v.strip()) for v in position_ids.split(",") if v.strip()]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="position_ids inválido")
+    return await service.list_user_transactions(current_user.id, db, ids)
 
 
 @router.get("/positions/{position_id}/transactions", response_model=list[TransactionResponse])

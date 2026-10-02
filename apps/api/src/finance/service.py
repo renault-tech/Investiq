@@ -256,8 +256,12 @@ def _txn_to_dict(
         # marcada se o vencimento já passou), não uma confirmação de
         # verdade. O usuário sempre pode corrigir com o check/"Pagar" na
         # tabela, o que materializa a ocorrência na hora.
+        # Compara por DIA: com o horário, uma conta recorrente que vence hoje
+        # às 12:00 virava "paga" à tarde e sumia do inbox no próprio dia do
+        # vencimento — justamente quando o "Vence hoje" mais importa.
         now = datetime.now(timezone.utc)
-        is_paid = due <= now
+        due_aware = due if due.tzinfo else due.replace(tzinfo=timezone.utc)
+        is_paid = due_aware.date() < now.date()
         paid_at = None
     else:
         is_paid = txn.is_paid

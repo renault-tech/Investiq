@@ -21,6 +21,13 @@ HISTORY_TTL = 14400
 FUNDAMENTALS_TTL = 86400
 # Fund composition TTL (7 days — index/ETF weightings rebalance quarterly at most)
 FUND_COMPOSITION_TTL = 604800
+# Última cotação conhecida de cada ticker — servida quando os provedores
+# estão fora do ar, em vez de o ativo sumir/zerar (7 dias cobre feriado longo).
+LAST_KNOWN_TTL = 604800
+# Cache negativo: ticker que nenhum provedor respondeu não é perguntado de
+# novo por esse tempo. Sem isso cada request repetia os 8-10 s de timeout do
+# Yahoo+Brapi enquanto eles estivessem bloqueados.
+MISS_TTL = 90
 
 # String-valued Fundamentals fields — everything else in the dataclass is a
 # Decimal and needs Decimal(...) reconstruction on read.
@@ -86,6 +93,12 @@ class MarketDataCache:
     def _quote_key(self, ticker: str) -> str:
         return f"quote:{ticker.upper()}"
 
+    def _last_known_key(self, ticker: str) -> str:
+        return f"quote_last:{ticker.upper()}"
+
+    def _miss_key(self, ticker: str) -> str:
+        return f"quote_miss:{ticker.upper()}"
+
     def _history_key(self, ticker: str, period: str, interval: str) -> str:
         return f"history:{ticker.upper()}:{period}:{interval}"
 
@@ -105,11 +118,9 @@ class MarketDataCache:
 
     async def set_quote(self, quote: Quote, ttl: int = QUOTE_TTL) -> None:
         try:
-            await self._redis.setex(
-                self._quote_key(quote.ticker),
-                ttl,
-                json.dumps(_quote_to_dict(quote)),
-            )
+            payload = json.dumps(_quote_to_dict(quote))
+            await self._redis.set(self._quote_key(quote.ticker), payload, ex=ttl)
+            await self._redis.set(self._last_known_key(quote.ticker), payload, ex=LAST_KNOWN_TTL)
         except Exception as exc:
             logger.warning("Cache set_quote failed for %s: %s", quote.ticker, exc)
 
@@ -139,14 +150,52 @@ class MarketDataCache:
         try:
             pipe = self._redis.pipeline()
             for quote in quotes.values():
-                pipe.setex(
-                    self._quote_key(quote.ticker),
-                    ttl,
-                    json.dumps(_quote_to_dict(quote)),
-                )
+                payload = json.dumps(_quote_to_dict(quote))
+                pipe.set(self._quote_key(quote.ticker), payload, ex=ttl)
+                pipe.set(self._last_known_key(quote.ticker), payload, ex=LAST_KNOWN_TTL)
             await pipe.execute()
         except Exception as exc:
             logger.warning("Cache set_quotes pipeline failed: %s", exc)
+
+    async def get_last_known_quotes(self, tickers: list[str]) -> dict[str, Quote]:
+        """Última cotação boa de cada ticker, mesmo que já passada do TTL de 5 min."""
+        if not tickers:
+            return {}
+        try:
+            raws = await self._redis.mget(*[self._last_known_key(t) for t in tickers])
+        except Exception as exc:
+            logger.warning("Cache get_last_known_quotes failed: %s", exc)
+            return {}
+        result = {}
+        for ticker, raw in zip(tickers, raws):
+            if raw is not None:
+                try:
+                    result[ticker] = _dict_to_quote(json.loads(raw))
+                except Exception:
+                    pass
+        return result
+
+    async def get_recent_misses(self, tickers: list[str]) -> set[str]:
+        """Tickers que nenhum provedor respondeu nos últimos MISS_TTL segundos."""
+        if not tickers:
+            return set()
+        try:
+            raws = await self._redis.mget(*[self._miss_key(t) for t in tickers])
+        except Exception as exc:
+            logger.warning("Cache get_recent_misses failed: %s", exc)
+            return set()
+        return {t for t, raw in zip(tickers, raws) if raw is not None}
+
+    async def mark_misses(self, tickers: list[str], ttl: int = MISS_TTL) -> None:
+        if not tickers:
+            return
+        try:
+            pipe = self._redis.pipeline()
+            for ticker in tickers:
+                pipe.set(self._miss_key(ticker), "1", ex=ttl)
+            await pipe.execute()
+        except Exception as exc:
+            logger.warning("Cache mark_misses failed: %s", exc)
 
     async def invalidate(self, ticker: str) -> None:
         try:

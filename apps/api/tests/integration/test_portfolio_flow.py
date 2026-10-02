@@ -533,3 +533,38 @@ async def test_cash_position_has_no_market_quote_and_values_at_one_to_one(client
     assert pos["quantity"] == "500.00000000"
     assert Decimal(pos["market_value_brl"]) == Decimal("500")
     assert Decimal(pos["current_price"]) == Decimal("1")
+
+
+@pytest.mark.asyncio
+async def test_batch_transactions_returns_only_own_and_filters_by_position(client, db_session):
+    """GET /portfolios/transactions — o Diário do Trader buscava uma posição
+    por vez; o lote precisa respeitar o dono e o filtro por posição."""
+    owner = await register_and_login(client)
+    other = await register_and_login(client)
+
+    async def buy(headers, ticker):
+        pf = await client.post("/portfolios/", json={"name": "P", "currency": "BRL"}, headers=headers)
+        pos = await client.post(f"/portfolios/{pf.json()['id']}/positions", json={"ticker": ticker}, headers=headers)
+        pid = pos.json()["id"]
+        r = await client.post(
+            "/portfolios/transactions",
+            json={"position_id": pid, "transaction_type": "buy", "quantity": 1, "unit_price": 10,
+                  "fees": 0, "fx_rate": 1, "transaction_date": "2026-01-02T12:00:00Z"},
+            headers=headers,
+        )
+        assert r.status_code == 201
+        return pid
+
+    mine_a = await buy(owner["headers"], "PETR4")
+    mine_b = await buy(owner["headers"], "VALE3")
+    theirs = await buy(other["headers"], "ITUB4")
+
+    resp = await client.get("/portfolios/transactions", headers=owner["headers"])
+    assert resp.status_code == 200
+    assert {t["position_id"] for t in resp.json()} == {mine_a, mine_b}
+
+    resp = await client.get(f"/portfolios/transactions?position_ids={mine_a},{theirs}", headers=owner["headers"])
+    assert [t["position_id"] for t in resp.json()] == [mine_a]
+
+    resp = await client.get("/portfolios/transactions?position_ids=nope", headers=owner["headers"])
+    assert resp.status_code == 422

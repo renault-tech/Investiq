@@ -30,6 +30,7 @@ from src.market_data.bcb import get_cdi_daily_rates
 from src.shared.decimal_utils import multiply, pct_change, round_financial
 from src.shared.exceptions import NotFoundError, ForbiddenError, ConflictError, ValidationError
 from src.shared.fx import get_fx_rates_to_brl as _get_fx_rates_to_brl
+from src.market_data.quotes import get_quotes_resilient
 
 logger = logging.getLogger(__name__)
 
@@ -198,28 +199,8 @@ async def _fetch_live_prices(
     get_portfolio_performance/get_consolidated_performance para que o ponto
     de "hoje" no gráfico bata com esse mesmo valor ao vivo, em vez de ficar
     preso no fechamento de ontem até o pregão de hoje fechar."""
-    live_prices: dict[str, Decimal] = {}
-    if cache:
-        cached_quotes = await cache.get_quotes(tickers)
-        for ticker, quote in cached_quotes.items():
-            live_prices[ticker] = quote.price
-        missing = [t for t in tickers if t not in live_prices]
-    else:
-        missing = tickers
-
-    if missing:
-        try:
-            fresh_quotes = await provider.get_quotes(missing)
-        except Exception as exc:
-            # Mesma degradação graciosa do histórico (_fetch_closes): sem
-            # cotação ao vivo, quem chamou já sabe cair no fechamento
-            # carregado adiante — não vale derrubar a rota inteira por isso.
-            logger.warning("Live quote fetch failed for %s: %s", missing, exc)
-            fresh_quotes = {}
-        for ticker, quote in fresh_quotes.items():
-            live_prices[ticker] = quote.price
-        if cache and fresh_quotes:
-            await cache.set_quotes(fresh_quotes)
+    quotes = await get_quotes_resilient(tickers, cache, provider)
+    live_prices = {ticker: quote.price for ticker, quote in quotes.items()}
     return live_prices
 
 
@@ -1379,6 +1360,20 @@ async def list_position_transactions(
         .where(InvestmentTransaction.position_id == position_id)
         .order_by(InvestmentTransaction.transaction_date.desc())
     )
+    return result.scalars().all()
+
+
+async def list_user_transactions(
+    user_id: uuid.UUID, db: AsyncSession, position_ids: Optional[list[uuid.UUID]] = None
+) -> list[InvestmentTransaction]:
+    """Todas as transações do usuário (opcionalmente só de algumas posições)
+    numa consulta só — o Diário do Trader fazia uma requisição por posição.
+    O filtro por user_id já garante a posse, sem precisar carregar cada
+    posição antes."""
+    query = select(InvestmentTransaction).where(InvestmentTransaction.user_id == user_id)
+    if position_ids:
+        query = query.where(InvestmentTransaction.position_id.in_(position_ids))
+    result = await db.execute(query.order_by(InvestmentTransaction.transaction_date.desc()))
     return result.scalars().all()
 
 

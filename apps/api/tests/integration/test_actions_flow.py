@@ -1,4 +1,5 @@
 """Integration: Central de Ações — inbox agregado e priorizado."""
+from dateutil.relativedelta import relativedelta
 from datetime import date, timedelta
 
 import pytest
@@ -106,8 +107,11 @@ async def test_recurring_bill_shows_up_even_after_the_template_was_paid(client):
     session = await register_and_login(client)
     headers = session["headers"]
 
-    # Template vencido há ~1 mês, mensal: a próxima ocorrência cai agora.
-    first_due = date.today() - timedelta(days=30)
+    # Template vencido há ~1 mês, mensal: a próxima ocorrência cai daqui a
+    # 3 dias. "Há 30 dias" fazia a ocorrência cair HOJE nos meses de 30 dias
+    # — e às 12:00 UTC, já passada à tarde, ela é estimada como paga e o
+    # teste falhava conforme o dia/hora em que rodava.
+    first_due = date.today() - relativedelta(months=1) + timedelta(days=3)
     created = await client.post(
         "/finance/transactions",
         json={
@@ -137,3 +141,33 @@ async def test_inbox_is_scoped_to_the_user(client):
 
     assert (await client.get("/actions", headers=b["headers"])).json()["items"] == []
     assert len((await client.get("/actions", headers=a["headers"])).json()["items"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_recurring_bill_due_today_stays_in_the_inbox_all_day(client):
+    """A ocorrência virtual que vence HOJE (em qualquer horário) continua
+    pendente até o fim do dia — antes virava "paga" assim que o horário do
+    vencimento passava e sumia do inbox no próprio dia."""
+    if date.today().day > 28:
+        pytest.skip("RRULE mensal pula dias 29-31 em meses curtos — cenário não se aplica hoje")
+    session = await register_and_login(client)
+    headers = session["headers"]
+    first_due = date.today() - relativedelta(months=1)
+    created = await client.post(
+        "/finance/transactions",
+        json={
+            "transaction_type": "expense",
+            "amount": 50,
+            "description": "Conta que vence hoje",
+            # 00:01 UTC: o horário já passou quando o teste roda.
+            "transaction_date": first_due.isoformat() + "T00:01:00Z",
+            "due_date": first_due.isoformat() + "T00:01:00Z",
+            "recurrence_rule": "RRULE:FREQ=MONTHLY",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+
+    items = (await client.get("/actions", headers=headers)).json()["items"]
+    hoje = [i for i in items if i["title"] == "Conta que vence hoje"]
+    assert hoje and hoje[0]["description"] == "Vence hoje", items

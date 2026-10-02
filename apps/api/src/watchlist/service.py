@@ -10,6 +10,7 @@ from src.portfolio.models import Asset
 from src.watchlist.models import WatchlistItem
 from src.market_data.base import default_currency_for_ticker
 from src.market_data.factory import get_provider, get_cache
+from src.market_data.quotes import get_quotes_resilient
 from src.shared.exceptions import ConflictError, NotFoundError
 
 
@@ -62,20 +63,8 @@ async def list_watchlist(
 
     tickers = [asset.ticker for _, asset in rows]
     cache = get_cache(redis) if redis else None
-    live_quotes: dict[str, Any] = {}
-
-    if cache:
-        live_quotes = await cache.get_quotes(tickers)
-        missing = [t for t in tickers if t not in live_quotes]
-    else:
-        missing = tickers
-
-    if missing:
-        provider = get_provider(preferred_provider, brapi_key)
-        fresh = await provider.get_quotes(missing)
-        live_quotes.update(fresh)
-        if cache and fresh:
-            await cache.set_quotes(fresh)
+    provider = get_provider(preferred_provider, brapi_key)
+    live_quotes: dict[str, Any] = await get_quotes_resilient(tickers, cache, provider)
 
     return [await _to_dict(item, asset, live_quotes.get(asset.ticker)) for item, asset in rows]
 
