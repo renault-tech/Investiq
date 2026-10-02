@@ -77,7 +77,7 @@ export function AlertsManager() {
       )}
 
       {!isLoading && alerts.length === 0 ? (
-        <EmptyState icon={Bell} title="Nenhum alerta criado." description="Crie um alerta de preço para qualquer ticker, mesmo sem tê-lo na carteira." />
+        <EmptyState size="sm" icon={Bell} title="Nenhum alerta criado." description="Crie um alerta de preço para qualquer ticker, mesmo sem tê-lo na carteira." />
       ) : (
         <ul className="space-y-1.5">
           {alerts.map((alert) => (

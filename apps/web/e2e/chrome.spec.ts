@@ -35,7 +35,8 @@ test("TopBar preserva as âncoras do tour, os controles e não traz o AccountSwi
   await expect(page.locator('[data-tour="topbar-privacy"]')).toBeVisible();
   await expect(page.locator('[data-tour="topbar-period"]')).toBeVisible();
 
-  await expect(page.getByPlaceholder("Buscar ticker (ex: PETR4)")).toBeVisible();
+  // A busca inline virou a pill que abre a paleta ⌘K (busca global).
+  await expect(page.getByRole("button", { name: "Buscar (Ctrl+K)" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Personalizar cards/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Menu da conta" })).toBeVisible();
 
@@ -149,10 +150,11 @@ test("faixa de cotações formata em pt-BR e sobrevive ao Decimal-como-string", 
   });
 
   expect(errors).toEqual([]);
-  expect(strip).toContain("141.234,56");
+  // Índices em pontos inteiros, como a B3 publica; o separador pt-BR é o que importa.
+  expect(strip).toContain("141.235");
   expect(strip).toContain("-0,84%");
   expect(strip).toContain("+0,31%");
-  expect(strip).toContain("USD/BRL 5,42"); // change_pct null: sem "NaN%", sem quebrar
+  expect(strip).toMatch(/R\$\s5,42/); // change_pct null: sem "NaN%", sem quebrar
   expect(strip).not.toContain("NaN");
 });
 

@@ -15,6 +15,8 @@ import { PositionsTable } from "./PositionsTable";
 import { AuditPanel } from "./AuditPanel";
 import { RebalanceTag } from "./RebalanceTag";
 import { SmartInsights } from "./SmartInsights";
+import { DonutBreakdown } from "@/components/charts/DonutBreakdown";
+import { assetTypeLabel } from "@/components/charts/chartTheme";
 import { RiskEfficiencyCard } from "./RiskEfficiencyCard";
 import { PassiveIncomeCard } from "./PassiveIncomeCard";
 import { ChartCard } from "@/components/charts/ChartCard";
@@ -37,20 +39,12 @@ import { DashboardCard } from "@/components/ui/DashboardCard";
 import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
 import { useUIStore } from "@/store/useUIStore";
 
-const AllocationDonut = dynamic(
-  () => import("@/components/charts/AllocationDonut").then((m) => m.AllocationDonut),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
 const PortfolioEvolutionChart = dynamic(
   () => import("@/components/charts/PortfolioEvolutionChart").then((m) => m.PortfolioEvolutionChart),
   { ssr: false, loading: () => <ChartSkeleton /> }
 );
 const BenchmarkChart = dynamic(
   () => import("@/components/charts/BenchmarkChart").then((m) => m.BenchmarkChart),
-  { ssr: false, loading: () => <ChartSkeleton /> }
-);
-const LookThroughDonut = dynamic(
-  () => import("@/components/charts/LookThroughDonut").then((m) => m.LookThroughDonut),
   { ssr: false, loading: () => <ChartSkeleton /> }
 );
 // A aba inteira (não só o gráfico) — só monta quando o usuário clica em
@@ -79,9 +73,11 @@ function currentMonth(): string {
 // raio-x, posições) abaixo — mesmo conteúdo de antes, agora arrastável e
 // redimensionável como Visão Geral e Finanças.
 const INVESTMENTS_CARDS: DashboardCardSpec[] = [
-  { id: "hero", label: "Carteira total", defaultSpan: 4, minSpan: 3 },
-  { id: "alloc", label: "Alocação", defaultSpan: 4, minSpan: 3 },
-  { id: "insights", label: "Ações inteligentes", defaultSpan: 4, minSpan: 3 },
+  // O gráfico de evolução é o que mais ganha com largura; alocação (donut de
+  // tamanho fixo + legenda) e insights (texto) cabem em ¼ sem sobrar vazio.
+  { id: "hero", label: "Carteira total", defaultSpan: 6, minSpan: 4 },
+  { id: "alloc", label: "Alocação", defaultSpan: 3, minSpan: 3 },
+  { id: "insights", label: "Ações inteligentes", defaultSpan: 3, minSpan: 3 },
   { id: "benchmark", label: "Rentabilidade vs benchmarks", defaultSpan: 8, minSpan: 6 },
   { id: "riskpassive", label: "Risco & eficiência e renda passiva", defaultSpan: 4, minSpan: 3 },
   { id: "international", label: "Patrimônio internacional", defaultSpan: 12, minSpan: 8 },
@@ -107,7 +103,9 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   // certa e invalidar o cache da carteira que de fato mudou.
   const [actionPortfolioId, setActionPortfolioId] = useState<string | null>(null);
   const [performancePeriod, setPerformancePeriod] = useState<PerformancePeriod>("1y");
-  const [allocationMode, setAllocationMode] = useState<"type" | "asset">("type");
+  // null = automático: com uma classe só ("Ações 100%") o donut por tipo não
+  // diz nada, então abre direto por ativo até a pessoa escolher.
+  const [allocationMode, setAllocationMode] = useState<"type" | "asset" | null>(null);
   const [lookThroughMode, setLookThroughMode] = useState<"sector" | "country" | "class">("sector");
   const [activeTab, setActiveTab] = useState<"positions" | "income">("positions");
   const mask = useMask();
@@ -142,6 +140,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
 
   const { data: summary, isLoading: isSummaryLoading, isError: isSummaryError, refetch: refetchSummary, dataUpdatedAt } =
     usePortfolioSummary(activePortfolioId);
+  const effectiveAllocationMode =
+    allocationMode ?? ((summary?.allocation_by_type.length ?? 0) < 2 ? "asset" : "type");
   const { data: performance, isLoading: isPerformanceLoading, isError: isPerformanceError, refetch: refetchPerformance } =
     usePortfolioPerformance(activePortfolioId, performancePeriod);
   const { data: benchmark, isLoading: isBenchmarkLoading, isError: isBenchmarkError, refetch: refetchBenchmark } =
@@ -149,6 +149,15 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
   const isConsolidated = activePortfolioId === CONSOLIDATED_ID;
   const { data: lookThrough, isLoading: isLookThroughLoading, isError: isLookThroughError, refetch: refetchLookThrough } =
     usePortfolioLookThrough(activePortfolioId);
+  const lookThroughBuckets =
+    lookThroughMode === "sector" ? lookThrough?.by_sector ?? []
+      : lookThroughMode === "country" ? lookThrough?.by_country ?? []
+      : lookThrough?.by_asset_class ?? [];
+  // 100% "Não classificado"/"Não mapeado" é falta de dado na fonte, não uma
+  // distribuição — um anel inteiro de uma cor só não informa nada.
+  const lookThroughAllUnknown =
+    lookThroughBuckets.length > 0 &&
+    lookThroughBuckets.every((b) => b.label === "Não classificado" || b.label === "Não mapeado");
 
   // Handle case when activePortfolioId is null but portfolios exist
   useEffect(() => {
@@ -459,8 +468,8 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
                       onClick={() => setAllocationMode(mode)}
                       className="px-2 py-1 text-[11px] transition-colors"
                       style={{
-                        background: allocationMode === mode ? "var(--surface-3)" : "transparent",
-                        color: allocationMode === mode ? "var(--text-primary)" : "var(--text-secondary)",
+                        background: effectiveAllocationMode === mode ? "var(--surface-3)" : "transparent",
+                        color: effectiveAllocationMode === mode ? "var(--text-primary)" : "var(--text-secondary)",
                       }}
                     >
                       {label}
@@ -470,21 +479,26 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </div>
               <div className="mt-3">
                 <ChartCard
-                  title="" bare
+                  title="" bare height="auto"
                   isLoading={isSummaryLoading}
                   isError={isSummaryError}
                   onRetry={refetchSummary}
                   isEmpty={!summary || summary.allocation_by_type.length === 0}
                   emptyMessage="Adicione posições para ver a alocação."
                 >
-                  <AllocationDonut
-                    allocation={
-                      allocationMode === "type"
-                        ? summary?.allocation_by_type ?? []
+                  <DonutBreakdown
+                    ariaLabel="Alocação da carteira"
+                    items={
+                      effectiveAllocationMode === "type"
+                        ? (summary?.allocation_by_type ?? []).map((a) => ({
+                            name: assetTypeLabel(a.asset_type),
+                            value: Number(a.value),
+                            weight: Number(a.weight),
+                          }))
                         : (summary?.positions ?? []).map((p) => ({
-                            asset_type: p.ticker,
-                            value: p.market_value_brl,
-                            weight: p.weight,
+                            name: p.ticker,
+                            value: Number(p.market_value_brl),
+                            weight: Number(p.weight),
                           }))
                     }
                   />
@@ -573,24 +587,20 @@ export function InvestmentsClient({ initialPortfolios }: Props) {
               </div>
               <div className="mt-3">
                 <ChartCard
-                  title="" bare
+                  title="" bare height="auto"
                   isLoading={isLookThroughLoading}
                   isError={isLookThroughError}
                   onRetry={refetchLookThrough}
-                  isEmpty={
-                    !lookThrough ||
-                    (lookThroughMode === "sector" ? lookThrough.by_sector.length === 0
-                      : lookThroughMode === "country" ? lookThrough.by_country.length === 0
-                      : lookThrough.by_asset_class.length === 0)
+                  isEmpty={lookThroughBuckets.length === 0 || lookThroughAllUnknown}
+                  emptyMessage={
+                    lookThroughAllUnknown
+                      ? "A fonte de dados ainda não tem essa classificação para os seus ativos — tente mais tarde ou troque a visão."
+                      : "Adicione posições para ver a distribuição."
                   }
-                  emptyMessage="Adicione posições para ver a distribuição."
                 >
-                  <LookThroughDonut
-                    buckets={
-                      lookThroughMode === "sector" ? lookThrough?.by_sector ?? []
-                        : lookThroughMode === "country" ? lookThrough?.by_country ?? []
-                        : lookThrough?.by_asset_class ?? []
-                    }
+                  <DonutBreakdown
+                    legendColumns={2}
+                    items={lookThroughBuckets.map((b) => ({ name: b.label, value: b.value_brl, weight: b.weight }))}
                     ariaLabel={
                       lookThroughMode === "sector" ? "Distribuição por setor"
                         : lookThroughMode === "country" ? "Distribuição geográfica"

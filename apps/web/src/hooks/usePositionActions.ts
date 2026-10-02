@@ -38,6 +38,7 @@ function useInvalidatePortfolio(portfolioId: string) {
     queryClient.invalidateQueries({ queryKey: ["portfolio-summary", portfolioId] });
     queryClient.invalidateQueries({ queryKey: ["portfolio-look-through", portfolioId] });
     queryClient.invalidateQueries({ queryKey: ["position-transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["investment-transactions"] });
   };
 }
 

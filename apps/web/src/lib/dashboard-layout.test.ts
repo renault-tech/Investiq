@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   EMPTY_LAYOUT,
+  fillRowSpans,
   LAYOUT_VERSION,
   loadLayout,
   resolveOrder,
@@ -43,5 +44,22 @@ describe("dashboard-layout", () => {
 
   it("acrescenta cards novos ao fim da ordem salva", () => {
     expect(resolveOrder(["net", "flow"], ["net", "flow", "health"])).toEqual(["net", "flow", "health"]);
+  });
+});
+
+describe("fillRowSpans", () => {
+  it("um card sozinho ocupa o resto da linha", () => {
+    expect(fillRowSpans(1, 8)).toEqual([8]);
+  });
+  it("dois cards dividem a sobra da linha", () => {
+    expect(fillRowSpans(2, 8)).toEqual([4, 4]);
+  });
+  it("o excedente vai para a linha seguinte, sem buraco no fim", () => {
+    expect(fillRowSpans(3, 8)).toEqual([4, 4, 12]);
+    expect(fillRowSpans(5, 8)).toEqual([4, 4, 4, 4, 4]);
+    expect(fillRowSpans(4, 8)).toEqual([4, 4, 6, 6]);
+  });
+  it("nenhum card fica abaixo do mínimo", () => {
+    expect(fillRowSpans(7, 8).every((s) => s >= 3)).toBe(true);
   });
 });

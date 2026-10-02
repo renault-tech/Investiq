@@ -6,7 +6,6 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useMask } from "@/hooks/useMask";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { formatBRLExact } from "@/components/charts/chartTheme";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
@@ -239,16 +238,23 @@ export function AccountsBar({ holder, onHolderChange, bare = false, inline = fal
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <EmptyState
-          icon={Landmark}
-          title={
-            holder
-              ? `Nenhuma conta de ${holderOptions.find((o) => o.value === holder)?.label ?? holder}.`
-              : "Nenhuma conta cadastrada."
-          }
-          description="Crie uma conta por banco (e use o titular para separar as contas de outra pessoa)."
-          action={<Button onClick={openNew}>Criar conta</Button>}
-        />
+        // Faixa fina em vez do EmptyState centralizado de ~200px: sem conta
+        // a tela ainda é útil (lançamentos sem conta) e não deve empurrar a
+        // tabela para baixo da dobra.
+        <div className="flex items-center gap-3 flex-wrap rounded-xl border border-dashed border-[var(--border)] px-4 py-3">
+          <Landmark size={16} className="text-[var(--text-muted)]" />
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-[12.5px] font-medium text-[var(--text-primary)]">
+              {holder
+                ? `Nenhuma conta de ${holderOptions.find((o) => o.value === holder)?.label ?? holder}.`
+                : "Nenhuma conta cadastrada."}
+            </div>
+            <div className="text-[11.5px] text-[var(--text-muted)]">
+              Crie uma conta por banco (e use o titular para separar as contas de outra pessoa).
+            </div>
+          </div>
+          <Button size="sm" onClick={openNew}>Criar conta</Button>
+        </div>
       ) : (
         // Chips compactos numa linha só (quebrando quando não couber) em vez
         // de uma grade 2x4 de cartões de ~80px de altura cada — a mesma

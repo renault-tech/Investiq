@@ -195,7 +195,7 @@ export function SettingsClient() {
 
   if (isLoading || !settings) {
     return (
-      <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
+      <div className="p-6 max-w-[1440px] mx-auto w-full grid xl:grid-cols-2 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="h-32 rounded-[var(--radius-card)] bg-[var(--surface-2)] animate-pulse" />
         ))}
@@ -209,8 +209,10 @@ export function SettingsClient() {
   const passwordsValid = newPassword.length >= 8 && newPassword === confirmPassword && currentPassword.length > 0;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full space-y-4">
-      <h1 className="text-xl font-semibold text-[var(--text-primary)]">Configurações</h1>
+    // Duas colunas em alvenaria (CSS columns) em telas largas: uma coluna de
+    // 768px centralizada deixava dois terços de um monitor grande vazios.
+    // O título já está no cabeçalho da página — repeti-lo aqui era redundante.
+    <div className="p-6 max-w-[1440px] mx-auto w-full xl:columns-2 gap-4 [&>section]:mb-4 [&>section]:break-inside-avoid">
 
       <Section title="Perfil">
         <div className="space-y-4">

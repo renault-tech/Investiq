@@ -24,7 +24,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useUIStore, type Period, maskValue } from "@/store/useUIStore";
 import { useFinanceScopeStore } from "@/store/useFinanceScopeStore";
 import { assetTypeLabel, formatBRLExact, formatBRLCompact, CATEGORICAL } from "@/components/charts/chartTheme";
-import { DonutRing } from "@/components/charts/DonutRing";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
@@ -32,6 +31,8 @@ import { formatDecimal, formatPercent } from "@/lib/number-format";
 import { buildHolderOptions, matchesHolder } from "@/lib/holders";
 import { DashboardCard } from "@/components/ui/DashboardCard";
 import { useDashboardLayout, type DashboardCardSpec } from "@/hooks/useDashboardLayout";
+import { fillRowSpans } from "@/lib/dashboard-layout";
+import { DonutBreakdown } from "@/components/charts/DonutBreakdown";
 
 const PERIOD_MAP: Record<Period, PerformancePeriod> = { "1M": "1m", "6M": "6m", "1A": "1y", Tudo: "max" };
 
@@ -178,10 +179,17 @@ export function OverviewClient() {
   // recarregar a página e a criar outras contas.
   const cardSpecs = useMemo<DashboardCardSpec[]>(
     () =>
-      BASE_CARDS.concat(
-        visibleAccounts.map((a) => ({ id: `acc-${a.id}`, label: a.name, defaultSpan: 3, minSpan: 3 })),
-        visiblePortfolios.map((p) => ({ id: `pf-${p.id}`, label: p.name, defaultSpan: 3, minSpan: 3 }))
-      ),
+    {
+      // Os cards de conta/carteira vêm logo depois de "Alocação" (4 colunas):
+      // a largura padrão é distribuída para fechar a linha, em vez de um 3
+      // fixo que deixava duas colunas vazias com 2 cards.
+      const extras = [
+        ...visibleAccounts.map((a) => ({ id: `acc-${a.id}`, label: a.name })),
+        ...visiblePortfolios.map((p) => ({ id: `pf-${p.id}`, label: p.name })),
+      ];
+      const spans = fillRowSpans(extras.length, 8);
+      return BASE_CARDS.concat(extras.map((e, i) => ({ ...e, defaultSpan: spans[i], minSpan: 3 })));
+    },
     [visibleAccounts, visiblePortfolios]
   );
 
@@ -211,7 +219,9 @@ export function OverviewClient() {
 
   const { data: cards = [], isLoading: cardsLoading } = useCards();
   const { data: goals = [] } = useGoals();
-  const { data: txPage } = useTransactions({ per_page: 6, page: 1, holder: holder || undefined });
+  const { data: txPage } = useTransactions({ per_page: 8, page: 1, holder: holder || undefined });
+  // Sem nenhuma conta cadastrada a coluna "conta" seria uma fileira de "—".
+  const txHasAccounts = (txPage?.items ?? []).some((t) => t.bank_account_name);
   const { data: finSummary } = useFinanceSummary(currentMonth(), undefined, holder || undefined);
   const { data: analytics } = useAnalytics(6, undefined, holder || undefined);
 
@@ -284,6 +294,16 @@ export function OverviewClient() {
     }
   }
   const allocationTotal = Array.from(allocationByType.values()).reduce((a, b) => a + b, 0);
+  const assetValues = new Map<string, number>();
+  for (const s of summaries) {
+    for (const p of s.positions) {
+      const v = stressValue(p.asset_type, Number(p.market_value_brl), scenarioDelta);
+      assetValues.set(p.ticker, (assetValues.get(p.ticker) ?? 0) + v);
+    }
+  }
+  const allocationByAsset = Array.from(assetValues.entries()).map(([name, value]) => ({
+    name, value, weight: allocationTotal > 0 ? value / allocationTotal : 0,
+  }));
   const allocation = Array.from(allocationByType.entries())
     .map(([asset_type, value]) => ({ asset_type, value, weight: allocationTotal > 0 ? value / allocationTotal : 0 }))
     .sort((a, b) => b.value - a.value);
@@ -292,7 +312,10 @@ export function OverviewClient() {
   const flowMax = Math.max(1, ...flowSeries.flatMap((m) => [m.income, m.expense]));
 
   const savingsSeries = analytics?.savings_series ?? [];
-  const lastSavingsRaw = savingsSeries[savingsSeries.length - 1];
+  // O mês corrente costuma não ter receita ainda (salário cai no meio do
+  // mês) e a API devolve taxa nula — usar o último mês que tem taxa, em vez
+  // de mostrar "—" durante metade do mês.
+  const lastSavingsRaw = [...savingsSeries].reverse().find((m) => m.savings_rate != null) ?? savingsSeries[savingsSeries.length - 1];
   const lastSavings = lastSavingsRaw ? { ...lastSavingsRaw, savings_rate: lastSavingsRaw.savings_rate != null ? Number(lastSavingsRaw.savings_rate) : null } : undefined;
   const savingsFraction = lastSavings?.savings_rate ?? 0;
   const runwayMonths = analytics?.runway_months != null ? Number(analytics.runway_months) : null;
@@ -577,20 +600,18 @@ export function OverviewClient() {
               <EmptyState icon={Landmark} title="Sem posições ainda" description="Adicione ativos em Investimentos para ver a alocação." />
             ) : (
               <>
-                <div className="flex items-center gap-5.5 mt-4">
-                  <DonutRing
-                    className="flex-shrink-0"
-                    segments={allocation.map((a, i) => ({ fraction: a.weight, color: CATEGORICAL[i % CATEGORICAL.length] }))}
+                <div className="mt-4">
+                  {/* Uma classe só ("Ações 100%") não diz nada — nesse caso a
+                      quebra é por ativo, com o mesmo cenário de estresse. */}
+                  <DonutBreakdown
+                    size={120}
+                    ariaLabel="Alocação dos investimentos"
+                    items={
+                      allocation.length >= 2
+                        ? allocation.map((a) => ({ name: assetTypeLabel(a.asset_type), value: a.value, weight: a.weight }))
+                        : allocationByAsset
+                    }
                   />
-                  <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-                    {allocation.map((a, i) => (
-                      <div key={a.asset_type} className="flex items-center gap-2 text-[12.5px]">
-                        <span className="w-2 h-2 rounded-[3px] flex-shrink-0" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
-                        <span className="flex-1 text-[var(--text-secondary)] truncate">{assetTypeLabel(a.asset_type)}</span>
-                        <b className="font-semibold text-[var(--text-primary)]">{formatPercent(a.weight * 100, 0)}</b>
-                      </div>
-                    ))}
-                  </div>
                 </div>
                 {mode === "pro" && (
                   <div className="mt-4.5 border-t border-[var(--border)] pt-3.5 flex justify-between text-[12.5px]">
@@ -813,22 +834,37 @@ export function OverviewClient() {
                   const amount = Number(t.amount);
                   const positive = t.transaction_type === "income";
                   const ini = (t.description ?? t.category_name ?? "?").slice(0, 2).toUpperCase();
+                  const account = t.transaction_type === "transfer" && t.to_bank_account_name
+                    ? `${t.bank_account_name ?? "—"} → ${t.to_bank_account_name}`
+                    : t.bank_account_name;
                   return (
+                    // Colunas fixas (descrição | categoria | conta | valor):
+                    // num card largo o nome ficava colado à esquerda e a
+                    // categoria/valor a meio metro dele, sem leitura em linha.
                     <Link
                       key={t.id}
                       href="/transactions"
-                      className="w-full flex items-center gap-3.5 py-3 px-2.5 rounded-2xl text-left transition-colors border-b border-[var(--border)] hover:bg-[var(--surface-2)]"
+                      className={`grid grid-cols-[36px_minmax(0,1fr)_auto] ${txHasAccounts ? "sm:grid-cols-[36px_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_118px]" : "sm:grid-cols-[36px_minmax(0,1.6fr)_minmax(0,1fr)_118px]"} items-center gap-3.5 py-2.5 px-2.5 rounded-xl transition-colors border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface-2)]`}
                     >
-                      <div className="w-9 h-9 rounded-xl bg-[var(--surface-3)] flex items-center justify-center text-[13px] font-semibold text-[var(--text-secondary)] flex-shrink-0">{ini}</div>
-                      <div className="flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-[var(--surface-3)] flex items-center justify-center text-[12px] font-semibold text-[var(--text-secondary)]">{ini}</div>
+                      <div className="min-w-0">
                         <div className="text-[13px] font-medium truncate text-[var(--text-primary)]">{t.description ?? t.category_name ?? "Transação"}</div>
-                        <div className="text-[11.5px] text-[var(--text-muted)] mt-0.5">{relativeDate(t.transaction_date)}</div>
+                        <div className="text-[11.5px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1.5">
+                          {relativeDate(t.transaction_date)}
+                          {!t.is_paid && <span className="text-[10px] px-1.5 rounded bg-[var(--surface-2)] text-[var(--warning)]">pendente</span>}
+                        </div>
                       </div>
-                      {t.category_name && (
-                        <div className="text-[11.5px] text-[var(--text-secondary)] px-2.5 py-1 rounded-lg bg-[var(--surface-2)] hidden sm:block">{t.category_name}</div>
-                      )}
-                      <div className="w-[118px] text-right text-[13.5px] font-semibold tabular-nums" style={{ color: positive ? "var(--accent)" : "var(--danger)" }}>
-                        {mask(`${positive ? "+" : "-"} ${formatBRLExact(Math.abs(amount))}`)}
+                      <div className="hidden sm:flex min-w-0">
+                        {t.category_name && (
+                          <span className="inline-flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] px-2.5 py-1 rounded-lg bg-[var(--surface-2)] truncate max-w-full">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: t.category_color ?? "var(--text-muted)" }} />
+                            <span className="truncate">{t.category_name}</span>
+                          </span>
+                        )}
+                      </div>
+                      {txHasAccounts && <div className="hidden sm:block text-[11.5px] text-[var(--text-muted)] truncate">{account ?? "—"}</div>}
+                      <div className="text-right text-[13.5px] font-semibold tabular-nums" style={{ color: positive ? "var(--accent)" : t.transaction_type === "transfer" ? "var(--text-secondary)" : "var(--danger)" }}>
+                        {mask(`${positive ? "+" : t.transaction_type === "transfer" ? "" : "-"} ${formatBRLExact(Math.abs(amount))}`)}
                       </div>
                     </Link>
                   );

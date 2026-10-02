@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown, CreditCard, LineChart, PlayCircle, Receipt, Search, ShieldCheck } from "lucide-react";
+import { ChevronDown, CreditCard, LineChart, PlayCircle, Receipt, Search, ShieldCheck } from "lucide-react";
 import { HELP_ARTICLES, TUTORIALS } from "@/lib/tutorials";
 import { useTour } from "@/components/tour/TourProvider";
 
@@ -73,16 +73,7 @@ export function HelpClient() {
   );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto w-full space-y-5">
-      <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold text-[var(--text-primary)]">
-          <BookOpen size={20} /> Central de ajuda
-        </h1>
-        <p className="text-[12.5px] text-[var(--text-secondary)] mt-1">
-          Passo a passo das configurações e do que cada tela faz.
-        </p>
-      </div>
-
+    <div className="p-6 max-w-5xl mx-auto w-full space-y-5">
       <div className="relative">
         <Search
           size={14}

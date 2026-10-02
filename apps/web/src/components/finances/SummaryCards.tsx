@@ -41,7 +41,7 @@ export function SummaryCards({ summary, isLoading, bare = false }: SummaryCardsP
   }
 
   return (
-    <div className={`${wrapClass} animate-rise-up`} style={wrapStyle}>
+    <div className={`${wrapClass} h-full flex flex-col animate-rise-up`} style={wrapStyle}>
       <p className="text-[11.5px] text-[var(--text-secondary)]">
         Gasto no mês · {now.toLocaleDateString("pt-BR", { month: "long" })}
       </p>
@@ -70,7 +70,7 @@ export function SummaryCards({ summary, isLoading, bare = false }: SummaryCardsP
           </div>
         </>
       )}
-      <div className="flex gap-3.5 flex-wrap mt-4 pt-3.5 border-t border-[var(--border)]">
+      <div className="flex gap-3.5 flex-wrap mt-auto pt-3.5 border-t border-[var(--border)]">
         <div className="flex-1 min-w-[96px]">
           <div className="text-[10.5px] text-[var(--text-secondary)]">Entrou</div>
           <div className="font-mono text-base mt-0.5" style={{ color: "var(--accent)" }}>{mask(formatBRLExact(Number(summary?.income ?? 0)))}</div>

@@ -11,7 +11,7 @@ import { useFinanceSummary } from "@/hooks/useFinance";
 import { useGeneratedReports, useQuickGenerateReport, useDownloadGeneratedReport, useDeleteGeneratedReport } from "@/hooks/useGeneratedReports";
 import { REPORT_TYPE_LABELS, type GeneratedReport } from "@/lib/generated-reports-api";
 import { apiClient } from "@/lib/api-client";
-import { formatBRLCompact } from "@/components/charts/chartTheme";
+import { formatBRLCompact, formatBRLExact } from "@/components/charts/chartTheme";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useMask } from "@/hooks/useMask";
 import { formatPercent } from "@/lib/number-format";
@@ -187,14 +187,27 @@ export function ReportsClient() {
         ))}
       </div>
 
+      {/* Comparativo e histórico lado a lado em telas largas: empilhados, o
+          histórico vazio ocupava uma faixa inteira da tela sozinho. */}
+      <div className="grid gap-[18px] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-start">
       <section
         className="rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)] animate-rise-up"
         style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))", animationDelay: ".2s" }}
       >
-        <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-sm font-semibold text-[var(--text-primary)]">Comparativo mensal</div>
+          <div className="flex items-center gap-3.5 text-[11px] text-[var(--text-secondary)]">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-[3px]" style={{ background: "var(--accent)" }} />Receitas</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-[3px]" style={{ background: "var(--surface-3)" }} />Despesas</span>
+          </div>
+        </div>
         <div className="flex items-end gap-3 h-[190px] mt-5.5">
           {comparativo.map((m) => (
-            <div key={m.month} className="flex-1 flex flex-col items-center gap-2">
+            <div
+              key={m.month}
+              className="flex-1 flex flex-col items-center gap-2"
+              title={`${monthShort(m.month)} · receitas ${mask(formatBRLExact(Number(m.income)))} · despesas ${mask(formatBRLExact(Number(m.expense)))}`}
+            >
               <div className="w-full h-[158px] flex items-end gap-[3px]">
                 <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.income) / compMax) * 100}%`, background: "var(--accent)" }} />
                 <div className="flex-1 rounded-t-[5px] rounded-b-[2px] animate-grow-y" style={{ height: `${(Number(m.expense) / compMax) * 100}%`, background: "var(--surface-3)", animationDelay: ".08s" }} />
@@ -213,7 +226,7 @@ export function ReportsClient() {
         {generatedLoading ? (
           <div className="h-24 rounded-lg bg-[var(--surface-2)] animate-pulse" />
         ) : generatedReports.length === 0 ? (
-          <EmptyState icon={FileText} title="Nenhum relatório gerado ainda." description="Use uma das ações rápidas acima ou exporte um relatório personalizado." />
+          <EmptyState size="sm" icon={FileText} title="Nenhum relatório gerado ainda." description="Use uma das ações rápidas acima ou exporte um relatório personalizado." />
         ) : (
           <ul className="divide-y divide-[var(--border)]">
             {generatedReports.map((report: GeneratedReport) => (
@@ -262,6 +275,7 @@ export function ReportsClient() {
           </ul>
         )}
       </section>
+      </div>
 
       {showExport && (
         <ExportReportModal month={month} origin="reports" onClose={() => setShowExport(false)} />

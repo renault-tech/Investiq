@@ -268,7 +268,9 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {/* Period pills */}
+          {/* Period pills — só a Visão Geral lê o período global; nas
+              outras telas o controle aparecia sem efeito nenhum. */}
+          {pathname.startsWith("/overview") && (
           <div
             data-tour="topbar-period"
             className="hidden sm:flex items-center gap-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] p-[3px]"
@@ -287,6 +289,7 @@ export function TopBar() {
               </button>
             ))}
           </div>
+          )}
 
           {/* Privacy toggle — rotulado, como no design: um olho sozinho não
               dizia se estava escondendo ou mostrando valores. */}
@@ -360,6 +363,7 @@ export function TopBar() {
           {/* CTA primária do design — cria o lançamento de qualquer tela, em
               vez de obrigar a passar por Transações antes. */}
           <button
+            data-tour="new-transaction"
             onClick={() => setShowNewTxn(true)}
             className="flex items-center gap-1.5 h-[34px] px-3 rounded-[10px] text-[12.5px] font-semibold flex-shrink-0"
             style={{ background: "var(--accent)", color: "var(--on-accent)" }}

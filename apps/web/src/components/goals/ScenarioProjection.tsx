@@ -49,13 +49,15 @@ export function ScenarioProjection({
         Onde seu patrimônio poderia chegar sob três taxas reais de retorno diferentes
       </div>
 
-      <div className="flex items-end gap-4 mt-5.5" style={{ height: 140 }}>
+      {/* Barras mais altas e com largura máxima: com 90px a diferença entre
+          os cenários mal aparecia e o card sobrava vazio ao lado do simulador. */}
+      <div className="flex items-end justify-center gap-6 mt-5.5" style={{ height: 250 }}>
         {values.map((v) => (
-          <div key={v.key} className="flex-1 flex flex-col items-center justify-end h-full gap-2">
+          <div key={v.key} className="flex-1 max-w-[150px] flex flex-col items-center justify-end h-full gap-2">
             <span className="text-[12px] font-mono font-medium tabular-nums text-[var(--text-primary)]">
               {mask(formatBRLCompact(v.value))}
             </span>
-            <div className="w-full flex items-end" style={{ height: 90 }}>
+            <div className="w-full flex items-end" style={{ height: 180 }}>
               <div className="w-full rounded-t-[8px] animate-grow-y" style={{ height: `${(v.value / maxValue) * 100}%`, background: v.color }} />
             </div>
             <span className="text-[11px] text-[var(--text-secondary)]">{v.label}</span>

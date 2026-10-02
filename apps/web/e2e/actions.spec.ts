@@ -68,7 +68,9 @@ async function criarConta(
   return created.body.id as string;
 }
 
-const BADGE = 'button[aria-label^="Central de ações"] span';
+// O botão agora também tem o rótulo "Ações" num <span> — o contador é o
+// span marcado com data-badge.
+const BADGE = 'button[aria-label^="Central de ações"] span[data-badge]';
 const BOTAO = 'button[aria-label^="Central de ações"]';
 
 /** Tudo do dropdown tem que ser buscado DENTRO dele: os mesmos lançamentos

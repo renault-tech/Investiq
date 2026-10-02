@@ -35,6 +35,28 @@ const SOURCE_LABELS: Record<FinanceTransaction["source"], string> = {
   installment: "Parcelamento",
 };
 
+// "Até hoje" é o padrão: um extrato abre no que já aconteceu. Antes a lista
+// começava 6 meses no futuro (recorrências projetadas) e o lançamento de
+// ontem ficava dezenas de linhas abaixo.
+type DateScope = "past" | "upcoming" | "all";
+const SCOPE_FILTERS: { value: DateScope; label: string }[] = [
+  { value: "past", label: "Até hoje" },
+  { value: "upcoming", label: "Próximos" },
+  { value: "all", label: "Todo período" },
+];
+
+function endOfToday(): string {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
+function startOfToday(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 const TYPE_FILTERS: { value: "" | "income" | "expense" | "transfer"; label: string }[] = [
   { value: "", label: "Tudo" },
   { value: "expense", label: "Despesas" },
@@ -63,14 +85,29 @@ export function TransactionsClient() {
   // query key do React Query (date_to muda de milissegundo a milissegundo)
   // e disparava uma nova busca sem parar.
   const [dateTo] = useState(() => sixMonthsAhead());
+  const [todayEnd] = useState(() => endOfToday());
+  const [todayStart] = useState(() => startOfToday());
+  const [scope, setScope] = useState<DateScope>("past");
   const { data: txPage, isLoading, isError, refetch } = useTransactions({
     search: search || undefined,
     transaction_type: typeFilter || undefined,
     account_id: activeAccountId || undefined,
     holder: holder || undefined,
-    date_to: dateTo,
+    date_from: scope === "upcoming" ? todayStart : undefined,
+    date_to: scope === "past" ? todayEnd : dateTo,
     per_page: 100,
   });
+  // Só o total, para o botão "Próximos" avisar que há lançamentos futuros
+  // (uma compra no cartão vence na fatura seguinte e sairia de "Até hoje").
+  const { data: upcomingPage } = useTransactions({
+    transaction_type: typeFilter || undefined,
+    account_id: activeAccountId || undefined,
+    holder: holder || undefined,
+    date_from: todayStart,
+    date_to: dateTo,
+    per_page: 1,
+  });
+  const upcomingCount = upcomingPage?.total ?? 0;
   const { data: analytics } = useAnalytics(6, activeAccountId, holder || undefined);
   const deleteMutation = useDeleteTransaction();
   const payMutation = usePayTransaction();
@@ -124,6 +161,25 @@ export function TransactionsClient() {
               placeholder="Buscar por estabelecimento, valor ou categoria"
               className="flex-1 bg-transparent text-[12.5px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
             />
+          </div>
+          <div className="flex rounded-[11px] border border-[var(--border)] overflow-hidden">
+            {SCOPE_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setScope(f.value)}
+                aria-pressed={scope === f.value}
+                className="px-3 py-2 text-xs font-medium transition-colors"
+                style={{
+                  background: scope === f.value ? "var(--surface-3)" : "transparent",
+                  color: scope === f.value ? "var(--text-primary)" : "var(--text-secondary)",
+                }}
+              >
+                {f.label}
+                {f.value === "upcoming" && upcomingCount > 0 && (
+                  <span className="ml-1.5 text-[10px] px-1.5 py-px rounded-md bg-[var(--glow)] text-[var(--accent)] tabular-nums">{upcomingCount}</span>
+                )}
+              </button>
+            ))}
           </div>
           {TYPE_FILTERS.map((f) => (
             <button

@@ -5,12 +5,18 @@ import { useMarketQuotes } from "@/hooks/useAssetData";
 import { Quote } from "@/lib/market-api";
 import { MARKET_INSTRUMENTS, formatInstrumentValue, type InstrumentKind } from "@/lib/market-instruments";
 
-function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: Quote; kind: InstrumentKind; delay: number }) {
+function InstrumentCard({
+  label, quote, kind, delay, active, onClick,
+}: { label: string; quote?: Quote; kind: InstrumentKind; delay: number; active?: boolean; onClick?: () => void }) {
   const positive = (quote?.change_pct ?? 0) >= 0;
   return (
-    <div
-      className="flex-1 min-w-[150px] border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card-sm)] px-4 py-3 animate-rise-up"
-      style={{ animationDelay: `${delay}s` }}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={`Abrir gráfico de ${label}`}
+      className="flex-1 min-w-[150px] text-left border bg-[var(--surface)] rounded-[var(--radius-card-sm)] px-4 py-3 animate-rise-up transition-colors hover:bg-[var(--surface-2)] cursor-pointer"
+      style={{ animationDelay: `${delay}s`, borderColor: active ? "var(--accent)" : "var(--border)" }}
     >
       <div className="text-[11px] text-[var(--text-secondary)] tracking-[.06em] uppercase">{label}</div>
       {quote ? (
@@ -31,11 +37,11 @@ function InstrumentCard({ label, quote, kind, delay }: { label: string; quote?: 
       ) : (
         <div className="h-[38px] flex items-center text-[12px] text-[var(--text-muted)]">indisponível</div>
       )}
-    </div>
+    </button>
   );
 }
 
-export function MarketOverviewStrip() {
+export function MarketOverviewStrip({ selected, onSelect }: { selected?: string | null; onSelect?: (ticker: string) => void } = {}) {
   const tickers = MARKET_INSTRUMENTS.map((i) => i.ticker);
   const { data: quotes, isLoading } = useMarketQuotes(tickers);
   const byTicker = new Map((quotes ?? []).map((q) => [q.ticker, q]));
@@ -49,6 +55,8 @@ export function MarketOverviewStrip() {
           kind={inst.kind}
           quote={isLoading ? undefined : byTicker.get(inst.ticker)}
           delay={i * 0.03}
+          active={selected === inst.ticker}
+          onClick={onSelect ? () => onSelect(inst.ticker) : undefined}
         />
       ))}
     </div>

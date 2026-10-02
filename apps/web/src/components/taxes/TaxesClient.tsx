@@ -70,6 +70,9 @@ export function TaxesClient() {
         </div>
       </div>
 
+      {/* Apuração e DARF lado a lado em telas largas — empilhados, dois
+          estados vazios ocupavam a altura de uma tela inteira. */}
+      <div className="grid gap-[18px] xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
       {/* Apuração mensal */}
       <section className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)]">
         <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Apuração mensal</div>
@@ -79,7 +82,7 @@ export function TaxesClient() {
         {apurationLoading ? (
           <div className="h-40 rounded-lg bg-[var(--surface-2)] animate-pulse" />
         ) : !apuration || apuration.months.length === 0 ? (
-          <EmptyState icon={Receipt} title="Nenhuma venda de ações ou FIIs neste ano." description="A apuração aparece aqui assim que houver uma venda registrada em Investimentos." />
+          <EmptyState size="sm" icon={Receipt} title="Nenhuma venda de ações ou FIIs neste ano." description="A apuração aparece aqui assim que houver uma venda registrada em Investimentos." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px] border-collapse">
@@ -128,7 +131,7 @@ export function TaxesClient() {
         {darfLoading ? (
           <div className="h-24 rounded-lg bg-[var(--surface-2)] animate-pulse" />
         ) : !darf || darf.items.length === 0 ? (
-          <EmptyState icon={FileWarning} title="Nenhum DARF devido neste ano." description="Ou tudo caiu na isenção de R$20 mil/mês, ou não houve ganho tributável." />
+          <EmptyState size="sm" icon={FileWarning} title="Nenhum DARF devido neste ano." description="Ou tudo caiu na isenção de R$20 mil/mês, ou não houve ganho tributável." />
         ) : (
           <ul className="flex flex-col gap-2.5">
             {darf.items.map((item) => (
@@ -150,6 +153,7 @@ export function TaxesClient() {
           </ul>
         )}
       </section>
+      </div>
 
       {/* Informe de rendimentos */}
       <section data-tour="tax-informe" className="border border-[var(--border)] bg-[var(--surface)] rounded-[var(--radius-card)] p-6 shadow-[var(--shadow)]">
@@ -205,9 +209,9 @@ export function TaxesClient() {
             {informe.dividends_by_asset.length > 0 && (
               <div className="mt-5 pt-4 border-t border-[var(--border)]">
                 <div className="text-[12px] font-medium text-[var(--text-secondary)] mb-2">Dividendos por ativo</div>
-                <ul className="flex flex-col gap-1.5">
+                <ul className="grid sm:grid-cols-2 xl:grid-cols-4 gap-x-8 gap-y-1.5">
                   {informe.dividends_by_asset.slice(0, 8).map((d) => (
-                    <li key={d.ticker} className="flex justify-between text-[12.5px]">
+                    <li key={d.ticker} className="flex justify-between text-[12.5px] border-b border-[var(--border)] pb-1.5">
                       <span className="text-[var(--text-secondary)]">{d.ticker}</span>
                       <span className="tabular-nums text-[var(--text-primary)]">{mask(formatBRLExact(d.total))}</span>
                     </li>

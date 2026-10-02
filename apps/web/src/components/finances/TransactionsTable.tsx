@@ -115,6 +115,8 @@ export function TransactionsTable({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const bulkEnabled = !!(onBulkPay || onBulkDelete || onBulkCategorize);
+  // Sem nenhum lançamento ligado a conta, a coluna é uma fileira de "—".
+  const showAccount = transactions.some((t) => t.bank_account_name || t.to_bank_account_name);
 
   const sorted = useMemo(
     () => sortTransactions(transactions, sortKey, sortDir),
@@ -240,7 +242,7 @@ export function TransactionsTable({
                 <SortHeader label="Descrição" active={sortKey === "description"} dir={sortDir} onClick={() => toggleSort("description")} />
               </th>
               <th className="px-2 py-2 font-medium">Categoria</th>
-              <th className="px-2 py-2 font-medium">Conta</th>
+              {showAccount && <th className="px-2 py-2 font-medium">Conta</th>}
               <th className="px-2 py-2 text-right">
                 <SortHeader label="Valor" active={sortKey === "amount"} dir={sortDir} onClick={() => toggleSort("amount")} />
               </th>
@@ -280,7 +282,16 @@ export function TransactionsTable({
                     {hasCheckableStatus(txn) ? (
                       <span
                         className="inline-flex items-center gap-1"
-                        style={{ color: txn.is_paid ? "var(--accent)" : "var(--danger)" }}
+                        // Vermelho só para o que já venceu sem pagar; futuro em
+                        // aberto é só "a pagar" — antes toda linha projetada
+                        // de 2027 aparecia em vermelho como se estivesse atrasada.
+                        style={{
+                          color: txn.is_paid
+                            ? "var(--accent)"
+                            : txn.due_date.slice(0, 10) < new Date().toISOString().slice(0, 10)
+                              ? "var(--danger)"
+                              : "var(--warning)",
+                        }}
                         title={
                           txn.is_paid
                             ? (txn.paid_at ? `Pago em ${new Date(txn.paid_at).toLocaleDateString("pt-BR")}` : "Pago")
@@ -335,11 +346,13 @@ export function TransactionsTable({
                       <span className="text-xs text-[var(--text-muted)]">—</span>
                     )}
                   </td>
+                  {showAccount && (
                   <td className="px-2 py-2 text-xs text-[var(--text-secondary)] whitespace-nowrap">
                     {isTransfer && txn.to_bank_account_name
                       ? `${txn.bank_account_name ?? "—"} → ${txn.to_bank_account_name}`
                       : txn.bank_account_name || "—"}
                   </td>
+                  )}
                   <td
                     className={`px-2 py-2 text-right font-mono whitespace-nowrap ${
                       isTransfer ? "text-[var(--text-secondary)]" : isExpense ? "text-[var(--danger)]" : "text-[var(--accent)]"

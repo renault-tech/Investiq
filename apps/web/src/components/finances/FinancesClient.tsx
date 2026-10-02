@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileText, Layers, Plus, Tags } from "lucide-react";
+import { Download, FileText, Layers, Tags } from "lucide-react";
 import { useCategories, useFinanceSummary, useTransactions, useDeleteTransaction, usePayTransaction, useUnpayTransaction } from "@/hooks/useFinance";
 import { useForecast } from "@/hooks/useForecast";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -35,16 +35,20 @@ import { ForecastChart } from "./ForecastChart";
 // 3 cards: orçamento/onde-o-dinheiro-foi/cartões, depois assinaturas/
 // projeção/categorias) — "Contas" não é card aqui, vive como tira compacta
 // no cabeçalho ao lado do seletor de mês.
+// Linhas pensadas por assunto e por altura parecida, para nenhuma linha
+// ficar com um card baixo ao lado de um alto: (1) o mês corrente em
+// números, (2) o plano — projeção de saldo e previsto × executado, (3) os
+// detalhes em quatro cards de ¼.
 const FINANCE_CARDS: DashboardCardSpec[] = [
   { id: "summary", label: "Gasto no mês", defaultSpan: 4, minSpan: 3 },
-  { id: "budgets", label: "Orçamento por categoria", defaultSpan: 4, minSpan: 3 },
   { id: "donut", label: "Onde o dinheiro foi", defaultSpan: 4, minSpan: 3 },
-  { id: "cards", label: "Cartões", defaultSpan: 4, minSpan: 3 },
-  { id: "subscriptions", label: "Assinaturas e recorrentes", defaultSpan: 4, minSpan: 3 },
   { id: "projection", label: "Projeção do mês", defaultSpan: 4, minSpan: 3 },
-  { id: "categories", label: "Gastos por categoria", defaultSpan: 4, minSpan: 3 },
   { id: "forecast", label: "Projeção de saldo", defaultSpan: 8, minSpan: 6 },
   { id: "planned", label: "Previsto × executado", defaultSpan: 4, minSpan: 4 },
+  { id: "categories", label: "Gastos por categoria", defaultSpan: 3, minSpan: 3 },
+  { id: "budgets", label: "Orçamento por categoria", defaultSpan: 3, minSpan: 3 },
+  { id: "subscriptions", label: "Assinaturas e recorrentes", defaultSpan: 3, minSpan: 3 },
+  { id: "cards", label: "Cartões", defaultSpan: 3, minSpan: 3 },
 ];
 
 function monthBounds(month: string): { from: string; to: string } {
@@ -181,14 +185,8 @@ export function FinancesClient() {
           >
             <Tags size={15} /> Categorias
           </button>
-          <button
-            data-tour="new-transaction"
-            onClick={() => { setEditingTxn(undefined); setShowTransactionModal(true); }}
-            className="flex items-center gap-1.5 px-3.5 h-[34px] text-[12.5px] font-medium rounded-[11px] transition-colors"
-            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
-          >
-            <Plus size={15} /> Nova transação
-          </button>
+          {/* "Nova transação" fica só no cabeçalho global (mesmo modal) —
+              dois botões idênticos na mesma tela competiam pela atenção. */}
         </div>
       </div>
 

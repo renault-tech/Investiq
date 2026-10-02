@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Laptop, LogOut } from "lucide-react";
 import { useSessions, useRevokeSession, useRevokeOtherSessions } from "@/hooks/useSessions";
 
@@ -15,6 +16,11 @@ export function SessionsSection() {
   const revokeOthersMutation = useRevokeOtherSessions();
 
   const hasOtherSessions = sessions.some((s) => !s.is_current);
+  // A sessão atual primeiro e só as 4 mais recentes por padrão — com dezenas
+  // de logins antigos a lista empurrava o resto das configurações para longe.
+  const [showAll, setShowAll] = useState(false);
+  const ordered = [...sessions].sort((a, b) => Number(b.is_current) - Number(a.is_current) || b.created_at.localeCompare(a.created_at));
+  const visibleSessions = showAll ? ordered : ordered.slice(0, 4);
 
   return (
     <div className="space-y-3">
@@ -22,7 +28,7 @@ export function SessionsSection() {
         <div className="h-20 rounded-[var(--radius-card-sm)] bg-[var(--surface-2)] animate-pulse" />
       ) : (
         <ul className="space-y-2">
-          {sessions.map((session) => (
+          {visibleSessions.map((session) => (
             <li
               key={session.id}
               className="flex items-center justify-between gap-3 px-3 py-2.5 border border-[var(--border)] rounded-[var(--radius-card-sm)]"
@@ -55,6 +61,11 @@ export function SessionsSection() {
         </ul>
       )}
 
+      {ordered.length > 4 && (
+        <button onClick={() => setShowAll((v) => !v)} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] mr-4">
+          {showAll ? "Mostrar menos" : `Mostrar todas (${ordered.length})`}
+        </button>
+      )}
       {hasOtherSessions && (
         <button
           onClick={() => revokeOthersMutation.mutate()}

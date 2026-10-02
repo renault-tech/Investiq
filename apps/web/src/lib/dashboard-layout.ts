@@ -33,7 +33,7 @@ export const SPAN_LABELS: Record<number, string> = {
  * layouts gravados em versões anteriores, de modo que um redesenho realmente
  * chegue na tela. Só suba quando a disposição padrão mudar de propósito.
  */
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 
 export interface DashboardLayout {
   /** Ordem de exibição por id de card. Ids desconhecidos são ignorados na
@@ -114,4 +114,31 @@ export function reorder(order: string[], draggedId: string, targetId: string): s
   if (to === -1) return order;
   next.splice(to, 0, draggedId);
   return next;
+}
+
+/** Larguras padrão para `count` cards do mesmo tipo (contas, carteiras) que
+ * entram depois de um card que já ocupa `GRID_COLUMNS - firstRowWidth`
+ * colunas, de modo que nenhuma linha fique com um buraco no fim.
+ *
+ * A primeira linha tem `firstRowWidth` colunas livres; as seguintes, a linha
+ * inteira. Cada linha recebe tantos cards quanto cabem com `minSpan`, e a
+ * última divide a largura toda entre os que sobraram — 1 card sozinho numa
+ * linha ocupa a linha, 2 ficam com metade cada, e assim por diante. */
+export function fillRowSpans(count: number, firstRowWidth: number, minSpan = 3): number[] {
+  const spans: number[] = [];
+  let remaining = count;
+  let width = Math.max(minSpan, Math.min(GRID_COLUMNS, firstRowWidth));
+  while (remaining > 0) {
+    const perRow = Math.max(1, Math.floor(width / minSpan));
+    const inRow = Math.min(perRow, remaining);
+    const base = Math.floor(width / inRow);
+    let extra = width - base * inRow;
+    for (let i = 0; i < inRow; i++) {
+      spans.push(base + (extra > 0 ? 1 : 0));
+      if (extra > 0) extra--;
+    }
+    remaining -= inRow;
+    width = GRID_COLUMNS;
+  }
+  return spans;
 }

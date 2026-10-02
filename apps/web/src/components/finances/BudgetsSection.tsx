@@ -102,6 +102,7 @@ export function BudgetsSection({ categories, bare = false, title = "Orçamentos"
 
       {budgets.length === 0 ? (
         <EmptyState
+          size={bare ? "sm" : "md"}
           icon={Wallet}
           title="Nenhum orçamento definido."
           description="Defina um limite mensal por categoria para acompanhar seus gastos."

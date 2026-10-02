@@ -309,6 +309,15 @@ export async function listPositionTransactions(positionId: string): Promise<Inve
   return coerceNumbersInList(res.data, ["quantity", "unit_price", "fees", "fx_rate", "total_amount"] as const);
 }
 
+/** Transações de várias posições numa requisição só (todas do usuário, se
+ *  `positionIds` vier vazio) — evita uma chamada por posição. */
+export async function listInvestmentTransactions(positionIds?: string[]): Promise<InvestmentTransaction[]> {
+  const res = await apiClient.get<InvestmentTransaction[]>("/portfolios/transactions", {
+    params: positionIds && positionIds.length > 0 ? { position_ids: positionIds.join(",") } : undefined,
+  });
+  return coerceNumbersInList(res.data, ["quantity", "unit_price", "fees", "fx_rate", "total_amount"] as const);
+}
+
 // ─── Auditoria de cálculo ────────────────────────────────────────────────────
 
 export interface AuditIssue {

@@ -20,6 +20,11 @@ interface WatchlistTableProps {
   onSelect?: (ticker: string) => void;
 }
 
+// Sugestões para a watchlist vazia: os papéis mais negociados da B3 e os ETFs
+// de índice — um clique adiciona, em vez de a tela inteira ficar parada
+// esperando a pessoa saber o que digitar.
+const QUICK_ADD = ["PETR4", "VALE3", "ITUB4", "BBAS3", "WEGE3", "BOVA11", "IVVB11"];
+
 export function WatchlistTable({ selected, onSelect }: WatchlistTableProps) {
   const { data: items = [], isLoading } = useWatchlist();
   const addMutation = useAddToWatchlist();
@@ -70,11 +75,26 @@ export function WatchlistTable({ selected, onSelect }: WatchlistTableProps) {
       )}
 
       {!isLoading && items.length === 0 ? (
-        <EmptyState
-          icon={Star}
-          title="Sua watchlist está vazia."
-          description="Adicione um ticker para acompanhar preço e ver o gráfico sem precisar comprá-lo."
-        />
+        <div>
+          <EmptyState
+            size="sm"
+            icon={Star}
+            title="Sua watchlist está vazia."
+            description="Acompanhe preço e gráfico sem precisar comprar. Comece por um destes:"
+          />
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {QUICK_ADD.map((t) => (
+              <button
+                key={t}
+                disabled={addMutation.isPending}
+                onClick={() => addMutation.mutate(t, { onSuccess: () => onSelect?.(t) })}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11.5px] font-medium rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors disabled:opacity-50"
+              >
+                <Plus size={11} /> {t}
+              </button>
+            ))}
+          </div>
+        </div>
       ) : (
         <div className="space-y-1">
           {items.map((item) => {

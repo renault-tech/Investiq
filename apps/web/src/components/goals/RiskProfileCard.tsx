@@ -50,13 +50,16 @@ export function RiskProfileCard({ allocation, bare = false }: RiskProfileCardPro
         Escolha o perfil que melhor descreve sua tolerância a risco
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      {/* Opções empilhadas (uma por linha) em vez de três caixinhas espremidas
+          lado a lado — o texto de cada perfil cabe numa linha e o card não
+          fica com a metade de baixo vazia. */}
+      <div className="flex flex-col gap-2">
         {PROFILES.map((p) => (
           <button
             key={p.value}
             onClick={() => patchMutation.mutate({ risk_profile: p.value })}
             disabled={patchMutation.isPending}
-            className="flex-1 min-w-[120px] px-3 py-2.5 rounded-[11px] text-left transition-colors disabled:opacity-60"
+            className="w-full px-3.5 py-3 rounded-[11px] text-left transition-colors disabled:opacity-60 hover:border-[var(--border-strong)]"
             style={{
               background: selected?.value === p.value ? "var(--glow)" : "var(--surface-2)",
               border: `1px solid ${selected?.value === p.value ? "var(--accent)" : "var(--border)"}`,

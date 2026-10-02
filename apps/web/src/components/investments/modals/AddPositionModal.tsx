@@ -1,5 +1,6 @@
 "use client";
 
+import { suggestAssetType } from "@/lib/asset-type-suggest";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -55,6 +56,9 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
   const [kind, setKind] = useState<InvestmentKind>("market");
   const [ticker, setTicker] = useState("");
   const [marketAssetType, setMarketAssetType] = useState<string>("stock_br");
+  // Enquanto a pessoa não escolher a classe à mão, ela acompanha o palpite
+  // pelo formato do ticker (HGLG11 → FII, BOVA11 → ETF, AAPL → exterior).
+  const [assetTypeTouched, setAssetTypeTouched] = useState(false);
   const [cashName, setCashName] = useState("");
   const [fixedIncomeName, setFixedIncomeName] = useState("");
   const [fixedIncomeRate, setFixedIncomeRate] = useState("");
@@ -198,7 +202,11 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
                 id="position-ticker"
                 type="text"
                 value={ticker}
-                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                onChange={(e) => {
+                  const next = e.target.value.toUpperCase();
+                  setTicker(next);
+                  if (!assetTypeTouched) setMarketAssetType(suggestAssetType(next) ?? "stock_br");
+                }}
                 maxLength={20}
                 className={fieldClass}
                 placeholder="Ex: PETR4"
@@ -210,7 +218,7 @@ export function AddPositionModal({ portfolioId, onClose }: AddPositionModalProps
               <select
                 id="pos-asset-class"
                 value={marketAssetType}
-                onChange={(e) => setMarketAssetType(e.target.value)}
+                onChange={(e) => { setMarketAssetType(e.target.value); setAssetTypeTouched(true); }}
                 className={fieldClass}
               >
                 {MARKET_ASSET_TYPE_OPTIONS.map((opt) => (

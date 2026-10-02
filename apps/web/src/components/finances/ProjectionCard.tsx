@@ -22,6 +22,12 @@ export function ProjectionCard({ expense, byCategory }: ProjectionCardProps) {
   const upsertBudget = useUpsertBudget();
   const mask = useMask();
 
+  const today = new Date();
+  const dayOfMonth = today.getDate();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysLeft = daysInMonth - dayOfMonth;
+  const perDay = dayOfMonth > 0 ? expense / dayOfMonth : 0;
+
   const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
   const projected = projectMonthlyValue(expense);
   const projectedPct = projectMonthlyPct(expense, totalBudget);
@@ -50,6 +56,16 @@ export function ProjectionCard({ expense, byCategory }: ProjectionCardProps) {
         </span>
       </div>
       <p className="text-[11px] text-[var(--text-muted)] mb-3">Se o ritmo continuar até o fim do mês</p>
+      {/* Até hoje e ritmo: o que a projeção extrapola, à vista — sem isso o
+          número projetado parecia tirado do nada. */}
+      <div className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-[var(--border)]">
+        <span className="text-[var(--text-secondary)]">Gasto até hoje</span>
+        <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLExact(expense))}</b>
+      </div>
+      <div className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-[var(--border)]">
+        <span className="text-[var(--text-secondary)]">Ritmo diário · faltam {daysLeft} dia{daysLeft === 1 ? "" : "s"}</span>
+        <b className="font-semibold text-[var(--text-primary)]">{mask(formatBRLExact(perDay))}</b>
+      </div>
       <div className="flex items-center justify-between text-[12.5px] py-1.5 border-b border-[var(--border)]">
         <span className="flex items-center gap-1.5 text-[var(--text-secondary)]"><TrendingUp size={13} /> Gasto projetado</span>
         <b className="font-semibold" style={{ color: overshoot > 0 ? "var(--danger)" : "var(--text-primary)" }}>{mask(formatBRLExact(projected))}</b>

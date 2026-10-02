@@ -25,9 +25,12 @@ import { InvoiceAnalytics } from "./InvoiceAnalytics";
 import { SubscriptionsSection } from "@/components/finances/SubscriptionsSection";
 
 function currentMonthBounds(): { from: string; to: string } {
+  // ISO completo (com fuso), igual a Finanças: "2026-10-31" puro chegava ao
+  // backend como meia-noite sem fuso — cortava o último dia inteiro e a
+  // lista de assinaturas daqui divergia da de Finanças.
   const now = new Date();
-  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
   return { from, to };
 }
 
@@ -68,6 +71,73 @@ function limitPct(card: CreditCard, invoice: CardInvoice | undefined): number {
   return Math.min(100, Math.round((Number(invoice.total_amount) / Number(card.credit_limit)) * 100));
 }
 
+function CardsSummary({
+  cards,
+  latestInvoiceByCard,
+}: {
+  cards: CreditCard[];
+  latestInvoiceByCard: Map<string, CardInvoice | undefined>;
+}) {
+  const mask = useMask();
+  const invoices = cards.map((c) => latestInvoiceByCard.get(c.id)).filter((x): x is CardInvoice => !!x);
+  const totalOpen = invoices.reduce((sum, inv) => sum + Number(inv.total_amount ?? 0), 0);
+  const withLimit = cards.filter((c) => c.credit_limit != null);
+  const totalLimit = withLimit.reduce((sum, c) => sum + Number(c.credit_limit), 0);
+  const usedOnLimited = withLimit.reduce((sum, c) => sum + Number(latestInvoiceByCard.get(c.id)?.total_amount ?? 0), 0);
+  const available = Math.max(0, totalLimit - usedOnLimited);
+  const usedPct = totalLimit > 0 ? Math.min(100, (usedOnLimited / totalLimit) * 100) : null;
+
+  const now = new Date();
+  const today = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const nextDue = cards
+    .filter((c) => c.due_day)
+    .map((c) => {
+      const due = c.due_day as number;
+      return { card: c, inDays: due >= today ? due - today : daysInMonth - today + due };
+    })
+    .sort((a, b) => a.inDays - b.inDays)[0];
+  const inReview = invoices.filter((inv) => inv.status === "review").length;
+
+  const stat = (label: string, value: string, hint?: string, color?: string) => (
+    <div className="min-w-0">
+      <div className="text-[11px] text-[var(--text-secondary)]">{label}</div>
+      <div className="font-mono text-[19px] font-medium mt-1 tabular-nums truncate" style={{ color: color ?? "var(--text-primary)" }}>{value}</div>
+      {hint && <div className="text-[10.5px] text-[var(--text-muted)] mt-0.5">{hint}</div>}
+    </div>
+  );
+
+  return (
+    <section className="flex-1 min-w-[300px] border border-[var(--border)] bg-[var(--surface)] rounded-[22px] p-[22px] shadow-[var(--shadow)] animate-rise-up flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Resumo dos cartões</div>
+        <span className="text-[11px] text-[var(--text-muted)]">{cards.length} ativo{cards.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {stat("Faturas atuais", mask(formatBRL(totalOpen)), `${invoices.length} de ${cards.length} com fatura`)}
+        {stat("Limite total", totalLimit > 0 ? mask(formatBRL(totalLimit)) : "—", withLimit.length < cards.length ? "nem todo cartão tem limite" : undefined)}
+        {stat("Limite disponível", totalLimit > 0 ? mask(formatBRL(available)) : "—", undefined, "var(--accent)")}
+        {stat(
+          "Próximo vencimento",
+          nextDue ? `dia ${nextDue.card.due_day}` : "—",
+          nextDue ? `${nextDue.card.name}${nextDue.inDays === 0 ? " · hoje" : ` · em ${nextDue.inDays} dia${nextDue.inDays === 1 ? "" : "s"}`}` : undefined
+        )}
+      </div>
+      {usedPct != null && (
+        <div className="mt-auto">
+          <div className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+            <div className="h-full rounded-full" style={{ width: `${usedPct}%`, background: usedPct > 80 ? "var(--danger)" : "linear-gradient(90deg,var(--accent),var(--accent-2))" }} />
+          </div>
+          <div className="flex justify-between text-[10.5px] text-[var(--text-secondary)] mt-1.5">
+            <span>{Math.round(usedPct)}% do limite somado em uso</span>
+            {inReview > 0 && <span className="text-[var(--warning)]">{inReview} fatura{inReview > 1 ? "s" : ""} aguardando confirmação</span>}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function CardsClient() {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeInvoiceId, setActiveInvoiceId] = useState<string | null>(null);
@@ -97,7 +167,11 @@ export function CardsClient() {
   const selectedCard = cards.find((c) => c.id === selectedCardId);
   const billBars = invoices.slice().sort((a, b) => a.reference_month.localeCompare(b.reference_month)).slice(-8);
   const billMax = Math.max(1, ...billBars.map((b) => Number(b.total_amount ?? 0)));
-  const topItems = (invoiceDetail?.items ?? [])
+  // "Maiores gastos" usa a fatura aberta, ou a mais recente do cartão quando
+  // nenhuma está aberta — antes o card ficava vazio até alguém clicar numa.
+  const latestBillId = billBars[billBars.length - 1]?.id ?? null;
+  const { data: latestBillDetail } = useInvoiceDetail(activeInvoiceId ? null : latestBillId);
+  const topItems = ((activeInvoiceId ? invoiceDetail : latestBillDetail)?.items ?? [])
     .slice()
     .sort((a, b) => Number(b.amount) - Number(a.amount))
     .slice(0, 5);
@@ -121,7 +195,7 @@ export function CardsClient() {
       ) : cards.length === 0 ? (
         <EmptyState icon={CreditCardIcon} title="Nenhum cartão cadastrado." description="Cadastre um cartão para importar faturas com IA." />
       ) : (
-        <div className="flex flex-wrap gap-[18px]">
+        <div className="flex flex-wrap items-stretch gap-[18px]">
           {activeCards.map((card, i) => {
             const latestInvoice = latestInvoiceByCard.get(card.id);
             const pct = limitPct(card, latestInvoice);
@@ -223,6 +297,11 @@ export function CardsClient() {
               </div>
             );
           })}
+          {/* Resumo ao lado dos cartões: ocupa a faixa que ficava vazia à
+              direita de um ou dois cartões e responde de cara "quanto devo
+              e quanto ainda tenho de limite". Só soma o que existe — cartão
+              sem limite cadastrado ou sem fatura não entra na conta. */}
+          <CardsSummary cards={activeCards} latestInvoiceByCard={latestInvoiceByCard} />
         </div>
       )}
 
@@ -237,9 +316,14 @@ export function CardsClient() {
               {billBars.length === 0 ? (
                 <EmptyState icon={Upload} title="Sem faturas ainda" description="Envie um PDF ou CSV abaixo." />
               ) : (
-                <div className="flex items-end gap-3.5 h-[170px] mt-5.5">
+                // Largura máxima por barra: com 1 ou 2 faturas a barra
+                // ocupava o card inteiro e virava um bloco verde sem leitura.
+                <div className="flex items-end justify-center gap-3.5 h-[190px] mt-5.5">
                   {billBars.map((b, i) => (
-                    <div key={b.id} className="flex-1 flex flex-col items-center gap-2">
+                    <div key={b.id} className="flex-1 max-w-[76px] flex flex-col items-center gap-2">
+                      <span className="text-[10.5px] tabular-nums text-[var(--text-secondary)] whitespace-nowrap">
+                        {mask(formatBRLCompact(Number(b.total_amount ?? 0)))}
+                      </span>
                       <div className="w-full h-[140px] flex items-end">
                         <div
                           className="w-full rounded-t-[8px] rounded-b-[4px] animate-grow-y"

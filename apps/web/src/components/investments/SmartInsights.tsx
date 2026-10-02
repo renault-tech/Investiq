@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeftRight, TrendingUp, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, TrendingUp, TrendingDown, Sparkles, Activity, Trophy } from "lucide-react";
 import type { PositionSummary } from "@/lib/portfolio-api";
 import { useMarketQuotes } from "@/hooks/useAssetData";
 import { formatPercent } from "@/lib/number-format";
@@ -70,6 +70,52 @@ export function SmartInsights({ positions, rebalanceCount }: SmartInsightsProps)
       tone: biggestMove.changePct >= 0 ? "accent" : "warning",
       text: `${biggestMove.ticker} ${biggestMove.changePct >= 0 ? "sobe" : "cai"} ${formatPercent(Math.abs(biggestMove.changePct), 2)} hoje.`,
     });
+  }
+
+  // Variação do dia da carteira: média das variações ponderada pelo peso de
+  // cada posição que tem cotação do dia (as sem cotação ficam de fora do
+  // denominador em vez de contarem como 0%).
+  let dayWeight = 0;
+  let dayWeighted = 0;
+  for (const p of openPositions) {
+    const change = quoteByTicker.get(p.ticker)?.change_pct;
+    if (change == null) continue;
+    dayWeight += Number(p.weight);
+    dayWeighted += Number(p.weight) * change;
+  }
+  if (dayWeight > 0 && openPositions.length > 1) {
+    const dayChange = dayWeighted / dayWeight;
+    insights.push({
+      key: "day",
+      icon: Activity,
+      label: "CARTEIRA HOJE",
+      tone: dayChange >= 0 ? "accent" : "warning",
+      text: `${dayChange >= 0 ? "+" : "−"}${formatPercent(Math.abs(dayChange), 2)} no dia, ponderado pelo peso de cada ativo.`,
+    });
+  }
+
+  // Melhor e pior resultado desde a compra — só com 2+ posições, senão o
+  // "melhor" e o "pior" seriam o mesmo papel.
+  const byPnl = openPositions.filter((p) => Number(p.cost_basis_brl) > 0).sort((a, b) => Number(b.pnl_percent) - Number(a.pnl_percent));
+  if (byPnl.length >= 2) {
+    const best = byPnl[0];
+    const worst = byPnl[byPnl.length - 1];
+    insights.push({
+      key: "best",
+      icon: Trophy,
+      label: "MELHOR RESULTADO",
+      tone: "accent",
+      text: `${best.ticker} acumula ${Number(best.pnl_percent) >= 0 ? "+" : "−"}${formatPercent(Math.abs(Number(best.pnl_percent)), 1)} sobre o preço médio.`,
+    });
+    if (Number(worst.pnl_percent) < 0) {
+      insights.push({
+        key: "worst",
+        icon: TrendingDown,
+        label: "PIOR RESULTADO",
+        tone: "warning",
+        text: `${worst.ticker} está ${formatPercent(Math.abs(Number(worst.pnl_percent)), 1)} abaixo do preço médio — revise a tese antes de aportar mais.`,
+      });
+    }
   }
 
   return (

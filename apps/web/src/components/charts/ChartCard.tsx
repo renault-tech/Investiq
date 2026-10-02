@@ -15,7 +15,7 @@ interface ChartCardProps {
   actions?: ReactNode;
   children: ReactNode;
   /** Altura da área do gráfico (o skeleton usa a mesma, evitando layout shift). */
-  height?: number;
+  height?: number | "auto";
   /** Sem borda/fundo/padding próprios — para quando o card pai já os tem
    * (evita card dentro de card). */
   bare?: boolean;
@@ -41,7 +41,9 @@ export function ChartCard({
           {actions && <div className="flex items-center gap-1">{actions}</div>}
         </div>
       )}
-      <div style={{ height }} className="relative">
+      {/* "auto": o conteúdo define a altura (os estados de carga/vazio/erro
+          ficam com uma altura mínima para não colapsar). */}
+      <div style={height === "auto" ? { minHeight: 160 } : { height }} className="relative">
         {isLoading ? (
           <div className="absolute inset-0 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
         ) : isError ? (

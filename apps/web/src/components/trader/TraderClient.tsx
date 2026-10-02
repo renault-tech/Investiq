@@ -1,17 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { MarketOverviewStrip } from "./MarketOverviewStrip";
 import { WatchlistTable } from "./WatchlistTable";
 import { AlertsManager } from "./AlertsManager";
 import { useWatchlist } from "@/hooks/useWatchlist";
-import { useAssetHistory, useAssetIndicators } from "@/hooks/useAssetData";
+import { useAssetHistory, useAssetIndicators, useMarketQuotes } from "@/hooks/useAssetData";
+import { MARKET_INSTRUMENTS, formatInstrumentValue } from "@/lib/market-instruments";
 import { usePortfolioSummary } from "@/hooks/usePortfolioSummary";
 import { CONSOLIDATED_ID } from "@/lib/portfolio-api";
 import { getAssetHistory, getAssetIndicators, type HistoryPeriod } from "@/lib/market-api";
-import { listPositionTransactions } from "@/lib/portfolio-api";
+import { listInvestmentTransactions, type InvestmentTransaction } from "@/lib/portfolio-api";
 import { computeClosedTrades } from "@/lib/trade-journal";
 import { rsiStatus, macdStatus, movingAveragesAbove, volatility30d, computeSetup } from "@/lib/technical-radar";
 import { IndicatorToggle, IndicatorState, DEFAULT_INDICATOR_STATE } from "@/components/asset/IndicatorToggle";
@@ -39,8 +40,19 @@ export function TraderClient() {
   const mask = useMask();
   const { data: watchlist = [] } = useWatchlist();
   const [selected, setSelected] = useState<string | null>(null);
-  const selectedTicker = selected ?? watchlist[0]?.ticker ?? null;
+  // Sem watchlist, o gráfico abre no Ibovespa em vez de um "selecione um
+  // ativo" ocupando meia tela — o terminal tem que estar vivo no 1º acesso.
+  const selectedTicker = selected ?? watchlist[0]?.ticker ?? MARKET_INSTRUMENTS[0].ticker;
   const selectedItem = watchlist.find((w) => w.ticker === selectedTicker);
+  const selectedInstrument = MARKET_INSTRUMENTS.find((i) => i.ticker === selectedTicker);
+  // Mesma lista (e queryKey) do MarketOverviewStrip: o React Query
+  // reaproveita o cache e o preço do índice não custa requisição extra.
+  const { data: instrumentQuotes } = useMarketQuotes(MARKET_INSTRUMENTS.map((i) => i.ticker));
+  const instrumentQuote = selectedInstrument && !selectedItem
+    ? instrumentQuotes?.find((q) => q.ticker === selectedInstrument.ticker)
+    : undefined;
+  const headerPrice = selectedItem?.price ?? instrumentQuote?.price ?? null;
+  const headerChange = selectedItem?.change_pct ?? instrumentQuote?.change_pct ?? null;
 
   const [period, setPeriod] = useState<HistoryPeriod>("1y");
   const [indicatorState, setIndicatorState] = useState<IndicatorState>(DEFAULT_INDICATOR_STATE);
@@ -93,23 +105,29 @@ export function TraderClient() {
   // parte, é derivado do que já foi lançado em Investimentos.
   const { data: consolidated } = usePortfolioSummary(CONSOLIDATED_ID);
   const positions = consolidated?.positions ?? [];
-  const txnQueries = useQueries({
-    queries: positions.map((p) => ({
-      queryKey: ["position-transactions", p.position_id],
-      queryFn: () => listPositionTransactions(p.position_id),
-      staleTime: 60_000,
-    })),
+  // Uma requisição só para todas as posições (antes era uma por posição).
+  const { data: allTxns } = useQuery({
+    queryKey: ["investment-transactions"],
+    queryFn: () => listInvestmentTransactions(),
+    staleTime: 60_000,
+    enabled: positions.length > 0,
   });
   const closedTrades = useMemo(() => {
+    const byPosition = new Map<string, InvestmentTransaction[]>();
+    for (const t of allTxns ?? []) {
+      const list = byPosition.get(t.position_id) ?? [];
+      list.push(t);
+      byPosition.set(t.position_id, list);
+    }
     return positions
-      .flatMap((p, i) => computeClosedTrades(p.ticker, txnQueries[i]?.data ?? []))
+      .flatMap((p) => computeClosedTrades(p.ticker, byPosition.get(p.position_id) ?? []))
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 5);
-  }, [positions, txnQueries]);
+  }, [positions, allTxns]);
 
   return (
     <div className="p-[26px_30px_60px]">
-      <MarketOverviewStrip />
+      <MarketOverviewStrip selected={selectedTicker} onSelect={setSelected} />
 
       <div className="responsive-grid-12 grid gap-[18px] mt-[18px]" style={{ gridTemplateColumns: "repeat(12,1fr)" }}>
         <section className="col-span-3 rounded-[var(--radius-card)] p-5 shadow-[var(--shadow)] animate-rise-up" style={{ border: "1px solid var(--border)", background: "linear-gradient(180deg,var(--t4),var(--t1))" }}>
@@ -128,17 +146,21 @@ export function TraderClient() {
                     <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md" style={{ background: "var(--glow)", color: "var(--accent)" }}>AO VIVO</span>
                   </div>
                   <div className="text-[11.5px] text-[var(--text-secondary)] mt-0.5">
-                    {selectedItem?.name ?? selectedTicker} · {selectedItem?.asset_type ?? ""}
+                    {selectedItem ? `${selectedItem.name ?? selectedTicker} · ${selectedItem.asset_type ?? ""}` : selectedInstrument ? `${selectedInstrument.label} · mercado` : selectedTicker}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
-                    {selectedItem?.price != null ? mask(formatBRLExact(selectedItem.price)) : "—"}
+                    {headerPrice != null
+                      ? selectedInstrument && !selectedItem
+                        ? formatInstrumentValue(headerPrice, selectedInstrument.kind)
+                        : mask(formatBRLExact(headerPrice))
+                      : "—"}
                   </div>
-                  {selectedItem?.change_pct != null && (
-                    <div className="flex items-center justify-end gap-1 text-[12.5px]" style={{ color: selectedItem.change_pct >= 0 ? "var(--accent)" : "var(--danger)" }}>
-                      {selectedItem.change_pct >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                      {formatPercent(selectedItem.change_pct, 2, { signed: true })}
+                  {headerChange != null && (
+                    <div className="flex items-center justify-end gap-1 text-[12.5px]" style={{ color: headerChange >= 0 ? "var(--accent)" : "var(--danger)" }}>
+                      {headerChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                      {formatPercent(headerChange, 2, { signed: true })}
                     </div>
                   )}
                 </div>

@@ -68,6 +68,7 @@ export function ActionCenterDropdown() {
         <span className="hidden md:inline">Ações</span>
         {count > 0 && (
           <span
+            data-badge
             className="min-w-[17px] h-[17px] px-[4px] rounded-full text-[10px] font-semibold flex items-center justify-center"
             style={{ background: "var(--accent)", color: "var(--on-accent)" }}
           >

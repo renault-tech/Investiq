@@ -13,6 +13,18 @@ function currentMonthFirstDay(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+function monthOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const out: { value: string; label: string }[] = [];
+  for (let offset = 1; offset >= -12; offset--) {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    out.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+  }
+  return out;
+}
+
 export function InvoiceUploadZone({ onUpload, uploading }: InvoiceUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -54,12 +66,18 @@ export function InvoiceUploadZone({ onUpload, uploading }: InvoiceUploadZoneProp
           </p>
           <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
             Mês de referência:
-            <input
-              type="month"
+            {/* <select> em vez de <input type="month">: o nativo segue o
+                idioma do navegador e aparecia "October 2026" no meio da tela
+                em português. 12 meses para trás + o próximo cobrem faturas. */}
+            <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
               className="px-2 py-1 border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--text-primary)]"
-            />
+            >
+              {monthOptions().map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </label>
           <input
             ref={inputRef}

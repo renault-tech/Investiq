@@ -27,14 +27,20 @@ import { useUIStore } from "@/store/useUIStore";
 // trilha educativa abaixo — arrastável/redimensionável como Visão Geral e
 // Finanças. A grade de metas em si (acima) não entra aqui: é uma lista de
 // tamanho variável definida pelo usuário, não um conjunto fixo de widgets.
+// Os dois simuladores (altos, com controles) dividem a 1ª linha; metas,
+// perfil (lado a lado, como no design) e trilha, que são listas curtas,
+// ficam na 2ª — antes "Suas metas" e "Seu perfil" esticavam até a altura
+// do simulador e sobrava meio card vazio.
 const GOALS_CARDS: DashboardCardSpec[] = [
-  { id: "fire", label: "Independência financeira", defaultSpan: 5, minSpan: 4 },
-  { id: "goalslist", label: "Suas metas", defaultSpan: 4, minSpan: 3 },
-  { id: "risk", label: "Seu perfil", defaultSpan: 3, minSpan: 3 },
+  { id: "fire", label: "Independência financeira", defaultSpan: 6, minSpan: 4 },
   { id: "scenario", label: "Cenários", defaultSpan: 6, minSpan: 4 },
-  { id: "learning", label: "Trilha rápida", defaultSpan: 6, minSpan: 4 },
+  { id: "goalslist", label: "Suas metas", defaultSpan: 5, minSpan: 3 },
+  { id: "risk", label: "Seu perfil", defaultSpan: 3, minSpan: 3 },
+  { id: "learning", label: "Trilha rápida", defaultSpan: 4, minSpan: 3 },
   { id: "plan", label: "Plano de aportes sugerido", defaultSpan: 12, minSpan: 8 },
 ];
+
+const GOAL_IDEAS = ["Reserva de emergência", "Viagem", "Entrada do imóvel", "Troca de carro", "Aposentadoria", "Educação dos filhos"];
 
 function currentMonth(): string {
   const d = new Date();
@@ -288,6 +294,24 @@ export function GoalsClient() {
                 <div className="divide-y divide-[var(--border)]">
                   {goals.map((goal, i) => <GoalCard key={goal.id} goal={goal} index={i} bare />)}
                 </div>
+                {/* Com poucas metas, atalhos para as mais comuns: só preenchem
+                    o nome no formulário — valor e prazo são da pessoa. */}
+                {goals.length < 4 && !showForm && (
+                  <div className="mt-5 pt-4 border-t border-[var(--border)]">
+                    <div className="text-[11px] text-[var(--text-muted)] mb-2">Ideias de metas</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {GOAL_IDEAS.filter((idea) => !goals.some((g) => g.name.toLowerCase() === idea.toLowerCase())).map((idea) => (
+                        <button
+                          key={idea}
+                          onClick={() => { setName(idea); setShowForm(true); }}
+                          className="px-2.5 py-1 text-[11.5px] rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors"
+                        >
+                          + {idea}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </DashboardCard>
             )}
             {visible("risk") && (
